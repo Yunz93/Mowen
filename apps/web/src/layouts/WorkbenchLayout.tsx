@@ -60,10 +60,11 @@ export function WorkbenchLayout() {
   const requestError = useAgentStore((state) => state.requestError);
   const connection = useAgentStore((state) => state.connection);
   const allowedRoots = useAgentStore((state) => state.allowedRoots);
+  const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
 
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
-  const [cwd, setCwd] = useState(allowedRoots[0] ?? "");
+  const [cwd, setCwd] = useState(workspaceRoot ?? allowedRoots[0] ?? "");
   const [creating, setCreating] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [imageIds, setImageIds] = useState<string[]>([]);
@@ -72,8 +73,9 @@ export function WorkbenchLayout() {
   const viewport = useViewport();
 
   useEffect(() => {
-    if (allowedRoots[0] && !cwd) setCwd(allowedRoots[0]);
-  }, [allowedRoots, cwd]);
+    const preferred = workspaceRoot ?? allowedRoots[0];
+    if (preferred && !cwd) setCwd(preferred);
+  }, [allowedRoots, workspaceRoot, cwd]);
 
   const task = useMemo(
     () => tasks.find((item) => item.id === activeTaskId),
@@ -194,7 +196,7 @@ export function WorkbenchLayout() {
         </header>
         {!piAvailable ? (
           <div className="border-b border-danger/40 bg-elevated px-4 py-2 text-sm text-danger">
-            {piError ?? "Pi is not installed. Install the Pi CLI, then restart MyPi."}
+            {piError ?? "Pi is missing. Open Settings → Setup to finish installing."}
           </div>
         ) : null}
         {connection !== "open" ? (
@@ -205,7 +207,7 @@ export function WorkbenchLayout() {
         {authHint || serverError || requestError ? (
           <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
             {authHint
-              ? "Pi is not signed in to a provider. Use the Pi CLI to authenticate. MyPi never shows API keys."
+              ? "No AI key yet. Open Settings and paste an API key — MyPi never shows the full key."
               : (serverError ?? requestError)}
           </div>
         ) : null}
@@ -273,7 +275,7 @@ export function WorkbenchLayout() {
       ) : null}
       {creating ? (
         <NewTaskDialog
-          defaultCwd={cwd || allowedRoots[0] || ""}
+          defaultCwd={cwd || workspaceRoot || allowedRoots[0] || ""}
           onCancel={() => setCreating(false)}
           onCreate={(directory, title) => {
             setCwd(directory);

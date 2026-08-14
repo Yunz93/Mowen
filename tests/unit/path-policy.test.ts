@@ -11,11 +11,12 @@ import {
 
 describe("path policy", () => {
   it("rejects cwd outside allowed roots", async () => {
-    await expect(assertAllowedCwd("/tmp", ["/Users/yunz/Code/VibeCoding"])).rejects.toBeInstanceOf(PathPolicyError);
+    const allowed = await mkdtemp(path.join(os.tmpdir(), "mypi-allowed-"));
+    await expect(assertAllowedCwd("/tmp", [allowed])).rejects.toBeInstanceOf(PathPolicyError);
   });
 
   it("blocks .env writes", () => {
-    expect(isProtectedWriteTarget("/Users/yunz/Code/VibeCoding/app/.env")).toBe(true);
+    expect(isProtectedWriteTarget("/var/allowed-only/app/.env")).toBe(true);
   });
 
   it("blocks symlink escape", async () => {

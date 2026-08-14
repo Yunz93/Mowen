@@ -34,6 +34,11 @@ type AgentState = {
   requestError: string | null;
   serverError: string | null;
   authHint: boolean;
+  needsSetup: boolean;
+  authConfigured: boolean;
+  configuredProviders: string[];
+  homeDir: string;
+  workspaceRoot: string | null;
   fileEntries: Array<{ path: string; name: string; kind: "file" | "dir" }>;
   filePreview: { path: string; content: string; truncated: boolean; language?: string } | null;
   seen: Record<string, number>;
@@ -42,6 +47,14 @@ type AgentState = {
   setConnection: (status: ConnectionStatus) => void;
   setActiveTask: (taskId: string | null) => void;
   clearRequestError: () => void;
+  setSetupState: (payload: {
+    needsSetup: boolean;
+    authConfigured: boolean;
+    configuredProviders: string[];
+    homeDir: string;
+    workspaceRoot: string | null;
+    allowedRoots?: string[];
+  }) => void;
 };
 
 function seenKey(taskId: string, sequence: number): string {
@@ -76,12 +89,27 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   requestError: null,
   serverError: null,
   authHint: false,
+  needsSetup: false,
+  authConfigured: true,
+  configuredProviders: [],
+  homeDir: "",
+  workspaceRoot: null,
   fileEntries: [],
   filePreview: null,
   seen: {},
   setConnection: (connection) => set({ connection }),
   setActiveTask: (activeTaskId) => set({ activeTaskId }),
   clearRequestError: () => set({ requestError: null, serverError: null }),
+  setSetupState: (payload) =>
+    set({
+      needsSetup: payload.needsSetup,
+      authConfigured: payload.authConfigured,
+      configuredProviders: payload.configuredProviders,
+      homeDir: payload.homeDir,
+      workspaceRoot: payload.workspaceRoot,
+      allowedRoots: payload.allowedRoots ?? get().allowedRoots,
+      authHint: !payload.authConfigured,
+    }),
   applySnapshot: (payload, taskId) =>
     set({
       tasks: payload.tasks,
@@ -99,6 +127,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       allowedRoots: payload.allowedRoots,
       dataDir: payload.dataDir,
       maxProcesses: payload.maxProcesses,
+      authConfigured: payload.authConfigured ?? get().authConfigured,
+      configuredProviders: payload.configuredProviders ?? get().configuredProviders,
+      needsSetup: payload.needsSetup ?? get().needsSetup,
+      homeDir: payload.homeDir ?? get().homeDir,
+      workspaceRoot: payload.workspaceRoot ?? get().workspaceRoot,
+      authHint: payload.authConfigured === false ? true : get().authHint,
     }),
   applyEvent: (event) => {
     const key = seenKey(event.taskId, event.sequence);
@@ -125,6 +159,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           allowedRoots: event.payload.allowedRoots,
           dataDir: event.payload.dataDir,
           maxProcesses: event.payload.maxProcesses,
+          authConfigured: event.payload.authConfigured ?? current.authConfigured,
+          configuredProviders: event.payload.configuredProviders ?? current.configuredProviders,
+          needsSetup: event.payload.needsSetup ?? current.needsSetup,
+          homeDir: event.payload.homeDir ?? current.homeDir,
+          workspaceRoot:
+            event.payload.workspaceRoot !== undefined
+              ? event.payload.workspaceRoot
+              : current.workspaceRoot,
+          authHint:
+            event.payload.authConfigured === false ? true : current.authHint && event.payload.authConfigured !== true,
         });
         break;
       case "task.created":

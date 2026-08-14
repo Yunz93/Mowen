@@ -17,15 +17,30 @@ type SocketLike = { send: (data: string) => void; closed: boolean };
 
 const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".mypi-test"]);
 
+export type SetupHints = {
+  authConfigured: boolean;
+  configuredProviders: string[];
+  needsSetup: boolean;
+  homeDir: string;
+  workspaceRoot: string | null;
+};
+
 export class TaskService {
   readonly supervisor: ProcessSupervisor;
   private readonly sockets = new Set<SocketLike>();
   private readonly queue: string[] = [];
   private activeTaskId: string | null = null;
   readonly uploads = new Map<string, { mimeType: string; data: Buffer }>();
+  private setupHints: SetupHints = {
+    authConfigured: false,
+    configuredProviders: [],
+    needsSetup: true,
+    homeDir: "",
+    workspaceRoot: null,
+  };
 
   constructor(
-    private readonly config: AppConfig,
+    private config: AppConfig,
     private readonly store: TaskStore,
     readonly piVersion: string | null,
     readonly piError: string | null,
@@ -57,6 +72,15 @@ export class TaskService {
         void this.markUnread(event.taskId);
       }
     });
+  }
+
+  updateConfig(config: AppConfig): void {
+    this.config = config;
+    this.supervisor.updateConfig(config);
+  }
+
+  setSetupHints(hints: SetupHints): void {
+    this.setupHints = hints;
   }
 
   addSocket(socket: SocketLike): void {
@@ -160,6 +184,11 @@ export class TaskService {
       allowedRoots: this.config.allowedRoots,
       dataDir: this.config.dataDir,
       maxProcesses: this.config.maxProcesses,
+      authConfigured: this.setupHints.authConfigured,
+      configuredProviders: this.setupHints.configuredProviders,
+      needsSetup: this.setupHints.needsSetup,
+      homeDir: this.setupHints.homeDir || this.config.homeDir,
+      workspaceRoot: this.setupHints.workspaceRoot,
       status: active?.status ?? "stopped",
     };
   }
@@ -323,7 +352,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "Pi could not authenticate with the model provider. Sign in with the Pi CLI. MyPi never displays API keys."
+          ? "Could not reach the AI provider. Open Settings → Setup and paste an API key. MyPi never shows the full key."
           : text,
         authHint,
       });

@@ -59,6 +59,11 @@ export const snapshotPayloadSchema = z.object({
   allowedRoots: z.array(z.string()),
   dataDir: z.string(),
   maxProcesses: z.number(),
+  authConfigured: z.boolean().optional(),
+  configuredProviders: z.array(z.string()).optional(),
+  needsSetup: z.boolean().optional(),
+  homeDir: z.string().optional(),
+  workspaceRoot: z.string().nullable().optional(),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;

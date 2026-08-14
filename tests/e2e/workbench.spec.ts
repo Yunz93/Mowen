@@ -14,6 +14,7 @@ test("workbench core loop", async ({ page }) => {
   await expect(page.getByText("No task selected")).toBeVisible();
 
   await page.getByRole("button", { name: "New task" }).click();
+  await page.getByRole("button", { name: "Type path" }).click();
   await page.getByLabel("Working directory").fill(project);
   await page.getByLabel("Title").fill("E2E task");
   await page.getByRole("button", { name: "Create task" }).click();
@@ -86,6 +87,7 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 test("visual workbench at required viewports", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New task" }).click();
+  await page.getByRole("button", { name: "Type path" }).click();
   await page.getByLabel("Working directory").fill(project);
   await page.getByLabel("Title").fill("Visual task");
   await page.getByRole("button", { name: "Create task" }).click();

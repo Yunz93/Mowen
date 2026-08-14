@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/server dev & pnpm --filter @mypi/web dev",
+    "dev": "pnpm --filter @mypi/protocol build && pnpm --parallel --filter @mypi/server --filter @mypi/web dev",
     "typecheck": "pnpm --filter @mypi/protocol build && pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "vitest run --config vitest.unit.config.ts",
@@ -13,6 +16,11 @@
     "test:e2e": "playwright test",
     "build": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/web build && pnpm --filter @mypi/server build",
     "start": "node apps/server/dist/index.js",
+    "doctor": "tsx scripts/doctor.ts",
+    "desktop:dev": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/server build && pnpm --filter @mypi/desktop build && pnpm --parallel --filter @mypi/web --filter @mypi/desktop dev",
+    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mypi/desktop pack",
+    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mypi/desktop pack:mac",
+    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mypi/desktop pack:win",
     "smoke:real": "tsx scripts/smoke-real.ts"
   },
   "devDependencies": {

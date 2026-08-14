@@ -24,6 +24,8 @@ type Pending = {
 export type RpcClientOptions = {
   bin: string;
   args: string[];
+  prefixArgs?: string[];
+  extraEnv?: NodeJS.ProcessEnv;
   cwd: string;
   env?: NodeJS.ProcessEnv;
   responseTimeoutMs?: number;
@@ -53,9 +55,9 @@ export class RpcClient {
     if (this.process) {
       throw new Error("RPC client already started");
     }
-    const child = spawn(this.options.bin, this.options.args, {
+    const child = spawn(this.options.bin, [...(this.options.prefixArgs ?? []), ...this.options.args], {
       cwd: this.options.cwd,
-      env: { ...process.env, ...this.options.env },
+      env: { ...process.env, ...this.options.extraEnv, ...this.options.env },
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.process = child;

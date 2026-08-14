@@ -16,3 +16,7 @@ tmp
 .turbo
 .pnpm-store
 apps/web/test-results
+apps/desktop/out
+apps/desktop/release
+apps/desktop/vendor
+

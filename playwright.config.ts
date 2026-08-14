@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "rm -rf .mypi-test/e2e && MYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build && MYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production MYPI_DATA_DIR=./.mypi-test/e2e PI_BIN=./tests/fixtures/fake-pi.mjs MYPI_ALLOWED_ROOTS=/Users/yunz/Code/VibeCoding MYPI_MAX_PROCESSES=3 MYPI_MUTATIONS=approval pnpm start",
+      "rm -rf .mypi-test/e2e && mkdir -p .mypi-test/e2e-project && MYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build && MYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production MYPI_DATA_DIR=./.mypi-test/e2e PI_BIN=./tests/fixtures/fake-pi.mjs MYPI_ALLOWED_ROOTS=./.mypi-test/e2e-project MYPI_MAX_PROCESSES=3 MYPI_MUTATIONS=approval pnpm start",
     url: "http://127.0.0.1:4310/health",
     reuseExistingServer: false,
     timeout: 120_000,
