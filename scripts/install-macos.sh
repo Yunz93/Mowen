@@ -11,7 +11,7 @@
 #   ./scripts/install-macos.sh --build
 #   ./scripts/install-macos.sh --trust-only /Applications/MyPi.app
 
-set -u
+set -euo pipefail
 
 APP_NAME="MyPi"
 REPO="${MYPI_REPO:-Yunz93/ohMyPi}"
@@ -35,6 +35,17 @@ info() {
 
 ok() {
   echo "✓ $*" >&2
+}
+
+# Avoid empty-array expansion: macOS /bin/bash (3.2) with `set -u` treats
+# an empty curl header array as unbound. Pass optional auth via a helper.
+curl_github() {
+  local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  if [[ -n "$token" ]]; then
+    curl -fL --retry 3 --retry-delay 2 -S -H "Authorization: Bearer ${token}" "$@"
+  else
+    curl -fL --retry 3 --retry-delay 2 -S "$@"
+  fi
 }
 
 need_darwin() {
@@ -109,7 +120,7 @@ trap cleanup EXIT
 
 find_app_in_dir() {
   local dir="$1"
-  find "$dir" -name "${APP_NAME}.app" -type d -maxdepth 5 2>/dev/null | head -n 1 || true
+  find "$dir" -maxdepth 5 -name "${APP_NAME}.app" -type d 2>/dev/null | head -n 1 || true
 }
 
 mount_dmg() {
@@ -122,7 +133,8 @@ mount_dmg() {
 }
 
 unpack_source() {
-  local input="$1"
+  local input="${1:-}"
+  [[ -n "$input" ]] || die "没有提供安装包路径。"
   if [[ -d "$input" && "$input" == *.app ]]; then
     echo "$input"
     return
@@ -137,14 +149,14 @@ unpack_source() {
   fi
   if [[ -f "$input" && "$input" == *.zip ]]; then
     TMP_DIR="$(mktemp -d -t mypi-install)"
-    unzip -q "$input" -d "$TMP_DIR" || die "解压失败: $input"
+    unzip -q "$input" -d "$TMP_DIR" || die "解压失败: ${input}"
     local app
     app="$(find_app_in_dir "$TMP_DIR")"
     [[ -n "$app" ]] || die "ZIP 里没有找到 ${APP_NAME}.app"
     echo "$app"
     return
   fi
-  die "不支持的安装包: $input（需要 .app / .dmg / .zip）"
+  die "不支持的安装包: ${input} (需要 .app / .dmg / .zip)"
 }
 
 locate_packaged_app() {
@@ -152,9 +164,9 @@ locate_packaged_app() {
   local app dmg zip
   app="$(find_app_in_dir "$RELEASE_DIR")"
   if [[ -n "$app" ]]; then echo "$app"; return; fi
-  dmg="$(find "$RELEASE_DIR" -name "*.dmg" -type f -maxdepth 3 2>/dev/null | head -n 1 || true)"
+  dmg="$(find "$RELEASE_DIR" -maxdepth 3 -name "*.dmg" -type f 2>/dev/null | head -n 1 || true)"
   if [[ -n "$dmg" ]]; then unpack_source "$dmg"; return; fi
-  zip="$(find "$RELEASE_DIR" -name "*.zip" -type f -maxdepth 3 2>/dev/null | head -n 1 || true)"
+  zip="$(find "$RELEASE_DIR" -maxdepth 3 -name "*.zip" -type f 2>/dev/null | head -n 1 || true)"
   if [[ -n "$zip" ]]; then unpack_source "$zip"; return; fi
   echo ""
 }
@@ -179,11 +191,6 @@ download_release() {
     base="https://github.com/${REPO}/releases/download/${tag}"
   fi
 
-  local auth_header=()
-  if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
-    auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN:-$GH_TOKEN}")
-  fi
-
   local names=(
     "MyPi-mac-${arch}.dmg"
     "MyPi-mac-${arch}.zip"
@@ -192,7 +199,8 @@ download_release() {
   info "正在从 GitHub 下载 ${APP_NAME} (${arch}, ${tag})…"
   for name in "${names[@]}"; do
     out="${TMP_DIR}/${name}"
-    if curl -fL --retry 3 --retry-delay 2 "${auth_header[@]}" -o "$out" "${base}/${name}"; then
+    info "GET ${base}/${name}"
+    if curl_github -o "$out" "${base}/${name}"; then
       ok "已下载 $name"
       echo "$out"
       return
@@ -250,8 +258,9 @@ trust_app() {
 }
 
 copy_app() {
-  local src="$1"
+  local src="${1:-}"
   local dest="${DEST_DIR}/${APP_NAME}.app"
+  [[ -d "$src" ]] || die "找不到要安装的应用: ${src:-<empty>}"
   mkdir -p "$DEST_DIR" || die "无法创建目录: $DEST_DIR"
   if [[ -d "$dest" ]]; then
     info "正在替换已有安装: $dest"
@@ -268,6 +277,21 @@ copy_app() {
   fi
   echo "$dest"
 }
+
+if [[ "${MYPI_SELF_TEST:-}" == "1" ]]; then
+  GITHUB_TOKEN=""
+  GH_TOKEN=""
+  curl_github --version >/dev/null
+  if ( unpack_source "" ) 2>/dev/null; then
+    die "unpack_source should reject an empty path"
+  fi
+  if ( copy_app "" ) 2>/dev/null; then
+    die "copy_app should reject an empty path"
+  fi
+  ok "self-test passed"
+  echo "self-test passed"
+  exit 0
+fi
 
 need_darwin
 
@@ -290,10 +314,13 @@ elif [[ "$LOCAL" == "1" ]]; then
   [[ -n "$APP_SRC" ]] || die "本地没有安装包。请先 pnpm desktop:pack:mac，或去掉 --local 从 GitHub 下载。"
 else
   PACKAGE="$(download_release "$(mac_arch)")"
-  APP_SRC="$(unpack_source "$PACKAGE")"
+  [[ -n "${PACKAGE}" && -f "${PACKAGE}" ]] || die "下载失败。"
+  APP_SRC="$(unpack_source "${PACKAGE}")"
 fi
 
+[[ -n "${APP_SRC}" && -d "${APP_SRC}" ]] || die "找不到 ${APP_NAME}.app（得到: '${APP_SRC:-}'）。"
 INSTALLED="$(copy_app "$APP_SRC")"
+[[ -n "${INSTALLED}" && -d "${INSTALLED}" ]] || die "安装失败。"
 trust_app "$INSTALLED"
 
 if [[ "$OPEN_AFTER" == "1" ]]; then
