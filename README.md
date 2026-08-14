@@ -6,6 +6,34 @@ Local-first workbench for the [Pi](https://pi.dev) coding agent. Runs on your co
 
 This is the path for non-technical users. Someone technical builds the installer once; the person using it only double-clicks MyPi and follows the on-screen guide.
 
+### One-click install on a Mac (includes Gatekeeper trust)
+
+On the Mac that will run MyPi:
+
+```bash
+git clone <this-repo> mypi
+cd mypi
+bash scripts/install-macos.sh
+```
+
+The script packs the app if needed, copies it to `/Applications/MyPi.app`, then automatically:
+
+1. Removes `com.apple.quarantine` (the “app can’t be opened” flag)
+2. Applies a local ad-hoc code signature
+3. Registers the app with Gatekeeper (`spctl --add`, if sudo is available)
+4. Opens MyPi
+
+Useful variants:
+
+```bash
+bash scripts/install-macos.sh --user                         # ~/Applications, no admin
+bash scripts/install-macos.sh ~/Downloads/MyPi.dmg           # install an existing dmg
+bash scripts/install-macos.sh --trust-only /Applications/MyPi.app
+pnpm desktop:install:mac
+```
+
+If macOS still blocks the app: **System Settings → Privacy & Security → Open Anyway**, or rerun `--trust-only`.
+
 ### Build the installer
 
 On the target OS (build Windows on Windows, macOS on a Mac):
@@ -82,6 +110,7 @@ pnpm dev                 # web + server
 pnpm desktop:dev         # Electron + web
 pnpm desktop:pack:mac    # macOS dmg/zip
 pnpm desktop:pack:win    # Windows nsis + portable exe
+pnpm desktop:install:mac # copy to /Applications + Gatekeeper trust
 pnpm build
 pnpm start
 pnpm test
