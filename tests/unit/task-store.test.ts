@@ -11,7 +11,7 @@ function sample(id: string): TaskRecord {
     schemaVersion: 1,
     id,
     title: "Demo",
-    cwd: "/Users/yunz/Code/VibeCoding/MyPi",
+    cwd: "/tmp/mypi-sample-project",
     sessionPath: null,
     status: "stopped",
     model: null,

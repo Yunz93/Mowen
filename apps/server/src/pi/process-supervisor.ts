@@ -108,12 +108,16 @@ export class ProcessSupervisor {
   private readonly sequences = new Map<string, number>();
 
   constructor(
-    private readonly config: AppConfig,
+    private config: AppConfig,
     private readonly onUnexpectedExit: (taskId: string, generation: number, error: string) => void,
     private readonly onApprovalNeeded: (taskId: string) => void,
     private readonly onSettled: (taskId: string) => void,
     private readonly onAbortConfirmed: (taskId: string) => void,
   ) {}
+
+  updateConfig(config: AppConfig): void {
+    this.config = config;
+  }
 
   onEvent(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -171,7 +175,9 @@ export class ProcessSupervisor {
     };
 
     const client = new RpcClient({
-      bin: this.config.piBin,
+      bin: this.config.piCommand,
+      prefixArgs: this.config.piPrefixArgs,
+      extraEnv: this.config.piExtraEnv,
       args,
       cwd: task.cwd,
       env: {

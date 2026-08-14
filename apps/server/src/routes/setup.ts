@@ -1,0 +1,148 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import type { AppConfig } from "../config.js";
+import { expandHome } from "../config.js";
+import { assertAllowedCwd } from "../security/path-policy.js";
+import {
+  BEGINNER_PROVIDERS,
+  hasAnyAuth,
+  listConfiguredProviders,
+  saveApiKey,
+  type BeginnerProviderId,
+} from "../setup/auth-status.js";
+import { listFolders } from "../setup/folder-browser.js";
+import type { SettingsStore } from "../setup/settings-store.js";
+
+const apiKeyBodySchema = z.object({
+  provider: z.enum(["anthropic", "openai", "google", "openrouter", "deepseek"]),
+  apiKey: z.string().min(8).max(512),
+});
+
+const workspaceBodySchema = z.object({
+  path: z.string().min(1),
+});
+
+export type SetupStatus = {
+  ready: boolean;
+  piAvailable: boolean;
+  piVersion: string | null;
+  piError: string | null;
+  authConfigured: boolean;
+  configuredProviders: string[];
+  providers: Array<{ id: string; label: string; hint: string }>;
+  workspaceRoot: string | null;
+  setupCompleted: boolean;
+  allowedRoots: string[];
+  homeDir: string;
+  dataDir: string;
+  needsSetup: boolean;
+  piBundled: boolean;
+};
+
+export async function buildSetupStatus(
+  config: AppConfig,
+  settings: SettingsStore,
+  pi: { version: string | null; error: string | null },
+): Promise<SetupStatus> {
+  const userSettings = settings.get();
+  const configuredProviders = await listConfiguredProviders(config.homeDir);
+  const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir));
+  const piAvailable = Boolean(pi.version) && !pi.error;
+  const e2e = process.env.MYPI_E2E === "1" || process.env.MYPI_SKIP_SETUP === "1";
+  const setupCompleted = e2e || Boolean(userSettings.setupCompletedAt);
+  const effectiveAuth = e2e || authConfigured;
+  const needsSetup = !e2e && (!piAvailable || !effectiveAuth || !setupCompleted);
+
+  return {
+    ready: piAvailable && effectiveAuth && setupCompleted,
+    piAvailable,
+    piVersion: pi.version,
+    piError: pi.error,
+    authConfigured: effectiveAuth,
+    configuredProviders,
+    providers: BEGINNER_PROVIDERS.map(({ id, label, hint }) => ({ id, label, hint })),
+    workspaceRoot: userSettings.workspaceRoot,
+    setupCompleted,
+    allowedRoots: config.allowedRoots,
+    homeDir: config.homeDir,
+    dataDir: config.dataDir,
+    needsSetup,
+    piBundled: config.piBundled,
+  };
+}
+
+export function registerSetupRoutes(
+  app: FastifyInstance,
+  options: {
+    getConfig: () => AppConfig;
+    setAllowedRoots: (roots: string[]) => void;
+    settings: SettingsStore;
+    getPi: () => { version: string | null; error: string | null };
+    onSetupChanged?: () => void;
+  },
+): void {
+  app.get("/api/setup", async () => {
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/api-key", async (request, reply) => {
+    const parsed = apiKeyBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Choose a provider and paste a valid API key." });
+    }
+    try {
+      await saveApiKey(parsed.data.provider as BeginnerProviderId, parsed.data.apiKey, options.getConfig().homeDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(400).send({ error: message });
+    }
+    options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/workspace", async (request, reply) => {
+    const parsed = workspaceBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Choose a folder to work in." });
+    }
+    const config = options.getConfig();
+    const workspace = expandHome(parsed.data.path, config.homeDir);
+    try {
+      // During first-run, allow picking any folder under home even if not yet in allowedRoots.
+      await assertAllowedCwd(workspace, [config.homeDir, ...config.allowedRoots]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(400).send({ error: message });
+    }
+    await options.settings.save({
+      workspaceRoot: workspace,
+      setupCompletedAt: new Date().toISOString(),
+    });
+    const nextRoots = [workspace, ...config.allowedRoots.filter((root) => root !== workspace)];
+    options.setAllowedRoots(nextRoots);
+    options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/complete", async () => {
+    const current = options.settings.get();
+    await options.settings.save({
+      workspaceRoot: current.workspaceRoot ?? options.getConfig().allowedRoots[0] ?? null,
+      setupCompletedAt: new Date().toISOString(),
+    });
+    options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.get("/api/folders", async (request, reply) => {
+    const query = request.query as { path?: string };
+    const config = options.getConfig();
+    const browseRoots = [...new Set([config.homeDir, ...config.allowedRoots])];
+    try {
+      return await listFolders(query.path, browseRoots);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(400).send({ error: message });
+    }
+  });
+}
