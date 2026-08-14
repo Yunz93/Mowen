@@ -14,7 +14,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 
 describe("portable config", () => {
   it("defaults data dir and roots to the home directory", () => {
-    const home = "/tmp/mypi-home-test";
+    const home = path.resolve(os.tmpdir(), "mypi-home-test");
     expect(defaultDataDir(home)).toBe(path.join(home, ".mypi-web"));
     expect(defaultAllowedRoots(home)).toEqual([home]);
     const config = loadConfig({}, { homeDir: home });
@@ -46,11 +46,19 @@ describe("portable config", () => {
   });
 
   it("launches bundled Pi via node entry", () => {
+    const entry = path.resolve(os.tmpdir(), "pi-cli.js");
     const runtime = resolvePiRuntime({
-      MYPI_PI_ENTRY: "/tmp/pi-cli.js",
-      MYPI_NODE_BIN: "/usr/bin/node",
+      MYPI_PI_ENTRY: entry,
+      MYPI_NODE_BIN: process.execPath,
     });
-    expect(runtime.command).toBe("/usr/bin/node");
-    expect(runtime.prefixArgs[0]).toBe(path.resolve("/tmp/pi-cli.js"));
+    expect(runtime.command).toBe(process.execPath);
+    expect(runtime.prefixArgs[0]).toBe(entry);
+  });
+
+  it("launches a JavaScript PI_BIN via the current node executable", () => {
+    const script = path.resolve(os.tmpdir(), "fake-pi.mjs");
+    const runtime = resolvePiRuntime({ PI_BIN: script });
+    expect(runtime.command).toBe(process.execPath);
+    expect(runtime.prefixArgs).toEqual([script]);
   });
 });

@@ -61,9 +61,15 @@ export function resolvePiBin(bin: string): string {
   return path.resolve(bin);
 }
 
+export function isJavaScriptFile(file: string): boolean {
+  return /\.[cm]?js$/i.test(file);
+}
+
 /**
  * Desktop builds set MYPI_PI_ENTRY to Pi's CLI file and run it with Electron's
  * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
+ * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
+ * Node executable so Windows can run it (shebang spawn is Unix-only).
  */
 export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
   const entry = env.MYPI_PI_ENTRY?.trim();
@@ -75,8 +81,12 @@ export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntim
     }
     return { command, prefixArgs: [path.resolve(entry)], extraEnv };
   }
+  const bin = resolvePiBin(env.PI_BIN ?? "pi");
+  if (isJavaScriptFile(bin)) {
+    return { command: process.execPath, prefixArgs: [bin], extraEnv: {} };
+  }
   return {
-    command: resolvePiBin(env.PI_BIN ?? "pi"),
+    command: bin,
     prefixArgs: [],
     extraEnv: {},
   };
