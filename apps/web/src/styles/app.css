@@ -1,0 +1,159 @@
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource/commit-mono";
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: oklch(0.145 0.008 75);
+  --color-sidebar: oklch(0.175 0.008 75);
+  --color-surface: oklch(0.195 0.009 75);
+  --color-elevated: oklch(0.225 0.010 75);
+  --color-line: oklch(0.28 0.012 75);
+  --color-ink: oklch(0.91 0.008 75);
+  --color-mute: oklch(0.68 0.012 75);
+  --color-accent: oklch(0.78 0.14 75);
+  --color-success: oklch(0.72 0.13 145);
+  --color-danger: oklch(0.66 0.19 25);
+  --color-info: oklch(0.72 0.1 235);
+  --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "PingFang SC",
+    "Noto Sans SC", sans-serif;
+  --font-mono: "Commit Mono", ui-monospace, monospace;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 40px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  .pressable {
+    transition-property: transform, opacity;
+    transition-duration: 120ms;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .pressable:active {
+    transform: scale(0.96);
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 12px;
+    top: -48px;
+    z-index: 80;
+    border-radius: 8px;
+    background: var(--color-elevated);
+    padding: 8px 12px;
+    color: var(--color-ink);
+  }
+
+  .skip-link:focus {
+    top: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .pi-ring-spin,
+  .pi-ring-breathe {
+    animation: none !important;
+  }
+}
+
+@keyframes pi-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pi-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pi-ring-spin {
+  animation: pi-spin 2.4s linear infinite;
+  transform-origin: 12px 12px;
+}
+
+@keyframes fade-in-short {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-in-short 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+  color: var(--color-accent);
+}
+
+.hljs-string,
+.hljs-attr {
+  color: var(--color-success);
+}
+
+.hljs-number,
+.hljs-literal {
+  color: var(--color-info);
+}
+
+.hljs-comment {
+  color: var(--color-mute);
+}

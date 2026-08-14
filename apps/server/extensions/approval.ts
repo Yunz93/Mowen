@@ -1,0 +1,136 @@
+import { lstatSync, realpathSync } from "node:fs";
+import path from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+const AUTO_ALLOW = new Set(["read", "grep", "find", "ls"]);
+const NEED_APPROVAL = new Set(["edit", "write", "bash"]);
+const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+function parseRoots(): string[] {
+  return (process.env.MYPI_ALLOWED_ROOTS ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isInside(candidate: string, root: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+function isProtected(resolvedPath: string): boolean {
+  const parts = resolvedPath.split(path.sep);
+  const base = path.basename(resolvedPath);
+  if (base === ".env" || base.startsWith(".env.")) return true;
+  if (parts.includes(".ssh")) return true;
+  if (base === "auth.json" && parts.includes(".pi")) return true;
+  return false;
+}
+
+function resolveWritePath(inputPath: string, cwd: string): string {
+  const absolute = path.isAbsolute(inputPath) ? inputPath : path.join(cwd, inputPath);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    const parent = realpathSync(path.dirname(absolute));
+    return path.join(parent, path.basename(absolute));
+  }
+}
+
+function assertWritable(inputPath: string, cwd: string, roots: string[]): string | null {
+  let resolved: string;
+  try {
+    resolved = resolveWritePath(inputPath, cwd);
+  } catch {
+    return `Cannot resolve path: ${inputPath}`;
+  }
+  try {
+    const stats = lstatSync(path.isAbsolute(inputPath) ? inputPath : path.join(cwd, inputPath));
+    if (stats.isSymbolicLink() && !isInside(resolved, realpathSync(cwd))) {
+      return `Symlink escapes working directory: ${inputPath}`;
+    }
+  } catch {
+    // Missing file is fine for writes.
+  }
+  const realCwd = realpathSync(cwd);
+  if (!isInside(resolved, realCwd)) {
+    return `Path escapes working directory: ${inputPath}`;
+  }
+  if (roots.length > 0 && !roots.some((root) => isInside(resolved, realpathSync(root)))) {
+    return `Path is outside allowed roots: ${inputPath}`;
+  }
+  if (isProtected(resolved)) {
+    return `Writes to ${path.basename(resolved)} are blocked`;
+  }
+  return null;
+}
+
+export default function (pi: ExtensionAPI) {
+  pi.on("tool_call", async (event, ctx) => {
+    const toolName = event.toolName;
+    if (AUTO_ALLOW.has(toolName)) {
+      return undefined;
+    }
+
+    const cwd = process.cwd();
+    const roots = parseRoots();
+    const mutations = process.env.MYPI_MUTATIONS ?? "approval";
+    const input = (event.input ?? {}) as Record<string, unknown>;
+    const target =
+      toolName === "bash"
+        ? String(input.command ?? "")
+        : String(input.path ?? "");
+
+    if (!NEED_APPROVAL.has(toolName)) {
+      return { block: true, reason: `Unrecognized tool blocked: ${toolName}` };
+    }
+
+    if (toolName === "write" || toolName === "edit") {
+      const blocked = assertWritable(target, cwd, roots);
+      if (blocked) {
+        return { block: true, reason: blocked };
+      }
+    }
+
+    if (mutations === "disabled") {
+      return { block: true, reason: "Mutations are disabled" };
+    }
+
+    if (!ctx.hasUI) {
+      return { block: true, reason: "No UI available to approve this action" };
+    }
+
+    const risk =
+      toolName === "bash"
+        ? "This command runs with your user privileges. MyPi does not try to guess whether Bash is safe."
+        : "This writes to the project filesystem. Review the path before allowing.";
+
+    const payload = {
+      kind: "mypi.approval",
+      toolName,
+      toolCallId: event.toolCallId,
+      cwd,
+      target,
+      rawCommand: toolName === "bash" ? target : undefined,
+      risk,
+    };
+
+    const message = [
+      toolName === "bash" ? `Command:\n${target}` : `Path:\n${target}`,
+      `Working directory:\n${cwd}`,
+      risk,
+      "",
+      "MYPI_APPROVAL_V1",
+      JSON.stringify(payload),
+    ].join("\n");
+
+    const confirmed = await ctx.ui.confirm(`Allow ${toolName}?`, message, {
+      timeout: APPROVAL_TIMEOUT_MS,
+    });
+
+    if (!confirmed) {
+      return { block: true, reason: "Denied by user or timed out" };
+    }
+    return undefined;
+  });
+}

@@ -1,0 +1,31 @@
+{
+  "name": "mypi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "dev": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/server dev & pnpm --filter @mypi/web dev",
+    "typecheck": "pnpm --filter @mypi/protocol build && pnpm -r --if-present typecheck",
+    "lint": "eslint .",
+    "test": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
+    "build": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/web build && pnpm --filter @mypi/server build",
+    "start": "node apps/server/dist/index.js",
+    "smoke:real": "tsx scripts/smoke-real.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.54.2",
+    "@types/node": "^22.17.0",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0",
+    "vitest": "^3.2.4",
+    "ws": "^8.18.3"
+  }
+}
