@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
 # MyPi one-click installer for macOS.
-# Copies the app into Applications, then applies local trust so Gatekeeper
-# does not block an unsigned / ad-hoc-signed build:
-#   1. strip com.apple.quarantine
-#   2. ad-hoc codesign --deep
-#   3. optional spctl --add (sudo)
-#   4. refresh Launch Services
+# Default: download the latest GitHub Release, copy into Applications, then
+# apply local trust (quarantine + ad-hoc codesign + optional spctl).
 #
 # Usage:
+#   curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
 #   ./scripts/install-macos.sh
+#   ./scripts/install-macos.sh --nightly
 #   ./scripts/install-macos.sh /path/to/MyPi.dmg
 #   ./scripts/install-macos.sh --build
 #   ./scripts/install-macos.sh --trust-only /Applications/MyPi.app
-#   ./scripts/install-macos.sh --user          # install to ~/Applications (no sudo)
 
 set -u
 
 APP_NAME="MyPi"
+REPO="${MYPI_REPO:-Yunz93/ohMyPi}"
 DEST_DIR="/Applications"
 BUILD=0
+LOCAL=0
+NIGHTLY=0
 TRUST_ONLY=0
 OPEN_AFTER=1
 SOURCE=""
+VERSION="${MYPI_VERSION:-latest}"
 
 die() {
   echo "错误: $*" >&2
@@ -29,11 +30,11 @@ die() {
 }
 
 info() {
-  echo "→ $*"
+  echo "→ $*" >&2
 }
 
 ok() {
-  echo "✓ $*"
+  echo "✓ $*" >&2
 }
 
 need_darwin() {
@@ -42,16 +43,29 @@ need_darwin() {
   fi
 }
 
+mac_arch() {
+  case "$(uname -m)" in
+    arm64|aarch64) echo "arm64" ;;
+    x86_64) echo "x64" ;;
+    *) die "不支持的芯片架构: $(uname -m)" ;;
+  esac
+}
+
 usage() {
   cat <<EOF
-MyPi macOS 一键安装
+MyPi macOS 一键安装（从 GitHub Release 下载）
 
 用法:
+  curl -fsSL https://github.com/${REPO}/releases/latest/download/install-macos.sh | bash
   $0 [选项] [MyPi.app|MyPi.dmg|MyPi.zip]
 
 选项:
-  --build         若本地还没有安装包，先执行 pnpm desktop:pack:mac
-  --trust-only    只对已有 .app 做系统信任（不拷贝）
+  --nightly       安装 nightly 预发布包
+  --version VER   安装指定版本（例如 v0.1.0）
+  --repo OWNER/NAME
+  --local         使用仓库里 apps/desktop/release 的包
+  --build         本机执行 pnpm desktop:pack:mac 再安装
+  --trust-only    只对已有 .app 做系统信任（不下载）
   --user          安装到 ~/Applications（不需要管理员）
   --no-open       安装后不自动打开
   -h, --help      显示帮助
@@ -61,6 +75,10 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --build) BUILD=1; shift ;;
+    --local) LOCAL=1; shift ;;
+    --nightly) NIGHTLY=1; VERSION="nightly"; shift ;;
+    --version) VERSION="$2"; shift 2 ;;
+    --repo) REPO="$2"; shift 2 ;;
     --trust-only) TRUST_ONLY=1; shift ;;
     --user) DEST_DIR="${HOME}/Applications"; shift ;;
     --no-open) OPEN_AFTER=0; shift ;;
@@ -71,15 +89,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RELEASE_DIR="${ROOT}/apps/desktop/release"
+ROOT=""
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+RELEASE_DIR="${ROOT:+$ROOT/apps/desktop/release}"
 TMP_DIR=""
+ATTACHED_DMG=""
 
 cleanup() {
   if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
     rm -rf "${TMP_DIR}"
   fi
-  if [[ -n "${ATTACHED_DMG:-}" ]]; then
+  if [[ -n "${ATTACHED_DMG}" ]]; then
     hdiutil detach "${ATTACHED_DMG}" -quiet >/dev/null 2>&1 || true
   fi
 }
@@ -87,9 +109,7 @@ trap cleanup EXIT
 
 find_app_in_dir() {
   local dir="$1"
-  local found
-  found="$(find "$dir" -name "${APP_NAME}.app" -type d -maxdepth 5 2>/dev/null | head -n 1 || true)"
-  echo "$found"
+  find "$dir" -name "${APP_NAME}.app" -type d -maxdepth 5 2>/dev/null | head -n 1 || true
 }
 
 mount_dmg() {
@@ -108,9 +128,8 @@ unpack_source() {
     return
   fi
   if [[ -f "$input" && "$input" == *.dmg ]]; then
-    local volume
+    local volume app
     volume="$(mount_dmg "$input")"
-    local app
     app="$(find_app_in_dir "$volume")"
     [[ -n "$app" ]] || die "DMG 里没有找到 ${APP_NAME}.app"
     echo "$app"
@@ -129,39 +148,60 @@ unpack_source() {
 }
 
 locate_packaged_app() {
-  local app
+  [[ -n "${RELEASE_DIR}" && -d "${RELEASE_DIR}" ]] || { echo ""; return; }
+  local app dmg zip
   app="$(find_app_in_dir "$RELEASE_DIR")"
-  if [[ -n "$app" ]]; then
-    echo "$app"
-    return
-  fi
-  local dmg
+  if [[ -n "$app" ]]; then echo "$app"; return; fi
   dmg="$(find "$RELEASE_DIR" -name "*.dmg" -type f -maxdepth 3 2>/dev/null | head -n 1 || true)"
-  if [[ -n "$dmg" ]]; then
-    unpack_source "$dmg"
-    return
-  fi
-  local zip
+  if [[ -n "$dmg" ]]; then unpack_source "$dmg"; return; fi
   zip="$(find "$RELEASE_DIR" -name "*.zip" -type f -maxdepth 3 2>/dev/null | head -n 1 || true)"
-  if [[ -n "$zip" ]]; then
-    unpack_source "$zip"
-    return
-  fi
+  if [[ -n "$zip" ]]; then unpack_source "$zip"; return; fi
   echo ""
 }
 
 maybe_build() {
-  if [[ "$BUILD" != "1" ]]; then
-    return
-  fi
-  need_darwin
+  [[ "$BUILD" == "1" ]] || return 0
+  [[ -n "$ROOT" ]] || die "--build 需要在 git 仓库里运行，不能用 curl | bash。"
   command -v pnpm >/dev/null || die "未找到 pnpm。请先安装 Node.js 22+ 并执行 corepack enable。"
   info "正在打包 macOS 应用（首次会下载 Pi，可能较久）…"
   (cd "$ROOT" && pnpm desktop:pack:mac) || die "打包失败。"
 }
 
-# Clear quarantine + ad-hoc sign + Gatekeeper label so a non-technical user
-# can open the app without System Settings → Open Anyway.
+download_release() {
+  local arch="$1"
+  TMP_DIR="$(mktemp -d -t mypi-install)"
+  local tag="$VERSION"
+  local base
+  if [[ "$tag" == "latest" ]]; then
+    base="https://github.com/${REPO}/releases/latest/download"
+  else
+    [[ "$tag" == v* || "$tag" == "nightly" ]] || tag="v${tag}"
+    base="https://github.com/${REPO}/releases/download/${tag}"
+  fi
+
+  local auth_header=()
+  if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
+    auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN:-$GH_TOKEN}")
+  fi
+
+  local names=(
+    "MyPi-mac-${arch}.dmg"
+    "MyPi-mac-${arch}.zip"
+  )
+  local out="" name
+  info "正在从 GitHub 下载 ${APP_NAME} (${arch}, ${tag})…"
+  for name in "${names[@]}"; do
+    out="${TMP_DIR}/${name}"
+    if curl -fL --retry 3 --retry-delay 2 "${auth_header[@]}" -o "$out" "${base}/${name}"; then
+      ok "已下载 $name"
+      echo "$out"
+      return
+    fi
+    rm -f "$out"
+  done
+  die "下载失败。请确认仓库 ${REPO} 已有 Release 资源 ${names[0]}。也可改用 --build 在本机打包。"
+}
+
 trust_app() {
   local app="$1"
   [[ -d "$app" ]] || die "找不到应用: $app"
@@ -238,20 +278,19 @@ if [[ "$TRUST_ONLY" == "1" ]]; then
   exit 0
 fi
 
+APP_SRC=""
 if [[ -n "$SOURCE" ]]; then
   APP_SRC="$(unpack_source "$SOURCE")"
-else
+elif [[ "$BUILD" == "1" ]]; then
   maybe_build
   APP_SRC="$(locate_packaged_app)"
-  if [[ -z "$APP_SRC" ]]; then
-    if [[ "$BUILD" != "1" ]]; then
-      info "未找到现成安装包，开始自动打包…"
-      BUILD=1
-      maybe_build
-      APP_SRC="$(locate_packaged_app)"
-    fi
-  fi
   [[ -n "$APP_SRC" ]] || die "打包后仍未找到 ${APP_NAME}.app。请检查 apps/desktop/release。"
+elif [[ "$LOCAL" == "1" ]]; then
+  APP_SRC="$(locate_packaged_app)"
+  [[ -n "$APP_SRC" ]] || die "本地没有安装包。请先 pnpm desktop:pack:mac，或去掉 --local 从 GitHub 下载。"
+else
+  PACKAGE="$(download_release "$(mac_arch)")"
+  APP_SRC="$(unpack_source "$PACKAGE")"
 fi
 
 INSTALLED="$(copy_app "$APP_SRC")"
@@ -266,4 +305,4 @@ echo
 ok "安装完成。请按屏幕上的向导粘贴 API Key 并选择工作文件夹。"
 echo "   应用位置: $INSTALLED"
 echo "   若仍提示无法打开: 系统设置 → 隐私与安全性 → 仍要打开"
-echo "   或再执行: $0 --trust-only \"$INSTALLED\""
+echo "   或再执行: bash <(curl -fsSL https://github.com/${REPO}/releases/latest/download/install-macos.sh) --trust-only \"$INSTALLED\""

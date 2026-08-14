@@ -22,6 +22,7 @@
     "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mypi/desktop pack:mac",
     "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mypi/desktop pack:win",
     "desktop:install:mac": "bash scripts/install-macos.sh",
+    "desktop:install:win": "pwsh -File scripts/install-windows.ps1",
     "smoke:real": "tsx scripts/smoke-real.ts"
   },
   "devDependencies": {

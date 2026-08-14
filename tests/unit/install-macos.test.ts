@@ -13,5 +13,7 @@ describe("install-macos.sh", () => {
     const out = execFileSync("bash", [script, "--help"], { encoding: "utf8" });
     expect(out).toContain("一键安装");
     expect(out).toContain("--trust-only");
+    expect(out).toContain("--nightly");
+    expect(out).toContain("GitHub Release");
   });
 });
