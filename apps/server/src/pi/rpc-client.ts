@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { isJavaScriptFile } from "../config.js";
 import { attachJsonlLineReader, serializeJsonLine } from "./rpc-framer.js";
 import { redactSecrets } from "../security/redact.js";
 
@@ -55,7 +56,13 @@ export class RpcClient {
     if (this.process) {
       throw new Error("RPC client already started");
     }
-    const child = spawn(this.options.bin, [...(this.options.prefixArgs ?? []), ...this.options.args], {
+    let command = this.options.bin;
+    let argv = [...(this.options.prefixArgs ?? []), ...this.options.args];
+    if (isJavaScriptFile(command)) {
+      argv = [command, ...argv];
+      command = process.execPath;
+    }
+    const child = spawn(command, argv, {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.extraEnv, ...this.options.env },
       stdio: ["pipe", "pipe", "pipe"],
