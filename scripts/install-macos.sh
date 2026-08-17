@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MyPi one-click installer for macOS.
+# ohMyPi one-click installer for macOS.
 # Default: download the latest GitHub Release, copy into Applications, then
 # apply local trust (quarantine + ad-hoc codesign + optional spctl).
 #
@@ -7,14 +7,14 @@
 #   curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
 #   ./scripts/install-macos.sh
 #   ./scripts/install-macos.sh --nightly
-#   ./scripts/install-macos.sh /path/to/MyPi.dmg
+#   ./scripts/install-macos.sh /path/to/ohMyPi.dmg
 #   ./scripts/install-macos.sh --build
-#   ./scripts/install-macos.sh --trust-only /Applications/MyPi.app
+#   ./scripts/install-macos.sh --trust-only /Applications/ohMyPi.app
 
 set -euo pipefail
 
-APP_NAME="MyPi"
-REPO="${MYPI_REPO:-Yunz93/ohMyPi}"
+APP_NAME="ohMyPi"
+REPO="${OHMYPI_REPO:-Yunz93/ohMyPi}"
 DEST_DIR="/Applications"
 BUILD=0
 LOCAL=0
@@ -22,7 +22,7 @@ NIGHTLY=0
 TRUST_ONLY=0
 OPEN_AFTER=1
 SOURCE=""
-VERSION="${MYPI_VERSION:-latest}"
+VERSION="${OHMYPI_VERSION:-latest}"
 
 die() {
   echo "错误: $*" >&2
@@ -64,11 +64,11 @@ mac_arch() {
 
 usage() {
   cat <<EOF
-MyPi macOS 一键安装（从 GitHub Release 下载）
+ohMyPi macOS 一键安装（从 GitHub Release 下载）
 
 用法:
   curl -fsSL https://github.com/${REPO}/releases/latest/download/install-macos.sh | bash
-  $0 [选项] [MyPi.app|MyPi.dmg|MyPi.zip]
+  $0 [选项] [ohMyPi.app|ohMyPi.dmg|ohMyPi.zip]
 
 选项:
   --nightly       安装 nightly 预发布包
@@ -120,7 +120,7 @@ trap cleanup EXIT
 
 find_app_in_dir() {
   local dir="$1"
-  find "$dir" -maxdepth 5 -name "${APP_NAME}.app" -type d 2>/dev/null | head -n 1 || true
+  find "$dir" -maxdepth 5 \( -name "${APP_NAME}.app" -o -name "MyPi.app" \) -type d 2>/dev/null | head -n 1 || true
 }
 
 mount_dmg() {
@@ -148,7 +148,7 @@ unpack_source() {
     return
   fi
   if [[ -f "$input" && "$input" == *.zip ]]; then
-    TMP_DIR="$(mktemp -d -t mypi-install)"
+    TMP_DIR="$(mktemp -d -t ohmypi-install)"
     unzip -q "$input" -d "$TMP_DIR" || die "解压失败: ${input}"
     local app
     app="$(find_app_in_dir "$TMP_DIR")"
@@ -181,7 +181,7 @@ maybe_build() {
 
 download_release() {
   local arch="$1"
-  TMP_DIR="$(mktemp -d -t mypi-install)"
+  TMP_DIR="$(mktemp -d -t ohmypi-install)"
   local tag="$VERSION"
   local base
   if [[ "$tag" == "latest" ]]; then
@@ -192,6 +192,8 @@ download_release() {
   fi
 
   local names=(
+    "ohMyPi-mac-${arch}.dmg"
+    "ohMyPi-mac-${arch}.zip"
     "MyPi-mac-${arch}.dmg"
     "MyPi-mac-${arch}.zip"
   )
@@ -260,11 +262,16 @@ trust_app() {
 copy_app() {
   local src="${1:-}"
   local dest="${DEST_DIR}/${APP_NAME}.app"
+  local legacy="${DEST_DIR}/MyPi.app"
   [[ -d "$src" ]] || die "找不到要安装的应用: ${src:-<empty>}"
   mkdir -p "$DEST_DIR" || die "无法创建目录: $DEST_DIR"
   if [[ -d "$dest" ]]; then
     info "正在替换已有安装: $dest"
     rm -rf "$dest" 2>/dev/null || sudo rm -rf "$dest" || die "无法删除旧版本。"
+  fi
+  if [[ "$dest" != "$legacy" && -d "$legacy" ]]; then
+    info "正在移除旧版 MyPi.app"
+    rm -rf "$legacy" 2>/dev/null || sudo rm -rf "$legacy" || true
   fi
   info "安装到 $dest"
   if cp -R "$src" "$dest" 2>/dev/null; then
@@ -278,7 +285,7 @@ copy_app() {
   echo "$dest"
 }
 
-if [[ "${MYPI_SELF_TEST:-}" == "1" ]]; then
+if [[ "${OHMYPI_SELF_TEST:-}" == "1" ]]; then
   GITHUB_TOKEN=""
   GH_TOKEN=""
   curl_github --version >/dev/null

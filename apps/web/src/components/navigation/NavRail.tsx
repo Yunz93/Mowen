@@ -17,7 +17,7 @@ export function NavRail({ onNewTask }: Props) {
       className="flex h-full w-[52px] shrink-0 flex-col items-center border-r border-line bg-sidebar py-2"
       aria-label="Primary"
     >
-      <div className="flex h-10 w-10 items-center justify-center" title="MyPi">
+      <div className="flex h-10 w-10 items-center justify-center" title="ohMyPi">
         <PiStatusRing status={status} size={26} />
       </div>
       <button

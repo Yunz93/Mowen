@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -36,7 +37,10 @@ export type AppConfig = {
 };
 
 export function defaultDataDir(homeDir = os.homedir()): string {
-  return path.join(homeDir, ".mypi-web");
+  const current = path.join(homeDir, ".ohmypi");
+  const legacy = path.join(homeDir, ".mypi-web");
+  if (!existsSync(current) && existsSync(legacy)) return legacy;
+  return current;
 }
 
 export function defaultAllowedRoots(homeDir = os.homedir()): string[] {
@@ -66,15 +70,15 @@ export function isJavaScriptFile(file: string): boolean {
 }
 
 /**
- * Desktop builds set MYPI_PI_ENTRY to Pi's CLI file and run it with Electron's
+ * Desktop builds set OHMYPI_PI_ENTRY to Pi's CLI file and run it with Electron's
  * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
  * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
  * Node executable so Windows can run it (shebang spawn is Unix-only).
  */
 export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
-  const entry = env.MYPI_PI_ENTRY?.trim();
+  const entry = env.OHMYPI_PI_ENTRY?.trim();
   if (entry) {
-    const command = env.MYPI_NODE_BIN?.trim() || process.execPath;
+    const command = env.OHMYPI_NODE_BIN?.trim() || process.execPath;
     const extraEnv: NodeJS.ProcessEnv = {};
     if (process.versions.electron || command === process.execPath) {
       extraEnv.ELECTRON_RUN_AS_NODE = "1";
@@ -117,14 +121,14 @@ export function loadConfig(
   }
 
   const envRoots = parseAllowedRoots(
-    env.MYPI_ALLOWED_ROOTS,
+    env.OHMYPI_ALLOWED_ROOTS,
     options.workspaceRoot
       ? [expandHome(options.workspaceRoot, homeDir)]
       : defaultAllowedRoots(homeDir),
   ).map((root) => path.resolve(expandHome(root, homeDir)));
 
   // Prefer an explicit workspace from settings when env did not override roots.
-  if (!env.MYPI_ALLOWED_ROOTS?.trim() && options.workspaceRoot) {
+  if (!env.OHMYPI_ALLOWED_ROOTS?.trim() && options.workspaceRoot) {
     const workspace = path.resolve(expandHome(options.workspaceRoot, homeDir));
     if (!envRoots.includes(workspace)) {
       envRoots.unshift(workspace);
@@ -140,24 +144,24 @@ export function loadConfig(
     piCommand: pi.command,
     piPrefixArgs: pi.prefixArgs,
     piExtraEnv: pi.extraEnv,
-    dataDir: path.resolve(expandHome(env.MYPI_DATA_DIR ?? defaultDataDir(homeDir), homeDir)),
+    dataDir: path.resolve(expandHome(env.OHMYPI_DATA_DIR ?? defaultDataDir(homeDir), homeDir)),
     allowedRoots: envRoots,
-    maxProcesses: Number(env.MYPI_MAX_PROCESSES ?? "3"),
-    mutations: mutationsSchema.parse(env.MYPI_MUTATIONS ?? "approval"),
+    maxProcesses: Number(env.OHMYPI_MAX_PROCESSES ?? "3"),
+    mutations: mutationsSchema.parse(env.OHMYPI_MUTATIONS ?? "approval"),
     nodeEnv,
-    approvalTimeoutMs: Number(env.MYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000)),
+    approvalTimeoutMs: Number(env.OHMYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000)),
     allowedOrigins: [...origins],
-    webDistDir: env.MYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
+    webDistDir: env.OHMYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     approvalExtensionPath:
-      env.MYPI_APPROVAL_EXTENSION ??
+      env.OHMYPI_APPROVAL_EXTENSION ??
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
     homeDir,
-    piBundled: env.MYPI_PI_BUNDLED === "1" || Boolean(env.MYPI_PI_ENTRY?.trim()),
+    piBundled: env.OHMYPI_PI_BUNDLED === "1" || Boolean(env.OHMYPI_PI_ENTRY?.trim()),
   };
 }
 
 function entryDisplay(env: NodeJS.ProcessEnv, pi: PiRuntime): string {
-  return env.MYPI_PI_ENTRY?.trim() || pi.command;
+  return env.OHMYPI_PI_ENTRY?.trim() || pi.command;
 }
 
 export async function readPiVersion(

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createApp } from "@mypi/server";
+import { createApp } from "@ohmypi/server";
 import { applyDesktopEnv, preloadPath, resolvePiEntry } from "./paths.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -51,10 +51,10 @@ function installMenu(): void {
       submenu: [
         {
           label: "Open setup again",
-          click: () => mainWindow?.webContents.send("mypi:open-setup"),
+          click: () => mainWindow?.webContents.send("ohmypi:open-setup"),
         },
         {
-          label: "MyPi on GitHub",
+          label: "ohMyPi on GitHub",
           click: () => void shell.openExternal("https://github.com/Yunz93/ohMyPi"),
         },
       ],
@@ -68,9 +68,9 @@ async function startBackend(): Promise<number> {
   applyDesktopEnv();
   const piEntry = resolvePiEntry();
   if (piEntry) {
-    console.log(`[mypi-desktop] bundled Pi: ${piEntry}`);
+    console.log(`[ohmypi-desktop] bundled Pi: ${piEntry}`);
   } else {
-    console.warn("[mypi-desktop] bundled Pi not found; falling back to PATH");
+    console.warn("[ohmypi-desktop] bundled Pi not found; falling back to PATH");
   }
 
   const { app: server, config } = await createApp(process.env);
@@ -99,7 +99,7 @@ async function createMainWindow(port: number): Promise<void> {
     height: 840,
     minWidth: 800,
     minHeight: 600,
-    title: "MyPi",
+    title: "ohMyPi",
     backgroundColor: "#1c1a16",
     show: false,
     autoHideMenuBar: process.platform === "win32",
@@ -122,14 +122,14 @@ async function createMainWindow(port: number): Promise<void> {
   });
 
   const packaged = app.isPackaged;
-  const url = packaged || process.env.MYPI_DESKTOP_USE_SERVER === "1"
+  const url = packaged || process.env.OHMYPI_DESKTOP_USE_SERVER === "1"
     ? `http://127.0.0.1:${port}`
-    : process.env.MYPI_RENDERER_URL ?? "http://127.0.0.1:5173";
+    : process.env.OHMYPI_RENDERER_URL ?? "http://127.0.0.1:5173";
   await loadWithRetry(mainWindow, url);
 }
 
 function registerIpc(): void {
-  ipcMain.handle("mypi:pick-folder", async (_event, defaultPath?: string) => {
+  ipcMain.handle("ohmypi:pick-folder", async (_event, defaultPath?: string) => {
     const options: Electron.OpenDialogOptions = {
       title: "Choose a folder",
       defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
@@ -161,7 +161,7 @@ app.on("before-quit", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     void boot().catch((error) => {
-      dialog.showErrorBox("MyPi failed to start", error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox("ohMyPi failed to start", error instanceof Error ? error.message : String(error));
       app.quit();
     });
   }
@@ -169,7 +169,7 @@ app.on("activate", () => {
 
 app.whenReady().then(() => {
   void boot().catch((error) => {
-    dialog.showErrorBox("MyPi failed to start", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox("ohMyPi failed to start", error instanceof Error ? error.message : String(error));
     app.quit();
   });
 });

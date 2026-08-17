@@ -25,7 +25,7 @@ export function SettingsPage() {
       </Link>
       <h1 className="mt-6 text-2xl">Settings</h1>
       <p className="mt-2 max-w-[65ch] text-sm leading-6 text-mute">
-        MyPi stays on this computer. API keys are saved for Pi and are never shown in full here.
+        ohMyPi stays on this computer. API keys are saved for Pi and are never shown in full here.
       </p>
 
       <div className="mt-6">

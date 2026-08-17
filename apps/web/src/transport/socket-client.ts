@@ -1,4 +1,4 @@
-import { serverEventSchema, type ClientCommand } from "@mypi/protocol";
+import { serverEventSchema, type ClientCommand } from "@ohmypi/protocol";
 import { useAgentStore } from "../stores/agent-store";
 
 type Pending = {
@@ -67,7 +67,7 @@ export class SocketClient {
       }
       const result = serverEventSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn("[mypi] dropped event", result.error.issues[0]?.message);
+        console.warn("[ohmypi] dropped event", result.error.issues[0]?.message);
         return;
       }
       const serverEvent = result.data;

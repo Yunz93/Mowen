@@ -11,14 +11,14 @@ export function applyDesktopEnv(): void {
     process.env.NODE_ENV = "development";
   }
 
-  process.env.MYPI_WEB_DIST = webDistDir();
-  process.env.MYPI_APPROVAL_EXTENSION = approvalExtensionPath();
+  process.env.OHMYPI_WEB_DIST = webDistDir();
+  process.env.OHMYPI_APPROVAL_EXTENSION = approvalExtensionPath();
 
   const piEntry = resolvePiEntry();
   if (piEntry) {
-    process.env.MYPI_PI_ENTRY = piEntry;
-    process.env.MYPI_NODE_BIN = process.execPath;
-    process.env.MYPI_PI_BUNDLED = "1";
+    process.env.OHMYPI_PI_ENTRY = piEntry;
+    process.env.OHMYPI_NODE_BIN = process.execPath;
+    process.env.OHMYPI_PI_BUNDLED = "1";
   }
 }
 

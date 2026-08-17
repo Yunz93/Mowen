@@ -31,9 +31,9 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
   await mkdir(config.dataDir, { recursive: true });
 
   const { version, error } = await readPiVersion(config);
-  console.log(`[mypi] Pi version: ${version ?? "unavailable"}`);
+  console.log(`[ohmypi] Pi version: ${version ?? "unavailable"}`);
   if (error) {
-    console.warn(`[mypi] ${error}`);
+    console.warn(`[ohmypi] ${error}`);
   }
 
   const store = new TaskStore(config.dataDir);
@@ -116,8 +116,8 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
 async function main(): Promise<void> {
   const { app, config } = await createApp();
   await app.listen({ host: config.host, port: config.port });
-  console.log(`[mypi] listening on http://${config.host}:${config.port}`);
-  console.log(`[mypi] open that address in your browser to finish setup if needed`);
+  console.log(`[ohmypi] listening on http://${config.host}:${config.port}`);
+  console.log(`[ohmypi] open that address in your browser to finish setup if needed`);
 }
 
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

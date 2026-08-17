@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from "@mypi/protocol";
+import type { ApprovalRequest } from "@ohmypi/protocol";
 
 type Props = {
   approval: ApprovalRequest;

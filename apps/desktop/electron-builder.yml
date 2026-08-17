@@ -1,7 +1,7 @@
-appId: com.mypi.desktop
-productName: MyPi
-copyright: Copyright © 2026 MyPi
-artifactName: MyPi-${os}-${arch}.${ext}
+appId: com.ohmypi.desktop
+productName: ohMyPi
+copyright: Copyright © 2026 ohMyPi
+artifactName: ohMyPi-${os}-${arch}.${ext}
 asar: true
 directories:
   output: release
@@ -20,7 +20,7 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.png
   identity: null
-  artifactName: MyPi-${os}-${arch}.${ext}
+  artifactName: ohMyPi-${os}-${arch}.${ext}
   target:
     - dmg
     - zip
@@ -28,17 +28,17 @@ mac:
   gatekeeperAssess: false
 win:
   icon: build/icon.png
-  artifactName: MyPi-${os}-${arch}.${ext}
+  artifactName: ohMyPi-${os}-${arch}.${ext}
   target:
     - nsis
     - portable
 nsis:
   oneClick: true
   perMachine: false
-  shortcutName: MyPi
-  artifactName: MyPi-${os}-${arch}-setup.${ext}
+  shortcutName: ohMyPi
+  artifactName: ohMyPi-${os}-${arch}-setup.${ext}
 portable:
-  artifactName: MyPi-${os}-${arch}-portable.${ext}
+  artifactName: ohMyPi-${os}-${arch}-portable.${ext}
 linux:
   icon: build/icon.png
   target:

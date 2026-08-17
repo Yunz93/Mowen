@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { ToolExecution } from "@mypi/protocol";
+import type { ToolExecution } from "@ohmypi/protocol";
 import { Ban, Check, CircleAlert, LoaderCircle, Shield } from "lucide-react";
 
 const ICONS = {

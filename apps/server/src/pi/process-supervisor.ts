@@ -10,7 +10,7 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
-} from "@mypi/protocol";
+} from "@ohmypi/protocol";
 import type { AppConfig } from "../config.js";
 import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
@@ -43,7 +43,7 @@ function parseApprovalMessage(
   message: string | undefined,
   timeoutMs: number,
 ): ApprovalRequest | null {
-  if (!message || !message.includes("MYPI_APPROVAL_V1")) {
+  if (!message || !message.includes("OHMYPI_APPROVAL_V1")) {
     if (title?.startsWith("Allow ")) {
       return {
         requestId,
@@ -61,7 +61,7 @@ function parseApprovalMessage(
   const jsonLine = message
     .split("\n")
     .map((line) => line.trim())
-    .find((line, index, lines) => lines[index - 1] === "MYPI_APPROVAL_V1");
+    .find((line, index, lines) => lines[index - 1] === "OHMYPI_APPROVAL_V1");
   if (!jsonLine) return null;
   try {
     const parsed = JSON.parse(jsonLine) as {
@@ -181,9 +181,9 @@ export class ProcessSupervisor {
       args,
       cwd: task.cwd,
       env: {
-        MYPI_MUTATIONS: this.config.mutations,
-        MYPI_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
-        MYPI_TASK_ID: task.id,
+        OHMYPI_MUTATIONS: this.config.mutations,
+        OHMYPI_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
+        OHMYPI_TASK_ID: task.id,
       },
       onEvent: (event) => this.handlePiEvent(task.id, generation, event),
       onStderr: (chunk) => {
