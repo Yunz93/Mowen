@@ -81,7 +81,7 @@ describe("integration fake-pi", () => {
   let ctx: Awaited<ReturnType<typeof listen>>;
 
   beforeAll(async () => {
-    root.current = await mkdtemp(path.join(os.tmpdir(), "mypi-int-"));
+    root.current = await mkdtemp(path.join(os.tmpdir(), "ohmypi-int-"));
     const project = path.join(root.current, "project");
     await mkdir(project);
     await writeFile(path.join(project, "README.md"), "hello");
@@ -90,10 +90,10 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MYPI_DATA_DIR: path.join(root.current, "data"),
-      MYPI_ALLOWED_ROOTS: root.current,
-      MYPI_MAX_PROCESSES: "3",
-      MYPI_MUTATIONS: "approval",
+      OHMYPI_DATA_DIR: path.join(root.current, "data"),
+      OHMYPI_ALLOWED_ROOTS: root.current,
+      OHMYPI_MAX_PROCESSES: "3",
+      OHMYPI_MUTATIONS: "approval",
     });
   });
 
@@ -274,11 +274,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MYPI_DATA_DIR: path.join(root.current, "data-timeout"),
-      MYPI_ALLOWED_ROOTS: root.current,
-      MYPI_MAX_PROCESSES: "3",
-      MYPI_MUTATIONS: "approval",
-      MYPI_APPROVAL_TIMEOUT_MS: "200",
+      OHMYPI_DATA_DIR: path.join(root.current, "data-timeout"),
+      OHMYPI_ALLOWED_ROOTS: root.current,
+      OHMYPI_MAX_PROCESSES: "3",
+      OHMYPI_MUTATIONS: "approval",
+      OHMYPI_APPROVAL_TIMEOUT_MS: "200",
     });
     try {
       const project = path.join(root.current, "project");

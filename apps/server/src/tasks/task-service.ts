@@ -6,7 +6,7 @@ import type {
   ServerEvent,
   TaskRecord,
   TimelineMessage,
-} from "@mypi/protocol";
+} from "@ohmypi/protocol";
 import type { AppConfig } from "../config.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
@@ -15,7 +15,7 @@ import { TaskStore } from "./task-store.js";
 
 type SocketLike = { send: (data: string) => void; closed: boolean };
 
-const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".mypi-test"]);
+const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".ohmypi-test"]);
 
 export type SetupHints = {
   authConfigured: boolean;
@@ -352,7 +352,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "Could not reach the AI provider. Open Settings → Setup and paste an API key. MyPi never shows the full key."
+          ? "Could not reach the AI provider. Open Settings → Setup and paste an API key. ohMyPi never shows the full key."
           : text,
         authHint,
       });

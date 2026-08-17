@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SessionStats, ToolExecution } from "@mypi/protocol";
+import type { SessionStats, ToolExecution } from "@ohmypi/protocol";
 import hljs from "highlight.js";
 import { ToolExecutionRow } from "../timeline/ToolExecutionRow";
 

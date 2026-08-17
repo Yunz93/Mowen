@@ -49,7 +49,7 @@ export async function listFolders(
   const entries: FolderEntry[] = [];
   for (const dirent of dirents) {
     if (!dirent.isDirectory()) continue;
-    if (dirent.name.startsWith(".") && dirent.name !== ".mypi-web") continue;
+    if (dirent.name.startsWith(".") && dirent.name !== ".ohmypi" && dirent.name !== ".mypi-web") continue;
     if (HIDDEN.has(dirent.name)) continue;
     entries.push({
       path: path.join(resolved, dirent.name),

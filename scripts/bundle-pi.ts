@@ -7,7 +7,7 @@ mkdirSync(dest, { recursive: true });
 if (!existsSync(path.join(dest, "package.json"))) {
   writeFileSync(
     path.join(dest, "package.json"),
-    `${JSON.stringify({ name: "mypi-pi-vendor", private: true }, null, 2)}\n`,
+    `${JSON.stringify({ name: "ohmypi-pi-vendor", private: true }, null, 2)}\n`,
   );
 }
 

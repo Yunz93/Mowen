@@ -1,7 +1,7 @@
 import { copyFile, mkdir, open, readFile, rename } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord } from "@mypi/protocol";
+import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord } from "@ohmypi/protocol";
 
 export type PersistedState = {
   schemaVersion: number;

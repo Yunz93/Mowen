@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@mypi/protocol";
+import type { TaskStatus } from "@ohmypi/protocol";
 
 type Props = {
   status: TaskStatus;

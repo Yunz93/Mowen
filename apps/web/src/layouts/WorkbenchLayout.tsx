@@ -11,7 +11,7 @@ import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
-import type { ThinkingLevel } from "@mypi/protocol";
+import type { ThinkingLevel } from "@ohmypi/protocol";
 
 function projectName(cwd: string): string {
   const parts = cwd.split("/").filter(Boolean);
@@ -201,13 +201,13 @@ export function WorkbenchLayout() {
         ) : null}
         {connection !== "open" ? (
           <div className="border-b border-line bg-elevated px-4 py-2 font-mono text-[11px] text-mute tabular">
-            {connection === "connecting" ? "Reconnecting to MyPi" : "Disconnected from MyPi"}
+            {connection === "connecting" ? "Reconnecting to ohMyPi" : "Disconnected from ohMyPi"}
           </div>
         ) : null}
         {authHint || serverError || requestError ? (
           <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
             {authHint
-              ? "No AI key yet. Open Settings and paste an API key — MyPi never shows the full key."
+              ? "No AI key yet. Open Settings and paste an API key — ohMyPi never shows the full key."
               : (serverError ?? requestError)}
           </div>
         ) : null}

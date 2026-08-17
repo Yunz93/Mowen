@@ -1,4 +1,4 @@
-export type MypiDesktopApi = {
+export type OhMyPiDesktopApi = {
   isDesktop: true;
   platform: "darwin" | "win32" | "linux" | string;
   pickFolder: (defaultPath?: string) => Promise<string | null>;
@@ -6,12 +6,12 @@ export type MypiDesktopApi = {
 
 declare global {
   interface Window {
-    mypi?: MypiDesktopApi;
+    ohmypi?: OhMyPiDesktopApi;
   }
 }
 
-export function getDesktop(): MypiDesktopApi | null {
-  return typeof window !== "undefined" && window.mypi?.isDesktop ? window.mypi : null;
+export function getDesktop(): OhMyPiDesktopApi | null {
+  return typeof window !== "undefined" && window.ohmypi?.isDesktop ? window.ohmypi : null;
 }
 
 export function isDesktopApp(): boolean {

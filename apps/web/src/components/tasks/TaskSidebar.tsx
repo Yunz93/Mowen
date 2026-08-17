@@ -1,5 +1,5 @@
 import { Archive, Search } from "lucide-react";
-import type { TaskRecord } from "@mypi/protocol";
+import type { TaskRecord } from "@ohmypi/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
 
 type Props = {

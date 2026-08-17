@@ -1,4 +1,4 @@
-# MyPi
+# ohMyPi
 
 Local-first workbench for the [Pi](https://pi.dev) coding agent. Runs on your computer, keeps API keys off the screen, and asks before writing files or running commands.
 
@@ -24,7 +24,7 @@ curl -fsSL https://github.com/Yunz93/ohMyPi/releases/download/nightly/install-ma
 irm https://github.com/Yunz93/ohMyPi/releases/latest/download/install-windows.ps1 | iex
 ```
 
-Then open MyPi, paste an API key, and choose a work folder. If macOS still blocks the app: **System Settings → Privacy & Security → Open Anyway**.
+Then open ohMyPi, paste an API key, and choose a work folder. If macOS still blocks the app: **System Settings → Privacy & Security → Open Anyway**.
 
 ### Publish a stable release
 
@@ -33,7 +33,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-That runs `.github/workflows/release.yml`, uploads `MyPi-mac-*.dmg` / `MyPi-win-*-setup.exe`, and attaches the install scripts.
+That runs `.github/workflows/release.yml`, uploads `ohMyPi-mac-*.dmg` / `ohMyPi-win-*-setup.exe`, and attaches the install scripts.
 
 Manual run: **Actions → Release → Run workflow**.
 
@@ -45,18 +45,18 @@ Manual run: **Actions → Release → Run workflow**.
 bash scripts/install-macos.sh --nightly   # download GitHub package
 bash scripts/install-macos.sh --build     # pack on this Mac, then install
 bash scripts/install-macos.sh --user      # ~/Applications, no admin
-bash scripts/install-macos.sh --trust-only /Applications/MyPi.app
+bash scripts/install-macos.sh --trust-only /Applications/ohMyPi.app
 pnpm desktop:install:mac
 ```
 
 The macOS script:
 
-1. Downloads (or packs) `MyPi.app`
+1. Downloads (or packs) `ohMyPi.app`
 2. Copies it to `/Applications`
 3. Removes `com.apple.quarantine`
 4. Ad-hoc code-signs the app
 5. Registers Gatekeeper (`spctl --add`, if sudo is available)
-6. Opens MyPi
+6. Opens ohMyPi
 
 ### Build the installer locally
 
@@ -65,18 +65,18 @@ On the target OS (Windows on Windows, macOS on a Mac):
 ```bash
 corepack enable
 pnpm install
-pnpm desktop:pack:mac   # → apps/desktop/release/MyPi-mac-*.dmg
-pnpm desktop:pack:win   # → apps/desktop/release/MyPi-win-*-setup.exe
+pnpm desktop:pack:mac   # → apps/desktop/release/ohMyPi-mac-*.dmg
+pnpm desktop:pack:win   # → apps/desktop/release/ohMyPi-win-*-setup.exe
 ```
 
 The pack step vendors a matching Pi CLI, so the user does not install Node or Pi.
 
 ### What the user sees
 
-1. Open **MyPi**
+1. Open **ohMyPi**
 2. Welcome → paste an API key (Anthropic / OpenAI / Gemini / OpenRouter / DeepSeek)
 3. **Choose folder…** (native file dialog)
-4. Chat. MyPi asks before editing files or running commands
+4. Chat. ohMyPi asks before editing files or running commands
 
 Settings → **Open setup** to change the key or folder later. Keys are stored in `~/.pi/agent/auth.json` and never shown in full.
 
@@ -116,12 +116,12 @@ NODE_ENV=production pnpm start   # http://127.0.0.1:4310
 |----------|---------|---------|
 | `HOST` / `PORT` | `127.0.0.1` / `4310` | Server bind address |
 | `PI_BIN` | `pi` | Pi executable (PATH) |
-| `MYPI_PI_ENTRY` | (desktop sets this) | Pi CLI file run with Node/Electron |
-| `MYPI_DATA_DIR` | `~/.mypi-web` | Tasks + settings |
-| `MYPI_ALLOWED_ROOTS` | home (or Setup folder) | Allowed project roots |
-| `MYPI_MUTATIONS` | `approval` | `approval` or `disabled` |
-| `MYPI_MAX_PROCESSES` | `3` | Concurrent Pi processes |
-| `MYPI_REPO` | `Yunz93/ohMyPi` | GitHub repo for the install script |
+| `OHMYPI_PI_ENTRY` | (desktop sets this) | Pi CLI file run with Node/Electron |
+| `OHMYPI_DATA_DIR` | `~/.ohmypi` | Tasks + settings |
+| `OHMYPI_ALLOWED_ROOTS` | home (or Setup folder) | Allowed project roots |
+| `OHMYPI_MUTATIONS` | `approval` | `approval` or `disabled` |
+| `OHMYPI_MAX_PROCESSES` | `3` | Concurrent Pi processes |
+| `OHMYPI_REPO` | `Yunz93/ohMyPi` | GitHub repo for the install script |
 
 `.env` is loaded automatically. Real environment variables override `.env`.
 
@@ -144,4 +144,4 @@ pnpm doctor
 
 - Bind stays on localhost by default
 - Writes to `.env`, `.ssh`, and Pi `auth.json` are blocked
-- Mutation tools require approval unless `MYPI_MUTATIONS=disabled`
+- Mutation tools require approval unless `OHMYPI_MUTATIONS=disabled`

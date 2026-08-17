@@ -44,7 +44,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@mypi/server':
+      '@ohmypi/server':
         specifier: workspace:*
         version: link:../server
     devDependencies:
@@ -75,7 +75,7 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.3.0
-      '@mypi/protocol':
+      '@ohmypi/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       fastify:
@@ -103,7 +103,7 @@ importers:
       '@fontsource/commit-mono':
         specifier: ^5.3.0
         version: 5.3.0
-      '@mypi/protocol':
+      '@ohmypi/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       highlight.js:

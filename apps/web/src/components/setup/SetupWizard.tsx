@@ -48,7 +48,7 @@ export function SetupWizard({ onFinished }: Props) {
         setProvider(next.providers[0]?.id ?? "anthropic");
         setStep("welcome");
       })
-      .catch(() => setError("Could not reach MyPi. Is it running?"));
+      .catch(() => setError("Could not reach ohMyPi. Is it running?"));
   }, []);
 
   async function saveApiKey() {
@@ -116,7 +116,7 @@ export function SetupWizard({ onFinished }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
       <div className="w-full max-w-lg rounded-lg bg-elevated p-5 shadow-xl">
         <p className="text-xs uppercase tracking-[0.16em] text-mute">
-          {isDesktopApp() ? "Welcome to MyPi" : "MyPi setup"}
+          {isDesktopApp() ? "Welcome to ohMyPi" : "ohMyPi setup"}
         </p>
         <h1 className="mt-2 text-2xl text-ink">
           {step === "welcome" && "Let’s get you ready"}
@@ -129,13 +129,13 @@ export function SetupWizard({ onFinished }: Props) {
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
               {isDesktopApp()
-                ? "MyPi is a private chat on this computer. Next we will connect an AI and pick a folder it may use."
-                : "MyPi is a simple place to chat with an AI that can help with files on this computer. We will set up three things: Pi, an AI key, and a work folder."}
+                ? "ohMyPi is a private chat on this computer. Next we will connect an AI and pick a folder it may use."
+                : "ohMyPi is a simple place to chat with an AI that can help with files on this computer. We will set up three things: Pi, an AI key, and a work folder."}
             </p>
             <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-mute">
               <li>Paste an API key (it stays on this computer)</li>
               <li>Choose a work folder</li>
-              <li>Start chatting — MyPi will ask before changing files</li>
+              <li>Start chatting — ohMyPi will ask before changing files</li>
             </ol>
             <button
               type="button"
@@ -151,8 +151,8 @@ export function SetupWizard({ onFinished }: Props) {
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
               {status?.piBundled
-                ? "MyPi could not start its built-in AI engine. Try quitting and opening MyPi again. If it still fails, reinstall the app."
-                : "Pi is the AI engine MyPi uses. Ask the person who installed MyPi to put Pi on this computer, then click Check again."}
+                ? "ohMyPi could not start its built-in AI engine. Try quitting and opening ohMyPi again. If it still fails, reinstall the app."
+                : "Pi is the AI engine ohMyPi uses. Ask the person who installed ohMyPi to put Pi on this computer, then click Check again."}
             </p>
             <div className="rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] text-mute">
               {status?.piAvailable
@@ -193,7 +193,7 @@ export function SetupWizard({ onFinished }: Props) {
         {step === "auth" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
-              Paste an API key from your AI provider. MyPi saves it only on this computer and never
+              Paste an API key from your AI provider. ohMyPi saves it only on this computer and never
               shows the full key again.
             </p>
             {status?.configuredProviders.length ? (
@@ -261,7 +261,7 @@ export function SetupWizard({ onFinished }: Props) {
         {step === "workspace" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
-              Pick the folder where MyPi is allowed to work. You can open projects inside this folder
+              Pick the folder where ohMyPi is allowed to work. You can open projects inside this folder
               later.
             </p>
             <FolderPicker

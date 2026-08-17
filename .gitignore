@@ -11,6 +11,7 @@ playwright-report
 blob-report
 .vite
 *.tsbuildinfo
+.ohmypi-test
 .mypi-test
 tmp
 .turbo

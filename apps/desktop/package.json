@@ -1,8 +1,8 @@
 {
-  "name": "@mypi/desktop",
+  "name": "@ohmypi/desktop",
   "version": "0.1.0",
-  "description": "Local-first Pi workbench for Windows and macOS",
-  "author": "MyPi",
+  "description": "Local-first ohMyPi workbench for Windows and macOS",
+  "author": "ohMyPi",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "pack:dir": "pnpm build && electron-builder --config electron-builder.yml --dir"
   },
   "dependencies": {
-    "@mypi/server": "workspace:*"
+    "@ohmypi/server": "workspace:*"
   },
   "devDependencies": {
     "electron": "^37.2.6",

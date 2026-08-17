@@ -27,7 +27,7 @@ describe("install-macos.sh", () => {
   it("passes a nounset self-test without GitHub tokens", () => {
     const out = execFileSync("bash", [script], {
       encoding: "utf8",
-      env: { ...process.env, MYPI_SELF_TEST: "1", GITHUB_TOKEN: "", GH_TOKEN: "" },
+      env: { ...process.env, OHMYPI_SELF_TEST: "1", GITHUB_TOKEN: "", GH_TOKEN: "" },
     });
     expect(out).toContain("self-test passed");
   });

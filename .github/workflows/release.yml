@@ -65,7 +65,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: mypi-${{ matrix.artifact }}
+          name: ohmypi-${{ matrix.artifact }}
           if-no-files-found: error
           path: |
             apps/desktop/release/*.dmg

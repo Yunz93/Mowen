@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import type { TaskStatus, ThinkingLevel } from "@mypi/protocol";
+import type { TaskStatus, ThinkingLevel } from "@ohmypi/protocol";
 import { ImagePlus, Square } from "lucide-react";
 
 type Props = {
