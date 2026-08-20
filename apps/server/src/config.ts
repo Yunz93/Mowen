@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -23,8 +24,8 @@ export type AppConfig = {
   approvalExtensionPath: string;
 };
 
-export function parseAllowedRoots(value: string | undefined): string[] {
-  const raw = value ?? "/Users/yunz/Code/VibeCoding";
+export function parseAllowedRoots(value: string | undefined, defaultRoot = process.cwd()): string[] {
+  const raw = value ?? defaultRoot;
   return raw
     .split(",")
     .map((item) => item.trim())
@@ -38,7 +39,7 @@ export function resolvePiBin(bin: string): string {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const host = env.HOST ?? "127.0.0.1";
-  const port = Number(env.PORT ?? "4310");
+  const port = z.coerce.number().int().min(0).max(65_535).parse(env.PORT ?? "4310");
   const nodeEnv = env.NODE_ENV ?? "development";
   const origins = new Set([
     `http://${host}:${port}`,
@@ -54,17 +55,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host,
     port,
     piBin: resolvePiBin(env.PI_BIN ?? "pi"),
-    dataDir: env.MYPI_DATA_DIR ?? "/Users/yunz/.mypi-web",
     allowedRoots: parseAllowedRoots(env.MYPI_ALLOWED_ROOTS),
-    maxProcesses: Number(env.MYPI_MAX_PROCESSES ?? "3"),
+    maxProcesses: z.coerce.number().int().positive().parse(env.MYPI_MAX_PROCESSES ?? "3"),
     mutations: mutationsSchema.parse(env.MYPI_MUTATIONS ?? "approval"),
     nodeEnv,
-    approvalTimeoutMs: Number(env.MYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000)),
+    approvalTimeoutMs: z.coerce.number().int().positive().parse(
+      env.MYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000),
+    ),
     allowedOrigins: [...origins],
     webDistDir: env.MYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     approvalExtensionPath:
       env.MYPI_APPROVAL_EXTENSION ??
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
+    dataDir: env.MYPI_DATA_DIR ?? path.join(os.homedir(), ".mypi-web"),
   };
 }
 

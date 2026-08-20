@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type {
   ClientCommand,
@@ -10,19 +9,19 @@ import type {
 import type { AppConfig } from "../config.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
+import { assertAllowedCwd } from "../security/path-policy.js";
+import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
+import { listProjectFiles, previewProjectFile } from "./file-browser.js";
 import { TaskStore } from "./task-store.js";
-
-type SocketLike = { send: (data: string) => void; closed: boolean };
-
-const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".mypi-test"]);
+import { UploadStore } from "./upload-store.js";
 
 export class TaskService {
   readonly supervisor: ProcessSupervisor;
-  private readonly sockets = new Set<SocketLike>();
+  private readonly events: EventDispatcher;
   private readonly queue: string[] = [];
+  private readonly booting = new Map<string, Promise<void>>();
   private activeTaskId: string | null = null;
-  readonly uploads = new Map<string, { mimeType: string; data: Buffer }>();
+  private readonly uploads = new UploadStore();
 
   constructor(
     private readonly config: AppConfig,
@@ -45,8 +44,9 @@ export class TaskService {
         void this.apply(taskId, "abort_confirmed");
       },
     );
+    this.events = new EventDispatcher((taskId) => this.supervisor.nextSequence(taskId));
     this.supervisor.onEvent((event) => {
-      this.broadcast(event);
+      this.events.dispatch(event);
       if (event.type === "approval.resolved") {
         const task = this.store.get(event.taskId);
         if (task?.status === "waiting_approval") {
@@ -60,18 +60,22 @@ export class TaskService {
   }
 
   addSocket(socket: SocketLike): void {
-    this.sockets.add(socket);
+    this.events.addSocket(socket);
   }
 
   removeSocket(socket: SocketLike): void {
-    this.sockets.delete(socket);
-    if (this.sockets.size === 0) {
+    this.events.removeSocket(socket);
+    if (this.events.connectionCount === 0) {
       this.supervisor.denyAllApprovals("Browser disconnected");
     }
   }
 
   listTasks(): TaskRecord[] {
     return this.store.listVisible().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
+  }
+
+  storeUpload(id: string, mimeType: string, data: Buffer): boolean {
+    return this.uploads.add(id, mimeType, data);
   }
 
   async handleCommand(command: ClientCommand): Promise<unknown> {
@@ -234,12 +238,32 @@ export class TaskService {
       unreadCount: 0,
     });
     if (this.supervisor.has(taskId)) return;
-    if (this.supervisor.runningCount() >= this.config.maxProcesses) {
-      if (!this.queue.includes(taskId)) this.queue.push(taskId);
+    const pendingBoot = this.booting.get(taskId);
+    if (pendingBoot) return pendingBoot;
+    // Idempotency guard: a task already queued (or mid-drain) must not be
+    // re-enqueued or double-booted, which would exceed maxProcesses.
+    if (this.queue.includes(taskId)) return;
+    if (this.reservedProcessCount() >= this.config.maxProcesses) {
+      this.queue.push(taskId);
       await this.apply(taskId, "queued");
       return;
     }
-    await this.boot(taskId);
+    await this.startBoot(taskId);
+  }
+
+  private reservedProcessCount(): number {
+    const pendingOnly = [...this.booting.keys()].filter((taskId) => !this.supervisor.has(taskId)).length;
+    return this.supervisor.runningCount() + pendingOnly;
+  }
+
+  private startBoot(taskId: string): Promise<void> {
+    const existing = this.booting.get(taskId);
+    if (existing) return existing;
+    const boot = this.boot(taskId).finally(() => {
+      this.booting.delete(taskId);
+    });
+    this.booting.set(taskId, boot);
+    return boot;
   }
 
   private async boot(taskId: string): Promise<void> {
@@ -303,9 +327,7 @@ export class TaskService {
       throw new Error("Pi process is not running");
     }
 
-    const images = (imageIds ?? [])
-      .map((id) => this.uploads.get(id))
-      .filter((item): item is { mimeType: string; data: Buffer } => Boolean(item))
+    const images = this.uploads.consume(imageIds ?? [])
       .map((item) => ({
         type: "image",
         data: item.data.toString("base64"),
@@ -395,40 +417,15 @@ export class TaskService {
 
   private async fileTree(taskId: string): Promise<{ entries: Array<{ path: string; name: string; kind: "file" | "dir" }> }> {
     const task = this.requireTask(taskId);
-    const entries: Array<{ path: string; name: string; kind: "file" | "dir" }> = [];
-    const walk = async (dir: string, depth: number): Promise<void> => {
-      if (depth > 6 || entries.length > 400) return;
-      const names = await readdir(dir);
-      for (const name of names) {
-        if (name.startsWith(".") || IGNORED_DIR_NAMES.has(name)) continue;
-        const full = path.join(dir, name);
-        const info = await stat(full);
-        const rel = path.relative(task.cwd, full);
-        if (info.isDirectory()) {
-          entries.push({ path: rel, name, kind: "dir" });
-          await walk(full, depth + 1);
-        } else {
-          entries.push({ path: rel, name, kind: "file" });
-        }
-      }
-    };
-    await walk(task.cwd, 0);
+    const entries = await listProjectFiles(task.cwd);
     this.emit(taskId, "files.tree", { entries });
     return { entries };
   }
 
   private async filePreview(taskId: string, relativePath: string): Promise<void> {
     const task = this.requireTask(taskId);
-    const resolved = await resolveAllowedPath(relativePath, task.cwd, this.config.allowedRoots);
-    const buf = await readFile(resolved);
-    const truncated = buf.byteLength > 200_000;
-    const content = buf.subarray(0, 200_000).toString("utf8");
-    this.emit(taskId, "files.preview", {
-      path: relativePath,
-      content,
-      truncated,
-      language: path.extname(relativePath).slice(1),
-    });
+    const preview = await previewProjectFile(relativePath, task.cwd, this.config.allowedRoots);
+    this.emit(taskId, "files.preview", preview);
   }
 
   private async handleUnexpectedExit(taskId: string, generation: number, error: string): Promise<void> {
@@ -436,18 +433,19 @@ export class TaskService {
       return;
     }
     await this.supervisor.stop(taskId, "SIGKILL");
+    this.removeQueued(taskId);
     await this.apply(taskId, "pi_exit", error);
     await this.drainQueue();
   }
 
   private async drainQueue(): Promise<void> {
-    while (this.queue.length > 0 && this.supervisor.runningCount() < this.config.maxProcesses) {
+    while (this.queue.length > 0 && this.reservedProcessCount() < this.config.maxProcesses) {
       const nextId = this.queue.shift();
       if (!nextId) break;
       const task = this.store.get(nextId);
       if (!task || task.archivedAt) continue;
       try {
-        await this.boot(nextId);
+        await this.startBoot(nextId);
       } catch {
         // boot records error state
       }
@@ -504,21 +502,11 @@ export class TaskService {
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {
-    const meta = this.supervisor.nextSequence(taskId);
-    const event = {
-      ...meta,
-      taskId,
-      type,
-      payload,
-    } as ServerEvent;
-    this.broadcast(event);
+    this.events.emit(taskId, type, payload);
   }
 
-  broadcast(event: ServerEvent): void {
-    const data = JSON.stringify(event);
-    for (const socket of this.sockets) {
-      if (!socket.closed) socket.send(data);
-    }
+  sendTo(socket: SocketLike, taskId: string, type: ServerEvent["type"], payload: unknown): void {
+    this.events.sendTo(socket, taskId, type, payload);
   }
 
   restoredMessages(taskId: string): TimelineMessage[] {

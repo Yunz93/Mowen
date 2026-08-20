@@ -5,13 +5,13 @@
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "scripts": {
-    "dev": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/server dev & pnpm --filter @mypi/web dev",
+    "dev": "pnpm --filter @mypi/protocol build && pnpm --parallel --filter @mypi/server --filter @mypi/web dev",
     "typecheck": "pnpm --filter @mypi/protocol build && pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
-    "build": "pnpm --filter @mypi/protocol build && pnpm --filter @mypi/web build && pnpm --filter @mypi/server build",
+    "build": "pnpm -r --filter @mypi/protocol --filter @mypi/web --filter @mypi/server build",
     "start": "node apps/server/dist/index.js",
     "smoke:real": "tsx scripts/smoke-real.ts"
   },

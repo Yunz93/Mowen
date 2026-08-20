@@ -87,13 +87,14 @@ async function streamText(text) {
   });
   send({ type: "message_update", assistantMessageEvent: { type: "text_start", contentIndex: 0 } });
   const parts = text.split(" ");
+  const delayMs = text.includes("stream this slowly") ? 200 : 40;
   let acc = "";
   for (const part of parts) {
     if (state.aborted) break;
     acc += acc ? ` ${part}` : part;
     const delta = acc.endsWith(part) && acc !== part ? ` ${part}` : part;
     send({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta } });
-    await new Promise((r) => setTimeout(r, 40));
+    await new Promise((r) => setTimeout(r, delayMs));
   }
   send({
     type: "message_update",

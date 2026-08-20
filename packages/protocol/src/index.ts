@@ -5,9 +5,11 @@ export {
 } from "./client-commands.js";
 export {
   serverEventSchema,
+  serverFrameSchema,
   serverEventTypeSchema,
   snapshotPayloadSchema,
   type ServerEvent,
+  type ServerFrame,
   type ServerEventType,
   type SnapshotPayload,
 } from "./server-events.js";

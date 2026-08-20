@@ -37,4 +37,16 @@ describe("task store", () => {
     await again.load();
     expect(again.get(task.id)?.title).toBe("Demo");
   });
+
+  it("restores persisted runtime states as stopped", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "mypi-store-restart-"));
+    const store = new TaskStore(dir);
+    await store.load();
+    const task = { ...sample("22222222-2222-4222-8222-222222222222"), status: "running" as const };
+    await store.upsert(task);
+
+    const restored = new TaskStore(dir);
+    await restored.load();
+    expect(restored.get(task.id)?.status).toBe("stopped");
+  });
 });

@@ -1,4 +1,5 @@
 import type { ApprovalRequest } from "@mypi/protocol";
+import { AlertTriangle, CheckCircle2, TerminalSquare } from "lucide-react";
 
 type Props = {
   approval: ApprovalRequest;
@@ -8,6 +9,7 @@ type Props = {
 export function ApprovalSheet({ approval, onRespond }: Props) {
   const remaining = Math.max(0, Date.parse(approval.expiresAt) - Date.now());
   const seconds = Math.ceil(remaining / 1000);
+  const fileMutation = approval.toolName === "write" || approval.toolName === "edit";
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-canvas/70 p-4 sm:items-center">
@@ -17,10 +19,26 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
         aria-labelledby="approval-title"
         className="w-full max-w-lg rounded-lg bg-elevated p-4 shadow-xl"
       >
-        <h2 id="approval-title" className="text-lg text-ink">
-          Allow {approval.toolName}?
-        </h2>
-        <p className="mt-2 text-sm text-mute">{approval.risk}</p>
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-canvas text-warn">
+            {approval.toolName === "bash" ? <TerminalSquare size={17} /> : <AlertTriangle size={17} />}
+          </div>
+          <div>
+            <h2 id="approval-title" className="text-lg text-ink">
+              Allow {approval.toolName}?
+            </h2>
+            <p className="mt-1 text-sm leading-5 text-mute">{approval.risk}</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 font-mono text-[11px]">
+          <span className="rounded-md bg-canvas px-2 py-1 text-warn">{approval.toolName === "bash" ? "Runs command" : "Writes file"}</span>
+          <span className="rounded-md bg-canvas px-2 py-1 text-mute">Current task</span>
+          {fileMutation ? (
+            <span className="flex items-center gap-1 rounded-md bg-canvas px-2 py-1 text-accent">
+              <CheckCircle2 size={11} /> Path validated
+            </span>
+          ) : null}
+        </div>
         <dl className="mt-4 space-y-2 font-mono text-xs text-ink">
           <div>
             <dt className="text-mute">Working directory</dt>

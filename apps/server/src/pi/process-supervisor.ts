@@ -106,6 +106,7 @@ export class ProcessSupervisor {
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
   private readonly listeners = new Set<Listener>();
   private readonly sequences = new Map<string, number>();
+  private readonly serverInstanceId = randomUUID();
 
   constructor(
     private readonly config: AppConfig,
@@ -446,13 +447,9 @@ export class ProcessSupervisor {
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {
-    const sequence = (this.sequences.get(taskId) ?? 0) + 1;
-    this.sequences.set(taskId, sequence);
     const event = {
-      eventId: randomUUID(),
+      ...this.nextSequence(taskId),
       taskId,
-      timestamp: new Date().toISOString(),
-      sequence,
       type,
       payload,
     } as ServerEvent;
@@ -461,9 +458,14 @@ export class ProcessSupervisor {
     }
   }
 
-  nextSequence(taskId: string): { eventId: string; timestamp: string; sequence: number } {
+  nextSequence(taskId: string): { eventId: string; serverInstanceId: string; timestamp: string; sequence: number } {
     const sequence = (this.sequences.get(taskId) ?? 0) + 1;
     this.sequences.set(taskId, sequence);
-    return { eventId: randomUUID(), timestamp: new Date().toISOString(), sequence };
+    return {
+      eventId: randomUUID(),
+      serverInstanceId: this.serverInstanceId,
+      timestamp: new Date().toISOString(),
+      sequence,
+    };
   }
 }

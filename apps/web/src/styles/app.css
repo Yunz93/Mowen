@@ -11,6 +11,7 @@
   --color-ink: oklch(0.91 0.008 75);
   --color-mute: oklch(0.68 0.012 75);
   --color-accent: oklch(0.78 0.14 75);
+  --color-warn: oklch(0.76 0.16 55);
   --color-success: oklch(0.72 0.13 145);
   --color-danger: oklch(0.66 0.19 25);
   --color-info: oklch(0.72 0.1 235);

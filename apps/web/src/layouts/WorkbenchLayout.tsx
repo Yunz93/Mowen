@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PanelRight } from "lucide-react";
 import { NavRail } from "../components/navigation/NavRail";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
@@ -7,11 +7,21 @@ import { PromptComposer } from "../components/composer/PromptComposer";
 import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { PiStatusRing } from "../components/status/PiStatusRing";
+import { ContextMeter } from "../components/status/ContextMeter";
+import { RunStatusBar } from "../components/status/RunStatusBar";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ThinkingLevel } from "@mypi/protocol";
+import {
+  approvalDecision,
+  effectiveApprovalPolicy,
+  loadTaskPreferences,
+  saveTaskPreferences,
+  type ApprovalPolicy,
+  type InteractionMode,
+} from "../lib/interaction-policy";
 
 function projectName(cwd: string): string {
   const parts = cwd.split("/").filter(Boolean);
@@ -69,6 +79,13 @@ export function WorkbenchLayout() {
   const [imageIds, setImageIds] = useState<string[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [taskPreferences, setTaskPreferences] = useState(loadTaskPreferences);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
+    () => ("Notification" in window ? Notification.permission : "unsupported"),
+  );
+  const automaticallyHandled = useRef(new Set<string>());
+  const notifiedApprovals = useRef(new Set<string>());
+  const previousTaskId = useRef<string | null>(null);
   const viewport = useViewport();
 
   useEffect(() => {
@@ -80,6 +97,65 @@ export function WorkbenchLayout() {
     [tasks, activeTaskId],
   );
   const status = task?.status ?? "stopped";
+  const previousStatus = useRef(status);
+  const preferences = taskPreferences[task?.id ?? ""] ?? {
+    mode: "agent" as InteractionMode,
+    approvalPolicy: "ask" as ApprovalPolicy,
+  };
+  const activeApprovalPolicy = effectiveApprovalPolicy(preferences.mode, preferences.approvalPolicy);
+  const automaticApprovalDecision = approval
+    ? approvalDecision(activeApprovalPolicy, approval)
+    : null;
+
+  const updatePreferences = (
+    update: Partial<{ mode: InteractionMode; approvalPolicy: ApprovalPolicy }>,
+  ) => {
+    if (!task) return;
+    setTaskPreferences((current) => {
+      const next = {
+        ...current,
+        [task.id]: { ...preferences, ...update },
+      };
+      saveTaskPreferences(next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!approval || automaticApprovalDecision == null) return;
+    if (automaticallyHandled.current.has(approval.requestId)) return;
+    automaticallyHandled.current.add(approval.requestId);
+    void socketClient.send(
+      "approval.respond",
+      { requestId: approval.requestId, allow: automaticApprovalDecision },
+      approval.taskId,
+    );
+  }, [approval, automaticApprovalDecision]);
+
+  useEffect(() => {
+    const before = previousStatus.current;
+    const sameTask = previousTaskId.current === (task?.id ?? null);
+    previousStatus.current = status;
+    previousTaskId.current = task?.id ?? null;
+    if (!sameTask) return;
+    if (notificationPermission !== "granted" || document.visibilityState === "visible" || !task) return;
+    if (approval && automaticApprovalDecision == null) {
+      if (notifiedApprovals.current.has(approval.requestId)) return;
+      notifiedApprovals.current.add(approval.requestId);
+      new Notification("MyPi needs approval", { body: `${task.title}: review ${approval.toolName}` });
+      return;
+    }
+    if ((before === "running" || before === "waiting_approval") && status === "idle") {
+      new Notification("MyPi task completed", { body: task.title });
+    } else if (before !== "error" && status === "error") {
+      new Notification("MyPi task stopped", { body: task.errorMessage ?? task.title });
+    }
+  }, [approval, automaticApprovalDecision, notificationPermission, status, task]);
+
+  const enableNotifications = async () => {
+    if (!("Notification" in window)) return;
+    setNotificationPermission(await Notification.requestPermission());
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -180,6 +256,13 @@ export function WorkbenchLayout() {
               {task ? `${projectName(task.cwd)} · ${task.status.replaceAll("_", " ")} · ${nextAction(status, true)}` : nextAction(status, false)}
             </p>
           </div>
+          {task ? (
+            <ContextMeter
+              compact={viewport.mobile}
+              stats={stats}
+              onCompact={() => void socketClient.send("session.compact", {}, task.id)}
+            />
+          ) : null}
           <span className="hidden font-mono text-[11px] text-mute tabular sm:inline">{connection}</span>
           {viewport.inspectorDrawer ? (
             <button
@@ -209,6 +292,13 @@ export function WorkbenchLayout() {
               : (serverError ?? requestError)}
           </div>
         ) : null}
+        {task ? (
+          <RunStatusBar
+            status={status}
+            tools={tools}
+            hasChanges={tools.some((tool) => tool.toolName === "write" || tool.toolName === "edit")}
+          />
+        ) : null}
         <main id="main-content" className="min-h-0 min-w-[0] flex-1 overflow-y-auto">
           <ConversationTimeline messages={messages} tools={tools} />
         </main>
@@ -219,6 +309,8 @@ export function WorkbenchLayout() {
           thinkingLevels={thinkingLevels}
           modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}
           thinkingLevel={task?.thinkingLevel ?? "off"}
+          mode={preferences.mode}
+          approvalPolicy={preferences.approvalPolicy}
           hasTurns={messages.some((item) => item.role === "user")}
           value={draft}
           onChange={setDraft}
@@ -239,11 +331,15 @@ export function WorkbenchLayout() {
           onThinking={(level: ThinkingLevel) =>
             task && void socketClient.send("thinking.set", { level }, task.id)
           }
+          onMode={(mode) => updatePreferences({ mode })}
+          onApprovalPolicy={(approvalPolicy) => updatePreferences({ approvalPolicy })}
           onImages={(files) => void uploadImages(files)}
           imageCount={imageIds.length}
+          contextEntries={files}
+          onRequestContext={() => task && files.length === 0 && void socketClient.send("files.tree", {}, task.id)}
         />
       </div>
-      {viewport.mobile ? null : viewport.inspectorDrawer ? (
+      {viewport.inspectorDrawer ? (
         inspectorOpen ? (
           <InspectorPanel
             drawer
@@ -255,6 +351,8 @@ export function WorkbenchLayout() {
             onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
             onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
             onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+            notificationPermission={notificationPermission}
+            onEnableNotifications={() => void enableNotifications()}
           />
         ) : null
       ) : (
@@ -266,6 +364,8 @@ export function WorkbenchLayout() {
           onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
           onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
           onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+          notificationPermission={notificationPermission}
+          onEnableNotifications={() => void enableNotifications()}
         />
       )}
       {paletteOpen ? (
@@ -282,7 +382,7 @@ export function WorkbenchLayout() {
           }}
         />
       ) : null}
-      {approval ? (
+      {approval && automaticApprovalDecision == null ? (
         <ApprovalSheet
           approval={approval}
           onRespond={(allow) =>

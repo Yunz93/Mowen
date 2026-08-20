@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
 const project = path.join(process.cwd(), ".mypi-test", "e2e-project");
@@ -7,6 +7,9 @@ const project = path.join(process.cwd(), ".mypi-test", "e2e-project");
 test.beforeAll(() => {
   mkdirSync(project, { recursive: true });
   writeFileSync(path.join(project, "README.md"), "e2e");
+  for (const name of ["denied.txt", "auto-approved.txt", "read-only.txt"]) {
+    rmSync(path.join(project, name), { force: true });
+  }
 });
 
 test("workbench core loop", async ({ page }) => {
@@ -38,6 +41,19 @@ test("workbench core loop", async ({ page }) => {
   await page.getByRole("button", { name: "Deny" }).click();
   expect(existsSync(path.join(project, "denied.txt"))).toBe(false);
   await expect(page.getByRole("button", { name: "Follow-up" })).toBeVisible();
+
+  await page.getByLabel("Approval policy").selectOption("workspace");
+  await page.getByLabel("Prompt").fill("WRITE:auto-approved.txt:workspace safe");
+  await page.getByRole("button", { name: "Follow-up" }).click();
+  await expect.poll(() => existsSync(path.join(project, "auto-approved.txt"))).toBe(true);
+  await expect(page.getByRole("heading", { name: /Allow write/ })).toHaveCount(0);
+
+  await page.getByLabel("Interaction mode").selectOption("ask");
+  await page.getByLabel("Prompt").fill("WRITE:read-only.txt:blocked");
+  await page.getByRole("button", { name: "Follow-up" }).click();
+  await expect(page.getByRole("button", { name: "Follow-up" })).toBeVisible();
+  expect(existsSync(path.join(project, "read-only.txt"))).toBe(false);
+  await page.getByLabel("Interaction mode").selectOption("agent");
 
   await page.getByLabel("Prompt").fill("BASH:echo hi");
   await page.getByRole("button", { name: "Follow-up" }).click();
@@ -90,6 +106,7 @@ test("visual workbench at required viewports", async ({ page }) => {
   await page.getByLabel("Title").fill("Visual task");
   await page.getByRole("button", { name: "Create task" }).click();
   await expect(page.getByRole("banner").getByText("Visual task")).toBeVisible();
+  await expect(page.getByRole("banner")).toContainText("idle", { timeout: 15_000 });
 
   for (const size of [
     { name: "1440", width: 1440, height: 900 },
@@ -103,7 +120,7 @@ test("visual workbench at required viewports", async ({ page }) => {
     );
     expect(overflow).toBe(false);
     await expect(page).toHaveScreenshot(`workbench-${size.name}.png`, {
-      maxDiffPixelRatio: 0.04,
+      maxDiffPixelRatio: 0.01,
     });
   }
 });

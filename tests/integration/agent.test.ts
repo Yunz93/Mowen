@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { serverFrameSchema } from "@mypi/protocol";
 import { createApp } from "../../apps/server/src/index.ts";
 
 const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
@@ -40,7 +41,8 @@ async function openSocket(base: string) {
   });
   const events: EventMsg[] = [];
   ws.on("message", (data) => {
-    events.push(JSON.parse(String(data)));
+    const frame = serverFrameSchema.parse(JSON.parse(String(data)));
+    events.push(...("__batch" in frame ? frame.events : [frame]));
   });
   await new Promise<void>((resolve, reject) => {
     ws.once("open", () => resolve());

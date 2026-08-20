@@ -32,7 +32,9 @@ export function registerUploads(
       return reply.code(400).send({ error: "File exceeds 10MB" });
     }
     const id = randomUUID();
-    service.uploads.set(id, { mimeType: file.mimetype, data: buffer });
+    if (!service.storeUpload(id, file.mimetype, buffer)) {
+      return reply.code(429).send({ error: "Upload memory limit reached; send or retry later" });
+    }
     return { id, mimeType: file.mimetype, size: buffer.byteLength };
   });
 }

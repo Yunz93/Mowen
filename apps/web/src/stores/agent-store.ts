@@ -36,17 +36,17 @@ type AgentState = {
   authHint: boolean;
   fileEntries: Array<{ path: string; name: string; kind: "file" | "dir" }>;
   filePreview: { path: string; content: string; truncated: boolean; language?: string } | null;
-  seen: Record<string, number>;
+  serverInstanceId: string | null;
+  // Per-task last processed sequence, used to drop replayed events after a
+  // reconnect or duplicate broadcast. Single WS channel is ordered, so keeping
+  // the max per task is sufficient (unlike a per-event map, this doesn't grow).
+  lastSeen: Record<string, number>;
   applyEvent: (event: ServerEvent) => void;
   applySnapshot: (payload: SnapshotPayload, taskId?: string) => void;
   setConnection: (status: ConnectionStatus) => void;
   setActiveTask: (taskId: string | null) => void;
   clearRequestError: () => void;
 };
-
-function seenKey(taskId: string, sequence: number): string {
-  return `${taskId}:${sequence}`;
-}
 
 function upsertTask(tasks: TaskRecord[], task: TaskRecord): TaskRecord[] {
   const index = tasks.findIndex((item) => item.id === task.id);
@@ -78,7 +78,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   authHint: false,
   fileEntries: [],
   filePreview: null,
-  seen: {},
+  serverInstanceId: null,
+  lastSeen: {},
   setConnection: (connection) => set({ connection }),
   setActiveTask: (activeTaskId) => set({ activeTaskId }),
   clearRequestError: () => set({ requestError: null, serverError: null }),
@@ -101,15 +102,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       maxProcesses: payload.maxProcesses,
     }),
   applyEvent: (event) => {
-    const key = seenKey(event.taskId, event.sequence);
-    const current = get();
-    if (current.seen[key] !== undefined) return;
-    const seen = { ...current.seen, [key]: event.sequence };
+    let current = get();
+    if (current.serverInstanceId !== event.serverInstanceId) {
+      set({ serverInstanceId: event.serverInstanceId, lastSeen: {} });
+      current = get();
+    }
+    const last = current.lastSeen[event.taskId] ?? -1;
+    // Single ordered WS channel: drop replays (sequence <= last) and record
+    // the new max. No unbounded per-event bookkeeping.
+    if (event.sequence <= last) return;
+    const lastSeen = { ...current.lastSeen, [event.taskId]: event.sequence };
 
     switch (event.type) {
       case "snapshot":
         set({
-          seen,
+          lastSeen,
           tasks: event.payload.tasks,
           activeTaskId: event.payload.activeTaskId ?? current.activeTaskId,
           messages: event.payload.messages,
@@ -128,21 +135,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         });
         break;
       case "task.created":
-        set({ seen, tasks: upsertTask(current.tasks, event.payload.task), activeTaskId: event.payload.task.id });
+        set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task), activeTaskId: event.payload.task.id });
         break;
       case "task.updated":
-        set({ seen, tasks: upsertTask(current.tasks, event.payload.task) });
+        set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task) });
         break;
       case "task.archived":
         set({
-          seen,
+          lastSeen,
           tasks: current.tasks.filter((task) => task.id !== event.payload.taskId),
           activeTaskId: current.activeTaskId === event.payload.taskId ? null : current.activeTaskId,
         });
         break;
       case "agent.status":
         set({
-          seen,
+          lastSeen,
           tasks: current.tasks.map((task) =>
             task.id === event.taskId
               ? { ...task, status: event.payload.status as TaskStatus, errorMessage: event.payload.errorMessage }
@@ -152,11 +159,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
       case "message.started":
         if (event.taskId !== current.activeTaskId) {
-          set({ seen });
+          set({ lastSeen });
           break;
         }
         set({
-          seen,
+          lastSeen,
           messages: current.messages.some((item) => item.id === event.payload.message.id)
             ? current.messages
             : [...current.messages, event.payload.message],
@@ -164,11 +171,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
       case "message.delta":
         if (event.taskId !== current.activeTaskId) {
-          set({ seen });
+          set({ lastSeen });
           break;
         }
         set({
-          seen,
+          lastSeen,
           messages: current.messages.map((item) => {
             if (item.id !== event.payload.messageId) return item;
             if (event.payload.field === "thinking") {
@@ -180,11 +187,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
       case "message.completed":
         if (event.taskId !== current.activeTaskId) {
-          set({ seen });
+          set({ lastSeen });
           break;
         }
         set({
-          seen,
+          lastSeen,
           messages: current.messages.some((item) => item.id === event.payload.message.id)
             ? current.messages.map((item) =>
                 item.id === event.payload.message.id ? event.payload.message : item,
@@ -196,11 +203,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       case "tool.updated":
       case "tool.completed":
         if (event.taskId !== current.activeTaskId) {
-          set({ seen });
+          set({ lastSeen });
           break;
         }
         set({
-          seen,
+          lastSeen,
           tools: [
             ...current.tools.filter((tool) => tool.toolCallId !== event.payload.tool.toolCallId),
             event.payload.tool,
@@ -209,26 +216,26 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
       case "approval.requested":
         if (event.taskId === current.activeTaskId) {
-          set({ seen, approval: event.payload.approval });
+          set({ lastSeen, approval: event.payload.approval });
         } else {
-          set({ seen });
+          set({ lastSeen });
         }
         break;
       case "approval.resolved":
         set({
-          seen,
+          lastSeen,
           approval:
             current.approval?.requestId === event.payload.requestId ? null : current.approval,
         });
         break;
       case "session.stats":
         if (event.taskId === current.activeTaskId) {
-          set({ seen, stats: event.payload.stats });
-        } else set({ seen });
+          set({ lastSeen, stats: event.payload.stats });
+        } else set({ lastSeen });
         break;
       case "connection.status":
         set({
-          seen,
+          lastSeen,
           connection:
             event.payload.status === "connected"
               ? "open"
@@ -238,33 +245,33 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         });
         break;
       case "request.failed":
-        set({ seen, requestError: event.payload.error });
+        set({ lastSeen, requestError: event.payload.error });
         break;
       case "request.succeeded":
-        set({ seen, requestError: null });
+        set({ lastSeen, requestError: null });
         break;
       case "server.error":
         set({
-          seen,
+          lastSeen,
           serverError: event.payload.message,
           authHint: Boolean(event.payload.authHint),
         });
         break;
       case "files.tree":
-        set({ seen, fileEntries: event.payload.entries });
+        set({ lastSeen, fileEntries: event.payload.entries });
         break;
       case "files.preview":
-        set({ seen, filePreview: event.payload });
+        set({ lastSeen, filePreview: event.payload });
         break;
       case "models.updated":
         set({
-          seen,
+          lastSeen,
           models: event.payload.models,
           thinkingLevels: event.payload.thinkingLevels,
         });
         break;
       default:
-        set({ seen });
+        set({ lastSeen });
     }
   },
 }));

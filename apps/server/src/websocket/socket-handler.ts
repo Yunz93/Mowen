@@ -35,10 +35,17 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
         if (socket.readyState === socket.OPEN) socket.send(data);
       },
     };
+    // Liveness watch: mark dead sockets so the service stops broadcasting.
+    const watch = setInterval(() => {
+      if (socket.readyState !== socket.OPEN) {
+        wrapper.closed = true;
+        socket.terminate();
+      }
+    }, 15_000);
     service.addSocket(wrapper);
     const snapshot = service.buildSnapshot(null);
-    service.emit("", "snapshot", snapshot);
-    service.emit("", "connection.status", { status: "connected" });
+    service.sendTo(wrapper, "", "snapshot", snapshot);
+    service.sendTo(wrapper, "", "connection.status", { status: "connected" });
 
     let chain = Promise.resolve();
     socket.on("message", (raw) => {
@@ -89,6 +96,7 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
     });
 
     socket.on("close", () => {
+      clearInterval(watch);
       wrapper.closed = true;
       service.removeSocket(wrapper);
     });

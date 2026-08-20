@@ -43,7 +43,12 @@ export class TaskStore {
         await copyFile(this.filePath, `${this.filePath}.bak`);
       }
       const tasks = Array.isArray(parsed.tasks)
-        ? parsed.tasks.map((task) => taskRecordSchema.parse({ ...task, schemaVersion: TASK_SCHEMA_VERSION }))
+        ? parsed.tasks.map((task) => {
+            const restored = taskRecordSchema.parse({ ...task, schemaVersion: TASK_SCHEMA_VERSION });
+            // Pi processes do not survive a server restart. Persisted runtime
+            // states must therefore return to a startable state.
+            return restored.status === "error" ? restored : { ...restored, status: "stopped" as const };
+          })
         : [];
       this.state = { schemaVersion: TASK_SCHEMA_VERSION, tasks };
     } catch (error) {

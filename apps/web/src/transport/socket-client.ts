@@ -1,4 +1,4 @@
-import { serverEventSchema, type ClientCommand } from "@mypi/protocol";
+import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@mypi/protocol";
 import { useAgentStore } from "../stores/agent-store";
 
 type Pending = {
@@ -47,6 +47,20 @@ export class SocketClient {
     });
   }
 
+  private handleEvent(serverEvent: ServerEvent): void {
+    useAgentStore.getState().applyEvent(serverEvent);
+    if (serverEvent.type === "request.succeeded") {
+      const pending = this.pending.get(serverEvent.payload.requestId);
+      pending?.resolve(serverEvent.payload.data);
+      this.pending.delete(serverEvent.payload.requestId);
+    }
+    if (serverEvent.type === "request.failed") {
+      const pending = this.pending.get(serverEvent.payload.requestId);
+      pending?.reject(new Error(serverEvent.payload.error));
+      this.pending.delete(serverEvent.payload.requestId);
+    }
+  }
+
   private open(): void {
     useAgentStore.getState().setConnection("connecting");
     const protocol = location.protocol === "https:" ? "wss" : "ws";
@@ -54,43 +68,41 @@ export class SocketClient {
     this.socket = socket;
 
     socket.addEventListener("open", () => {
+      if (socket !== this.socket) return;
       this.retries = 0;
       useAgentStore.getState().setConnection("open");
     });
 
     socket.addEventListener("message", (event) => {
+      if (socket !== this.socket) return;
       let parsed: unknown;
       try {
         parsed = JSON.parse(String(event.data));
       } catch {
         return;
       }
-      const result = serverEventSchema.safeParse(parsed);
+      // Server may batch streaming deltas into a single frame: { __batch, events }.
+      const result = serverFrameSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn("[mypi] dropped event", result.error.issues[0]?.message);
+        console.warn("[mypi] dropped frame", result.error.issues[0]?.message);
         return;
       }
-      const serverEvent = result.data;
-      useAgentStore.getState().applyEvent(serverEvent);
-      if (serverEvent.type === "request.succeeded") {
-        const pending = this.pending.get(serverEvent.payload.requestId);
-        pending?.resolve(serverEvent.payload.data);
-        this.pending.delete(serverEvent.payload.requestId);
-      }
-      if (serverEvent.type === "request.failed") {
-        const pending = this.pending.get(serverEvent.payload.requestId);
-        pending?.reject(new Error(serverEvent.payload.error));
-        this.pending.delete(serverEvent.payload.requestId);
+      const frame = result.data;
+      const events = "__batch" in frame ? frame.events : [frame];
+      for (const serverEvent of events) {
+        this.handleEvent(serverEvent);
       }
     });
 
     socket.addEventListener("close", () => {
+      if (socket !== this.socket) return;
       useAgentStore.getState().setConnection("closed");
       if (this.closedByUser) return;
       const delay = Math.min(1000 * 2 ** this.retries, 8000);
       this.retries += 1;
       this.reconnectTimer = setTimeout(() => {
-        void this.connect().then(() => this.send("snapshot.request"));
+        // The server sends a fresh snapshot as part of every accepted socket.
+        void this.connect();
       }, delay);
     });
   }

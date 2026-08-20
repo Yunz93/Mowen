@@ -38,6 +38,7 @@ export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
 
 const eventBase = {
   eventId: z.string().min(1),
+  serverInstanceId: z.string().min(1),
   taskId: z.string(),
   timestamp: z.string().min(1),
   sequence: z.number().int().nonnegative(),
@@ -205,3 +206,13 @@ export const serverEventSchema = z.discriminatedUnion("type", [
 ]);
 
 export type ServerEvent = z.infer<typeof serverEventSchema>;
+
+export const serverFrameSchema = z.union([
+  serverEventSchema,
+  z.object({
+    __batch: z.literal(true),
+    events: z.array(serverEventSchema),
+  }),
+]);
+
+export type ServerFrame = z.infer<typeof serverFrameSchema>;

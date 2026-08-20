@@ -1,6 +1,12 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { TaskStatus, ThinkingLevel } from "@mypi/protocol";
 import { ImagePlus, Square } from "lucide-react";
+import {
+  approvalPolicies,
+  interactionModes,
+  type ApprovalPolicy,
+  type InteractionMode,
+} from "../../lib/interaction-policy";
 
 type Props = {
   status: TaskStatus;
@@ -9,6 +15,8 @@ type Props = {
   thinkingLevels: ThinkingLevel[];
   modelId: string | null;
   thinkingLevel: ThinkingLevel;
+  mode: InteractionMode;
+  approvalPolicy: ApprovalPolicy;
   hasTurns: boolean;
   value: string;
   onChange: (value: string) => void;
@@ -18,8 +26,12 @@ type Props = {
   onAbort: () => void;
   onModel: (provider: string, modelId: string) => void;
   onThinking: (level: ThinkingLevel) => void;
+  onMode: (mode: InteractionMode) => void;
+  onApprovalPolicy: (policy: ApprovalPolicy) => void;
   onImages: (files: FileList) => void;
   imageCount: number;
+  contextEntries: Array<{ path: string; kind: "file" | "dir" }>;
+  onRequestContext: () => void;
 };
 
 export function PromptComposer({
@@ -29,6 +41,8 @@ export function PromptComposer({
   thinkingLevels,
   modelId,
   thinkingLevel,
+  mode,
+  approvalPolicy,
   hasTurns,
   value,
   onChange,
@@ -38,12 +52,25 @@ export function PromptComposer({
   onAbort,
   onModel,
   onThinking,
+  onMode,
+  onApprovalPolicy,
   onImages,
   imageCount,
+  contextEntries,
+  onRequestContext,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
+  const atIndex = value.lastIndexOf("@");
+  const contextQuery = atIndex >= 0 && !/\s/.test(value.slice(atIndex + 1))
+    ? value.slice(atIndex + 1).toLowerCase()
+    : null;
+  const contextSuggestions = contextQuery == null
+    ? []
+    : contextEntries
+        .filter((entry) => entry.path.toLowerCase().includes(contextQuery))
+        .slice(0, 6);
 
   useEffect(() => {
     const node = ref.current;
@@ -70,14 +97,84 @@ export function PromptComposer({
         <textarea
           ref={ref}
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            onChange(next);
+            if (/(^|\s)@[^\s@]*$/.test(next)) onRequestContext();
+          }}
           onKeyDown={onKeyDown}
           placeholder={running ? "Steer the current run" : "Send the next action"}
           aria-label="Prompt"
           disabled={disabled}
           className="max-h-[220px] min-h-[44px] w-full resize-none bg-transparent text-[15px] leading-6 text-ink placeholder:text-mute"
         />
+        {contextQuery != null ? (
+          <div className="mb-1 border-t border-line pt-2" role="listbox" aria-label="Project context">
+            <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-mute">
+              Add project context
+            </p>
+            {contextSuggestions.length > 0 ? (
+              <div className="grid max-h-36 gap-1 overflow-y-auto">
+                {contextSuggestions.map((entry) => (
+                  <button
+                    key={entry.path}
+                    type="button"
+                    role="option"
+                    aria-selected="false"
+                    className="pressable flex min-h-9 items-center gap-2 rounded-md px-2 text-left font-mono text-xs text-ink hover:bg-surface"
+                    onClick={() => {
+                      onChange(`${value.slice(0, atIndex)}@${entry.path} `);
+                      ref.current?.focus();
+                    }}
+                  >
+                    <span className="text-mute">{entry.kind === "dir" ? "DIR" : "FILE"}</span>
+                    <span className="min-w-0 truncate">{entry.path}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="px-2 py-2 text-xs text-mute">No matching files. Keep typing to reference a path.</p>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2 pt-2">
+          <label className="sr-only" htmlFor="interaction-mode-select">
+            Interaction mode
+          </label>
+          <select
+            id="interaction-mode-select"
+            className="h-10 rounded-md bg-surface px-2 text-xs font-medium text-ink"
+            value={mode}
+            title={interactionModes.find((item) => item.value === mode)?.description}
+            onChange={(event) => onMode(event.target.value as InteractionMode)}
+          >
+            {interactionModes.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor="approval-policy-select">
+            Approval policy
+          </label>
+          <select
+            id="approval-policy-select"
+            className="h-10 max-w-[180px] rounded-md bg-surface px-2 font-mono text-xs text-ink disabled:opacity-60"
+            value={mode === "agent" ? approvalPolicy : "read_only"}
+            disabled={mode !== "agent"}
+            title={
+              mode === "agent"
+                ? approvalPolicies.find((item) => item.value === approvalPolicy)?.description
+                : "This mode is read only"
+            }
+            onChange={(event) => onApprovalPolicy(event.target.value as ApprovalPolicy)}
+          >
+            {approvalPolicies.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
           <label className="sr-only" htmlFor="model-select">
             Model
           </label>
