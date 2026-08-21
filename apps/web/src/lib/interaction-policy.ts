@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from "@ohmypi/protocol";
+import type { ApprovalRequest } from "@mowen/protocol";
 
 export type InteractionMode = "ask" | "plan" | "agent" | "review";
 export type ApprovalPolicy = "ask" | "workspace" | "read_only";

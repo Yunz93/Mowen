@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../../apps/server/src/config.ts";
 import { TaskService } from "../../apps/server/src/tasks/task-service.ts";
 import { TaskStore } from "../../apps/server/src/tasks/task-store.ts";
-import type { TaskRecord } from "@ohmypi/protocol";
+import type { TaskRecord } from "@mowen/protocol";
 
 function task(id: string, cwd: string): TaskRecord {
   const now = new Date().toISOString();

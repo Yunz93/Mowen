@@ -6,7 +6,7 @@ import type {
   ServerEvent,
   TaskRecord,
   TimelineMessage,
-} from "@ohmypi/protocol";
+} from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
@@ -15,7 +15,7 @@ import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
 
-const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".ohmypi-test"]);
+const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".mowen-test"]);
 
 export type SetupHints = {
   authConfigured: boolean;
@@ -364,7 +364,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "连不上 AI 服务商。打开设置粘贴 API Key。ohMyPi 不会显示完整密钥。"
+          ? "连不上 AI 服务商。打开设置粘贴 API Key。墨问不会显示完整密钥。"
           : text,
         authHint,
       });

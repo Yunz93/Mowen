@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serverFrameSchema, type ServerEvent } from "@ohmypi/protocol";
+import { serverFrameSchema, type ServerEvent } from "@mowen/protocol";
 import { EventDispatcher, type SocketLike } from "../../apps/server/src/tasks/event-dispatcher.ts";
 
 function socket(): SocketLike & { frames: string[] } {

@@ -44,7 +44,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@ohmypi/server':
+      '@mowen/server':
         specifier: workspace:*
         version: link:../server
     devDependencies:
@@ -75,7 +75,7 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.3.0
-      '@ohmypi/protocol':
+      '@mowen/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       fastify:
@@ -103,7 +103,7 @@ importers:
       '@fontsource/commit-mono':
         specifier: ^5.3.0
         version: 5.3.0
-      '@ohmypi/protocol':
+      '@mowen/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       highlight.js:
@@ -1615,6 +1615,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

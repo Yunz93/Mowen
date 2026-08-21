@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { TaskStore } from "../../apps/server/src/tasks/task-store.ts";
-import type { TaskRecord } from "@ohmypi/protocol";
+import type { TaskRecord } from "@mowen/protocol";
 
 function sample(id: string): TaskRecord {
   const now = new Date().toISOString();
@@ -11,7 +11,7 @@ function sample(id: string): TaskRecord {
     schemaVersion: 1,
     id,
     title: "Demo",
-    cwd: "/tmp/ohmypi-sample-project",
+    cwd: "/tmp/mowen-sample-project",
     sessionPath: null,
     status: "stopped",
     model: null,
@@ -26,7 +26,7 @@ function sample(id: string): TaskRecord {
 
 describe("task store", () => {
   it("writes metadata atomically", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "ohmypi-store-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "mowen-store-"));
     const store = new TaskStore(dir);
     await store.load();
     const task = sample("11111111-1111-4111-8111-111111111111");

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { TimelineMessage, ToolExecution } from "@ohmypi/protocol";
+import type { TimelineMessage, ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 
 type Props = {

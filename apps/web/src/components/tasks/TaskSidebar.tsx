@@ -1,5 +1,5 @@
 import { Archive, Plus, Search, X } from "lucide-react";
-import type { TaskRecord } from "@ohmypi/protocol";
+import type { TaskRecord } from "@mowen/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
 import { folderName, taskStatusLabel } from "../../copy";
 

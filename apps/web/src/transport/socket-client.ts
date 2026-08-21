@@ -1,4 +1,4 @@
-import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@ohmypi/protocol";
+import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@mowen/protocol";
 import { useAgentStore } from "../stores/agent-store";
 
 type Pending = {
@@ -83,7 +83,7 @@ export class SocketClient {
       }
       const result = serverFrameSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn("[ohmypi] dropped event", result.error.issues[0]?.message);
+        console.warn("[mowen] dropped event", result.error.issues[0]?.message);
         return;
       }
       const frame = result.data;

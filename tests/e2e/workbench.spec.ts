@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
-const project = path.join(process.cwd(), ".ohmypi-test", "e2e-project");
+const project = path.join(process.cwd(), ".mowen-test", "e2e-project");
 
 test.beforeAll(() => {
   mkdirSync(project, { recursive: true });

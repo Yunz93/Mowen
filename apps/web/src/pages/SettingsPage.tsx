@@ -25,7 +25,7 @@ export function SettingsPage() {
       </Link>
       <h1 className="mt-6 text-2xl">设置</h1>
       <p className="mt-2 max-w-[65ch] text-sm leading-6 text-mute">
-        ohMyPi 只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
+        墨问只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
       </p>
 
       <div className="mt-8 max-w-xl">

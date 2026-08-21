@@ -48,7 +48,7 @@ export async function buildSetupStatus(
   const configuredProviders = await listConfiguredProviders(config.homeDir);
   const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir));
   const piAvailable = Boolean(pi.version) && !pi.error;
-  const e2e = process.env.OHMYPI_E2E === "1" || process.env.OHMYPI_SKIP_SETUP === "1";
+  const e2e = process.env.MOWEN_E2E === "1" || process.env.OHMYPI_E2E === "1" || process.env.MOWEN_SKIP_SETUP === "1" || process.env.OHMYPI_SKIP_SETUP === "1";
   const setupCompleted = e2e || Boolean(userSettings.setupCompletedAt);
   const effectiveAuth = e2e || authConfigured;
   const needsSetup = !e2e && (!piAvailable || !effectiveAuth || !setupCompleted);

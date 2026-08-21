@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from "@ohmypi/protocol";
+import type { ApprovalRequest } from "@mowen/protocol";
 import { toolNameLabel } from "../../copy";
 
 type Props = {

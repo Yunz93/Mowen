@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SessionStats } from "@ohmypi/protocol";
+import type { SessionStats } from "@mowen/protocol";
 import { Gauge, X } from "lucide-react";
 
 type Props = {

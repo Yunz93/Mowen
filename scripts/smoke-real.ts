@@ -5,7 +5,7 @@ import path from "node:path";
 import { attachJsonlLineReader, serializeJsonLine } from "../apps/server/src/pi/rpc-framer.ts";
 
 async function main(): Promise<void> {
-  const root = path.join(os.tmpdir(), `ohmypi-smoke-${Date.now()}`);
+  const root = path.join(os.tmpdir(), `mowen-smoke-${Date.now()}`);
   const project = path.join(root, "project");
   await mkdir(project, { recursive: true });
   await writeFile(path.join(project, "README.md"), "smoke");
@@ -25,8 +25,8 @@ async function main(): Promise<void> {
       cwd: project,
       env: {
         ...process.env,
-        OHMYPI_MUTATIONS: "approval",
-        OHMYPI_ALLOWED_ROOTS: project,
+        MOWEN_MUTATIONS: "approval",
+        MOWEN_ALLOWED_ROOTS: project,
       },
       stdio: ["pipe", "pipe", "pipe"],
     },

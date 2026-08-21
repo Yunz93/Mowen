@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#181818" />
-    <title>ohMyPi</title>
+    <title>墨问</title>
     <script>
       (function () {
         var theme = "dark";
         try {
-          var stored = localStorage.getItem("ohmypi.theme");
+          var stored = localStorage.getItem("mowen.theme") || localStorage.getItem("ohmypi.theme");
           if (stored === "light" || stored === "dark") theme = stored;
         } catch (e) {}
         var dark = theme === "dark";

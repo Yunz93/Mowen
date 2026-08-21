@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld("ohmypi", {
+contextBridge.exposeInMainWorld("mowen", {
   isDesktop: true,
   platform: process.platform,
-  pickFolder: (defaultPath?: string) => ipcRenderer.invoke("ohmypi:pick-folder", defaultPath) as Promise<string | null>,
+  pickFolder: (defaultPath?: string) => ipcRenderer.invoke("mowen:pick-folder", defaultPath) as Promise<string | null>,
 });
