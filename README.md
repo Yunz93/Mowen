@@ -39,8 +39,8 @@ irm https://github.com/Yunz93/ohMyPi/releases/latest/download/install-windows.ps
 ### 发布稳定版
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 这会跑 `.github/workflows/release.yml`，上传安装包和上述脚本。日常 `main` 推送会更新 `nightly` 预发布。
