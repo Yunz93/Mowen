@@ -55,7 +55,7 @@ function installMenu(): void {
         },
         {
           label: "在 GitHub 查看墨问",
-          click: () => void shell.openExternal("https://github.com/Yunz93/ohMyPi"),
+          click: () => void shell.openExternal("https://github.com/Yunz93/Mowen"),
         },
       ],
     },
