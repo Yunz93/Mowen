@@ -1,56 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { PanelRight } from "lucide-react";
-import { NavRail } from "../components/navigation/NavRail";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { FolderOpen, MessageSquare, PanelRight, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
 import { PromptComposer } from "../components/composer/PromptComposer";
 import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { PiStatusRing } from "../components/status/PiStatusRing";
-import { ContextMeter } from "../components/status/ContextMeter";
-import { RunStatusBar } from "../components/status/RunStatusBar";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
-import type { ThinkingLevel } from "@mypi/protocol";
-import {
-  approvalDecision,
-  effectiveApprovalPolicy,
-  loadTaskPreferences,
-  saveTaskPreferences,
-  type ApprovalPolicy,
-  type InteractionMode,
-} from "../lib/interaction-policy";
-
-function projectName(cwd: string): string {
-  const parts = cwd.split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? cwd;
-}
-
-function nextAction(status: string, hasTask: boolean): string {
-  if (!hasTask) return "Create a task";
-  if (status === "waiting_approval") return "Review approval";
-  if (status === "running") return "Steer or stop";
-  if (status === "error") return "Restart from composer";
-  if (status === "queued") return "Waiting for a Pi slot";
-  if (status === "booting") return "Starting Pi";
-  if (status === "aborting") return "Stopping";
-  return "Send the next action";
-}
-function useViewport() {
-  const [width, setWidth] = useState(() => window.innerWidth);
-  useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  return {
-    inspectorDrawer: width < 1180,
-    taskDrawer: width < 900,
-    mobile: width < 640,
-  };
-}
+import type { ThinkingLevel } from "@ohmypi/protocol";
+import { folderName, nextHint } from "../copy";
 
 export function WorkbenchLayout() {
   const tasks = useAgentStore((state) => state.tasks);
@@ -70,92 +32,27 @@ export function WorkbenchLayout() {
   const requestError = useAgentStore((state) => state.requestError);
   const connection = useAgentStore((state) => state.connection);
   const allowedRoots = useAgentStore((state) => state.allowedRoots);
+  const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
 
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
-  const [cwd, setCwd] = useState(allowedRoots[0] ?? "");
+  const [cwd, setCwd] = useState(workspaceRoot ?? allowedRoots[0] ?? "");
   const [creating, setCreating] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [imageIds, setImageIds] = useState<string[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [taskPreferences, setTaskPreferences] = useState(loadTaskPreferences);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
-    () => ("Notification" in window ? Notification.permission : "unsupported"),
-  );
-  const automaticallyHandled = useRef(new Set<string>());
-  const notifiedApprovals = useRef(new Set<string>());
-  const previousTaskId = useRef<string | null>(null);
-  const viewport = useViewport();
 
   useEffect(() => {
-    if (allowedRoots[0] && !cwd) setCwd(allowedRoots[0]);
-  }, [allowedRoots, cwd]);
+    const preferred = workspaceRoot ?? allowedRoots[0];
+    if (preferred && !cwd) setCwd(preferred);
+  }, [allowedRoots, workspaceRoot, cwd]);
 
   const task = useMemo(
     () => tasks.find((item) => item.id === activeTaskId),
     [tasks, activeTaskId],
   );
   const status = task?.status ?? "stopped";
-  const previousStatus = useRef(status);
-  const preferences = taskPreferences[task?.id ?? ""] ?? {
-    mode: "agent" as InteractionMode,
-    approvalPolicy: "ask" as ApprovalPolicy,
-  };
-  const activeApprovalPolicy = effectiveApprovalPolicy(preferences.mode, preferences.approvalPolicy);
-  const automaticApprovalDecision = approval
-    ? approvalDecision(activeApprovalPolicy, approval)
-    : null;
-
-  const updatePreferences = (
-    update: Partial<{ mode: InteractionMode; approvalPolicy: ApprovalPolicy }>,
-  ) => {
-    if (!task) return;
-    setTaskPreferences((current) => {
-      const next = {
-        ...current,
-        [task.id]: { ...preferences, ...update },
-      };
-      saveTaskPreferences(next);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    if (!approval || automaticApprovalDecision == null) return;
-    if (automaticallyHandled.current.has(approval.requestId)) return;
-    automaticallyHandled.current.add(approval.requestId);
-    void socketClient.send(
-      "approval.respond",
-      { requestId: approval.requestId, allow: automaticApprovalDecision },
-      approval.taskId,
-    );
-  }, [approval, automaticApprovalDecision]);
-
-  useEffect(() => {
-    const before = previousStatus.current;
-    const sameTask = previousTaskId.current === (task?.id ?? null);
-    previousStatus.current = status;
-    previousTaskId.current = task?.id ?? null;
-    if (!sameTask) return;
-    if (notificationPermission !== "granted" || document.visibilityState === "visible" || !task) return;
-    if (approval && automaticApprovalDecision == null) {
-      if (notifiedApprovals.current.has(approval.requestId)) return;
-      notifiedApprovals.current.add(approval.requestId);
-      new Notification("MyPi needs approval", { body: `${task.title}: review ${approval.toolName}` });
-      return;
-    }
-    if ((before === "running" || before === "waiting_approval") && status === "idle") {
-      new Notification("MyPi task completed", { body: task.title });
-    } else if (before !== "error" && status === "error") {
-      new Notification("MyPi task stopped", { body: task.errorMessage ?? task.title });
-    }
-  }, [approval, automaticApprovalDecision, notificationPermission, status, task]);
-
-  const enableNotifications = async () => {
-    if (!("Notification" in window)) return;
-    setNotificationPermission(await Notification.requestPermission());
-  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -163,6 +60,14 @@ export function WorkbenchLayout() {
         if (creating) {
           event.preventDefault();
           setCreating(false);
+          return;
+        }
+        if (taskOpen) {
+          setTaskOpen(false);
+          return;
+        }
+        if (inspectorOpen) {
+          setInspectorOpen(false);
           return;
         }
         event.preventDefault();
@@ -179,7 +84,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [creating, task]);
+  }, [creating, inspectorOpen, task, taskOpen]);
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
@@ -214,94 +119,99 @@ export function WorkbenchLayout() {
   }
 
   return (
-    <div className="flex h-dvh bg-canvas text-ink">
+    <div className="relative flex h-dvh bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
-        Skip to content
+        跳到正文
       </a>
-      <NavRail onNewTask={() => setCreating(true)} />
-      {viewport.taskDrawer ? (
-        taskOpen ? (
-          <div className="absolute inset-y-0 left-[52px] z-20">
-            <TaskSidebar
-              tasks={tasks}
-              activeTaskId={activeTaskId}
-              query={query}
-              onQuery={setQuery}
-              onSelect={(id) => void selectTask(id)}
-              onArchive={(id) => void socketClient.send("task.archive", {}, id)}
-            />
-          </div>
-        ) : null
-      ) : (
-        <TaskSidebar
-          tasks={tasks}
-          activeTaskId={activeTaskId}
-          query={query}
-          onQuery={setQuery}
-          onSelect={(id) => void selectTask(id)}
-          onArchive={(id) => void socketClient.send("task.archive", {}, id)}
-        />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col bg-surface">
-        <header className="flex h-[52px] items-center gap-3 border-b border-line px-4">
-          {viewport.taskDrawer ? (
-            <button type="button" className="pressable h-10 px-2 text-sm" onClick={() => setTaskOpen((v) => !v)}>
-              Tasks
-            </button>
-          ) : null}
+      <div className="flex min-w-0 flex-1 flex-col bg-canvas">
+        <header className="flex h-14 items-center gap-2 border-b border-line px-3 sm:px-4">
+          <button
+            type="button"
+            className="pressable inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-ink hover:bg-elevated"
+            onClick={() => setTaskOpen(true)}
+          >
+            <MessageSquare size={16} />
+            会话
+          </button>
+          <button
+            type="button"
+            className="pressable inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-elevated"
+            aria-label="新对话"
+            onClick={() => setCreating(true)}
+          >
+            <FolderOpen size={16} />
+          </button>
           <PiStatusRing status={status} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-ink">{task?.title ?? "No task selected"}</p>
-            <p className="truncate font-mono text-[11px] text-mute tabular">
-              {task ? `${projectName(task.cwd)} · ${task.status.replaceAll("_", " ")} · ${nextAction(status, true)}` : nextAction(status, false)}
+            <p className="truncate text-sm text-ink">{task?.title ?? "还没有对话"}</p>
+            <p className="truncate text-[12px] text-mute">
+              {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
           </div>
-          {task ? (
-            <ContextMeter
-              compact={viewport.mobile}
-              stats={stats}
-              onCompact={() => void socketClient.send("session.compact", {}, task.id)}
-            />
-          ) : null}
-          <span className="hidden font-mono text-[11px] text-mute tabular sm:inline">{connection}</span>
-          {viewport.inspectorDrawer ? (
-            <button
-              type="button"
-              className="pressable flex h-10 w-10 items-center justify-center"
-              aria-label="Inspector"
-              onClick={() => setInspectorOpen(true)}
-            >
-              <PanelRight size={16} />
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:bg-elevated hover:text-ink"
+            aria-label="详情"
+            onClick={() => setInspectorOpen(true)}
+          >
+            <PanelRight size={16} />
+          </button>
+          <Link
+            to="/settings"
+            aria-label="设置"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:bg-elevated hover:text-ink"
+          >
+            <Settings size={16} />
+          </Link>
         </header>
         {!piAvailable ? (
           <div className="border-b border-danger/40 bg-elevated px-4 py-2 text-sm text-danger">
-            {piError ?? "Pi is not installed. Install the Pi CLI, then restart MyPi."}
+            {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
           </div>
         ) : null}
         {connection !== "open" ? (
-          <div className="border-b border-line bg-elevated px-4 py-2 font-mono text-[11px] text-mute tabular">
-            {connection === "connecting" ? "Reconnecting to MyPi" : "Disconnected from MyPi"}
+          <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
+            {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
           </div>
         ) : null}
         {authHint || serverError || requestError ? (
           <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
-            {authHint
-              ? "Pi is not signed in to a provider. Use the Pi CLI to authenticate. MyPi never shows API keys."
-              : (serverError ?? requestError)}
+            {authHint ? "还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。" : (serverError ?? requestError)}
           </div>
         ) : null}
-        {task ? (
-          <RunStatusBar
-            status={status}
-            tools={tools}
-            hasChanges={tools.some((tool) => tool.toolName === "write" || tool.toolName === "edit")}
-          />
-        ) : null}
         <main id="main-content" className="min-h-0 min-w-[0] flex-1 overflow-y-auto">
-          <ConversationTimeline messages={messages} tools={tools} />
+          {task ? (
+            <ConversationTimeline messages={messages} tools={tools} />
+          ) : (
+            <div className="mx-auto flex max-w-[520px] flex-col items-center px-6 pt-24 text-center">
+              <p className="text-xl text-ink">你好，我是 ohMyPi</p>
+              <p className="mt-3 text-sm leading-6 text-mute">
+                在这台电脑上和 AI 聊天。它可以帮助看文件、改代码，改之前会先问你。
+              </p>
+              <button
+                type="button"
+                className="pressable mt-6 h-11 rounded-full bg-accent px-5 text-sm text-canvas"
+                onClick={() => setCreating(true)}
+              >
+                开始对话
+              </button>
+            </div>
+          )}
         </main>
+        {approval ? (
+          <div className="mx-auto w-full max-w-[720px] px-4">
+            <ApprovalSheet
+              approval={approval}
+              onRespond={(allow) =>
+                void socketClient.send(
+                  "approval.respond",
+                  { requestId: approval.requestId, allow },
+                  approval.taskId,
+                )
+              }
+            />
+          </div>
+        ) : null}
         <PromptComposer
           status={status}
           disabled={!task || connection !== "open"}
@@ -309,8 +219,6 @@ export function WorkbenchLayout() {
           thinkingLevels={thinkingLevels}
           modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}
           thinkingLevel={task?.thinkingLevel ?? "off"}
-          mode={preferences.mode}
-          approvalPolicy={preferences.approvalPolicy}
           hasTurns={messages.some((item) => item.role === "user")}
           value={draft}
           onChange={setDraft}
@@ -331,63 +239,73 @@ export function WorkbenchLayout() {
           onThinking={(level: ThinkingLevel) =>
             task && void socketClient.send("thinking.set", { level }, task.id)
           }
-          onMode={(mode) => updatePreferences({ mode })}
-          onApprovalPolicy={(approvalPolicy) => updatePreferences({ approvalPolicy })}
           onImages={(files) => void uploadImages(files)}
           imageCount={imageIds.length}
-          contextEntries={files}
-          onRequestContext={() => task && files.length === 0 && void socketClient.send("files.tree", {}, task.id)}
         />
       </div>
-      {viewport.inspectorDrawer ? (
-        inspectorOpen ? (
-          <InspectorPanel
-            drawer
-            tools={tools}
-            stats={stats}
-            files={files}
-            preview={preview}
-            onClose={() => setInspectorOpen(false)}
-            onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
-            onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
-            onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
-            notificationPermission={notificationPermission}
-            onEnableNotifications={() => void enableNotifications()}
+
+      {taskOpen ? (
+        <div className="fixed inset-0 z-30">
+          <button
+            type="button"
+            className="absolute inset-0 bg-canvas/70"
+            aria-label="关闭会话列表"
+            onClick={() => setTaskOpen(false)}
           />
-        ) : null
-      ) : (
-        <InspectorPanel
-          tools={tools}
-          stats={stats}
-          files={files}
-          preview={preview}
-          onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
-          onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
-          onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
-          notificationPermission={notificationPermission}
-          onEnableNotifications={() => void enableNotifications()}
-        />
-      )}
+          <div className="absolute inset-y-0 left-0 z-40 shadow-2xl">
+            <TaskSidebar
+              tasks={tasks}
+              activeTaskId={activeTaskId}
+              query={query}
+              onQuery={setQuery}
+              onSelect={(id) => void selectTask(id)}
+              onArchive={(id) => void socketClient.send("task.archive", {}, id)}
+              onNew={() => {
+                setTaskOpen(false);
+                setCreating(true);
+              }}
+              onClose={() => setTaskOpen(false)}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {inspectorOpen ? (
+        <div className="fixed inset-0 z-30">
+          <button
+            type="button"
+            className="absolute inset-0 bg-canvas/70"
+            aria-label="关闭详情"
+            onClick={() => setInspectorOpen(false)}
+          />
+          <div className="absolute inset-y-0 right-0 z-40">
+            <InspectorPanel
+              drawer
+              tools={tools}
+              stats={stats}
+              files={files}
+              preview={preview}
+              onClose={() => setInspectorOpen(false)}
+              onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
+              onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
+              onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {paletteOpen ? (
         <CommandPalette open onClose={() => setPaletteOpen(false)} onNewTask={() => setCreating(true)} />
       ) : null}
       {creating ? (
         <NewTaskDialog
-          defaultCwd={cwd || allowedRoots[0] || ""}
+          defaultCwd={cwd || workspaceRoot || allowedRoots[0] || ""}
           onCancel={() => setCreating(false)}
           onCreate={(directory, title) => {
             setCwd(directory);
             setCreating(false);
             void socketClient.send("task.create", { cwd: directory, title });
           }}
-        />
-      ) : null}
-      {approval && automaticApprovalDecision == null ? (
-        <ApprovalSheet
-          approval={approval}
-          onRespond={(allow) =>
-            void socketClient.send("approval.respond", { requestId: approval.requestId, allow }, approval.taskId)
-          }
         />
       ) : null}
     </div>

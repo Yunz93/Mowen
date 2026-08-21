@@ -7,7 +7,7 @@ const NEED_APPROVAL = new Set(["edit", "write", "bash"]);
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
 
 function parseRoots(): string[] {
-  return (process.env.MYPI_ALLOWED_ROOTS ?? "")
+  return (process.env.OHMYPI_ALLOWED_ROOTS ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -74,7 +74,7 @@ export default function (pi: ExtensionAPI) {
 
     const cwd = process.cwd();
     const roots = parseRoots();
-    const mutations = process.env.MYPI_MUTATIONS ?? "approval";
+    const mutations = process.env.OHMYPI_MUTATIONS ?? "approval";
     const input = (event.input ?? {}) as Record<string, unknown>;
     const target =
       toolName === "bash"
@@ -102,11 +102,11 @@ export default function (pi: ExtensionAPI) {
 
     const risk =
       toolName === "bash"
-        ? "This command runs with your user privileges. MyPi does not try to guess whether Bash is safe."
-        : "This writes to the project filesystem. Review the path before allowing.";
+        ? "这条命令会用你的账号权限运行。ohMyPi 不会替你判断它是否安全。"
+        : "这次会改项目里的文件。确认路径没问题再允许。";
 
     const payload = {
-      kind: "mypi.approval",
+      kind: "ohmypi.approval",
       toolName,
       toolCallId: event.toolCallId,
       cwd,
@@ -120,7 +120,7 @@ export default function (pi: ExtensionAPI) {
       `Working directory:\n${cwd}`,
       risk,
       "",
-      "MYPI_APPROVAL_V1",
+      "OHMYPI_APPROVAL_V1",
       JSON.stringify(payload),
     ].join("\n");
 

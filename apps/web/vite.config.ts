@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@mypi/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
+      "@ohmypi/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
     },
   },
   server: {

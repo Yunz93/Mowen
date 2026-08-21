@@ -1,4 +1,4 @@
-import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@mypi/protocol";
+import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@ohmypi/protocol";
 import { useAgentStore } from "../stores/agent-store";
 
 type Pending = {
@@ -81,10 +81,9 @@ export class SocketClient {
       } catch {
         return;
       }
-      // Server may batch streaming deltas into a single frame: { __batch, events }.
       const result = serverFrameSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn("[mypi] dropped frame", result.error.issues[0]?.message);
+        console.warn("[ohmypi] dropped event", result.error.issues[0]?.message);
         return;
       }
       const frame = result.data;
@@ -101,8 +100,7 @@ export class SocketClient {
       const delay = Math.min(1000 * 2 ** this.retries, 8000);
       this.retries += 1;
       this.reconnectTimer = setTimeout(() => {
-        // The server sends a fresh snapshot as part of every accepted socket.
-        void this.connect();
+        void this.connect().then(() => this.send("snapshot.request"));
       }, delay);
     });
   }

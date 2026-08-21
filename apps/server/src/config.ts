@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -9,10 +10,19 @@ const execFileAsync = promisify(execFile);
 
 export const mutationsSchema = z.enum(["approval", "disabled"]);
 
+export type PiRuntime = {
+  command: string;
+  prefixArgs: string[];
+  extraEnv: NodeJS.ProcessEnv;
+};
+
 export type AppConfig = {
   host: string;
   port: number;
   piBin: string;
+  piCommand: string;
+  piPrefixArgs: string[];
+  piExtraEnv: NodeJS.ProcessEnv;
   dataDir: string;
   allowedRoots: string[];
   maxProcesses: number;
@@ -22,11 +32,29 @@ export type AppConfig = {
   allowedOrigins: string[];
   webDistDir: string;
   approvalExtensionPath: string;
+  homeDir: string;
+  piBundled: boolean;
 };
 
-export function parseAllowedRoots(value: string | undefined, defaultRoot = process.cwd()): string[] {
-  const raw = value ?? defaultRoot;
-  return raw
+export function defaultDataDir(homeDir = os.homedir()): string {
+  const current = path.join(homeDir, ".ohmypi");
+  const legacy = path.join(homeDir, ".mypi-web");
+  if (!existsSync(current) && existsSync(legacy)) return legacy;
+  return current;
+}
+
+export function defaultAllowedRoots(homeDir = os.homedir()): string[] {
+  return [homeDir];
+}
+
+export function parseAllowedRoots(
+  value: string | undefined,
+  fallback: string[] = defaultAllowedRoots(),
+): string[] {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+  return value
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -37,9 +65,50 @@ export function resolvePiBin(bin: string): string {
   return path.resolve(bin);
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+export function isJavaScriptFile(file: string): boolean {
+  return /\.[cm]?js$/i.test(file);
+}
+
+/**
+ * Desktop builds set OHMYPI_PI_ENTRY to Pi's CLI file and run it with Electron's
+ * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
+ * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
+ * Node executable so Windows can run it (shebang spawn is Unix-only).
+ */
+export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
+  const entry = env.OHMYPI_PI_ENTRY?.trim();
+  if (entry) {
+    const command = env.OHMYPI_NODE_BIN?.trim() || process.execPath;
+    const extraEnv: NodeJS.ProcessEnv = {};
+    if (process.versions.electron || command === process.execPath) {
+      extraEnv.ELECTRON_RUN_AS_NODE = "1";
+    }
+    return { command, prefixArgs: [path.resolve(entry)], extraEnv };
+  }
+  const bin = resolvePiBin(env.PI_BIN ?? "pi");
+  if (isJavaScriptFile(bin)) {
+    return { command: process.execPath, prefixArgs: [bin], extraEnv: {} };
+  }
+  return {
+    command: bin,
+    prefixArgs: [],
+    extraEnv: {},
+  };
+}
+
+export function expandHome(input: string, homeDir = os.homedir()): string {
+  if (input === "~") return homeDir;
+  if (input.startsWith("~/")) return path.join(homeDir, input.slice(2));
+  return input;
+}
+
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { workspaceRoot?: string | null; homeDir?: string } = {},
+): AppConfig {
+  const homeDir = options.homeDir ?? os.homedir();
   const host = env.HOST ?? "127.0.0.1";
-  const port = z.coerce.number().int().min(0).max(65_535).parse(env.PORT ?? "4310");
+  const port = Number(env.PORT ?? "4310");
   const nodeEnv = env.NODE_ENV ?? "development";
   const origins = new Set([
     `http://${host}:${port}`,
@@ -51,37 +120,69 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     origins.add("http://localhost:5173");
   }
 
+  const envRoots = parseAllowedRoots(
+    env.OHMYPI_ALLOWED_ROOTS,
+    options.workspaceRoot
+      ? [expandHome(options.workspaceRoot, homeDir)]
+      : defaultAllowedRoots(homeDir),
+  ).map((root) => path.resolve(expandHome(root, homeDir)));
+
+  // Prefer an explicit workspace from settings when env did not override roots.
+  if (!env.OHMYPI_ALLOWED_ROOTS?.trim() && options.workspaceRoot) {
+    const workspace = path.resolve(expandHome(options.workspaceRoot, homeDir));
+    if (!envRoots.includes(workspace)) {
+      envRoots.unshift(workspace);
+    }
+  }
+
+  const pi = resolvePiRuntime(env);
+
   return {
     host,
     port,
-    piBin: resolvePiBin(env.PI_BIN ?? "pi"),
-    allowedRoots: parseAllowedRoots(env.MYPI_ALLOWED_ROOTS),
-    maxProcesses: z.coerce.number().int().positive().parse(env.MYPI_MAX_PROCESSES ?? "3"),
-    mutations: mutationsSchema.parse(env.MYPI_MUTATIONS ?? "approval"),
+    piBin: entryDisplay(env, pi),
+    piCommand: pi.command,
+    piPrefixArgs: pi.prefixArgs,
+    piExtraEnv: pi.extraEnv,
+    dataDir: path.resolve(expandHome(env.OHMYPI_DATA_DIR ?? defaultDataDir(homeDir), homeDir)),
+    allowedRoots: envRoots,
+    maxProcesses: Number(env.OHMYPI_MAX_PROCESSES ?? "3"),
+    mutations: mutationsSchema.parse(env.OHMYPI_MUTATIONS ?? "approval"),
     nodeEnv,
-    approvalTimeoutMs: z.coerce.number().int().positive().parse(
-      env.MYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000),
-    ),
+    approvalTimeoutMs: Number(env.OHMYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000)),
     allowedOrigins: [...origins],
-    webDistDir: env.MYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
+    webDistDir: env.OHMYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     approvalExtensionPath:
-      env.MYPI_APPROVAL_EXTENSION ??
+      env.OHMYPI_APPROVAL_EXTENSION ??
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
-    dataDir: env.MYPI_DATA_DIR ?? path.join(os.homedir(), ".mypi-web"),
+    homeDir,
+    piBundled: env.OHMYPI_PI_BUNDLED === "1" || Boolean(env.OHMYPI_PI_ENTRY?.trim()),
   };
 }
 
-export async function readPiVersion(piBin: string): Promise<{ version: string | null; error: string | null }> {
+function entryDisplay(env: NodeJS.ProcessEnv, pi: PiRuntime): string {
+  return env.OHMYPI_PI_ENTRY?.trim() || pi.command;
+}
+
+export async function readPiVersion(
+  runtime: Pick<AppConfig, "piCommand" | "piPrefixArgs" | "piExtraEnv"> | string,
+): Promise<{ version: string | null; error: string | null }> {
+  const command = typeof runtime === "string" ? runtime : runtime.piCommand;
+  const prefixArgs = typeof runtime === "string" ? [] : runtime.piPrefixArgs;
+  const extraEnv = typeof runtime === "string" ? {} : runtime.piExtraEnv;
   try {
-    const { stdout } = await execFileAsync(piBin, ["--version"], { timeout: 5000 });
+    const { stdout } = await execFileAsync(command, [...prefixArgs, "--version"], {
+      timeout: 8000,
+      env: { ...process.env, ...extraEnv },
+    });
     const version = stdout.trim().split("\n")[0] ?? "";
     return { version: version || null, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/ENOENT/i.test(message)) {
-      return { version: null, error: "Pi is not installed or PI_BIN is not executable." };
+      return { version: null, error: "还没有安装 Pi，或找不到可执行文件。" };
     }
-    return { version: null, error: `Could not read Pi version: ${message}` };
+    return { version: null, error: `无法读取 Pi 版本：${message}` };
   }
 }
 

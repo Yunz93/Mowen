@@ -1,0 +1,47 @@
+appId: com.ohmypi.desktop
+productName: ohMyPi
+copyright: Copyright © 2026 ohMyPi
+artifactName: ohMyPi-${os}-${arch}.${ext}
+asar: true
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - "!**/node_modules/**"
+extraResources:
+  - from: ../web/dist
+    to: web
+  - from: ../server/extensions/approval.ts
+    to: approval.ts
+afterPack: ./afterPack.mjs
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  identity: null
+  artifactName: ohMyPi-${os}-${arch}.${ext}
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: false
+  gatekeeperAssess: false
+win:
+  icon: build/icon.png
+  artifactName: ohMyPi-${os}-${arch}.${ext}
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: true
+  perMachine: false
+  shortcutName: ohMyPi
+  artifactName: ohMyPi-${os}-${arch}-setup.${ext}
+portable:
+  artifactName: ohMyPi-${os}-${arch}-portable.${ext}
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Development
+npmRebuild: false

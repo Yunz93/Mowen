@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../../apps/server/src/config.ts";
 import { TaskService } from "../../apps/server/src/tasks/task-service.ts";
 import { TaskStore } from "../../apps/server/src/tasks/task-store.ts";
-import type { TaskRecord } from "@mypi/protocol";
+import type { TaskRecord } from "@ohmypi/protocol";
 
 function task(id: string, cwd: string): TaskRecord {
   const now = new Date().toISOString();
@@ -40,6 +40,9 @@ describe("task service process reservations", () => {
       host: "127.0.0.1",
       port: 0,
       piBin: "pi",
+      piCommand: "pi",
+      piPrefixArgs: [],
+      piExtraEnv: {},
       dataDir: root,
       allowedRoots: [root],
       maxProcesses: 1,
@@ -49,6 +52,8 @@ describe("task service process reservations", () => {
       allowedOrigins: [],
       webDistDir: root,
       approvalExtensionPath: path.join(root, "approval.ts"),
+      homeDir: root,
+      piBundled: false,
     };
     const service = new TaskService(config, store, "test", null);
     let release!: () => void;

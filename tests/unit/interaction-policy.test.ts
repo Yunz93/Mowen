@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ApprovalRequest } from "@mypi/protocol";
+import type { ApprovalRequest } from "@ohmypi/protocol";
 import { approvalDecision, effectiveApprovalPolicy } from "../../apps/web/src/lib/interaction-policy";
 
 const approval: ApprovalRequest = {

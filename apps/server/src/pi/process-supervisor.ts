@@ -10,7 +10,7 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
-} from "@mypi/protocol";
+} from "@ohmypi/protocol";
 import type { AppConfig } from "../config.js";
 import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
@@ -43,7 +43,7 @@ function parseApprovalMessage(
   message: string | undefined,
   timeoutMs: number,
 ): ApprovalRequest | null {
-  if (!message || !message.includes("MYPI_APPROVAL_V1")) {
+  if (!message || !message.includes("OHMYPI_APPROVAL_V1")) {
     if (title?.startsWith("Allow ")) {
       return {
         requestId,
@@ -52,7 +52,7 @@ function parseApprovalMessage(
         toolName: title.replace(/^Allow\s+/, "").replace(/\?$/, ""),
         cwd: "",
         target: message ?? "",
-        risk: "This action requires approval.",
+        risk: "这次操作需要你确认。",
         expiresAt: new Date(Date.now() + timeoutMs).toISOString(),
       };
     }
@@ -61,7 +61,7 @@ function parseApprovalMessage(
   const jsonLine = message
     .split("\n")
     .map((line) => line.trim())
-    .find((line, index, lines) => lines[index - 1] === "MYPI_APPROVAL_V1");
+    .find((line, index, lines) => lines[index - 1] === "OHMYPI_APPROVAL_V1");
   if (!jsonLine) return null;
   try {
     const parsed = JSON.parse(jsonLine) as {
@@ -80,7 +80,7 @@ function parseApprovalMessage(
       cwd: parsed.cwd ?? "",
       target: parsed.target ?? "",
       rawCommand: parsed.rawCommand,
-      risk: parsed.risk ?? "This action requires approval.",
+      risk: parsed.risk ?? "这次操作需要你确认。",
       expiresAt: new Date(Date.now() + timeoutMs).toISOString(),
     };
   } catch {
@@ -109,12 +109,16 @@ export class ProcessSupervisor {
   private readonly serverInstanceId = randomUUID();
 
   constructor(
-    private readonly config: AppConfig,
+    private config: AppConfig,
     private readonly onUnexpectedExit: (taskId: string, generation: number, error: string) => void,
     private readonly onApprovalNeeded: (taskId: string) => void,
     private readonly onSettled: (taskId: string) => void,
     private readonly onAbortConfirmed: (taskId: string) => void,
   ) {}
+
+  updateConfig(config: AppConfig): void {
+    this.config = config;
+  }
 
   onEvent(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -172,13 +176,15 @@ export class ProcessSupervisor {
     };
 
     const client = new RpcClient({
-      bin: this.config.piBin,
+      bin: this.config.piCommand,
+      prefixArgs: this.config.piPrefixArgs,
+      extraEnv: this.config.piExtraEnv,
       args,
       cwd: task.cwd,
       env: {
-        MYPI_MUTATIONS: this.config.mutations,
-        MYPI_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
-        MYPI_TASK_ID: task.id,
+        OHMYPI_MUTATIONS: this.config.mutations,
+        OHMYPI_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
+        OHMYPI_TASK_ID: task.id,
       },
       onEvent: (event) => this.handlePiEvent(task.id, generation, event),
       onStderr: (chunk) => {

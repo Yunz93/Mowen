@@ -11,8 +11,13 @@ playwright-report
 blob-report
 .vite
 *.tsbuildinfo
+.ohmypi-test
 .mypi-test
 tmp
 .turbo
 .pnpm-store
 apps/web/test-results
+apps/desktop/out
+apps/desktop/release
+apps/desktop/vendor
+

@@ -1,0 +1,26 @@
+{
+  "name": "@ohmypi/desktop",
+  "version": "0.1.0",
+  "description": "Local-first ohMyPi workbench for Windows and macOS",
+  "author": "ohMyPi",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && node scripts/bundle.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "node scripts/bundle.mjs && electron .",
+    "pack": "pnpm build && electron-builder --config electron-builder.yml",
+    "pack:mac": "pnpm build && electron-builder --config electron-builder.yml --mac",
+    "pack:win": "pnpm build && electron-builder --config electron-builder.yml --win",
+    "pack:dir": "pnpm build && electron-builder --config electron-builder.yml --dir"
+  },
+  "dependencies": {
+    "@ohmypi/server": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.8",
+    "typescript": "^5.9.2"
+  }
+}

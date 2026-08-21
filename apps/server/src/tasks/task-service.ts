@@ -1,30 +1,47 @@
 import { randomUUID } from "node:crypto";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type {
   ClientCommand,
   ServerEvent,
   TaskRecord,
   TimelineMessage,
-} from "@mypi/protocol";
+} from "@ohmypi/protocol";
 import type { AppConfig } from "../config.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd } from "../security/path-policy.js";
-import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
-import { listProjectFiles, previewProjectFile } from "./file-browser.js";
+import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
 import { TaskStore } from "./task-store.js";
-import { UploadStore } from "./upload-store.js";
+
+type SocketLike = { send: (data: string) => void; closed: boolean };
+
+const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".ohmypi-test"]);
+
+export type SetupHints = {
+  authConfigured: boolean;
+  configuredProviders: string[];
+  needsSetup: boolean;
+  homeDir: string;
+  workspaceRoot: string | null;
+};
 
 export class TaskService {
   readonly supervisor: ProcessSupervisor;
-  private readonly events: EventDispatcher;
+  private readonly sockets = new Set<SocketLike>();
   private readonly queue: string[] = [];
   private readonly booting = new Map<string, Promise<void>>();
   private activeTaskId: string | null = null;
-  private readonly uploads = new UploadStore();
+  readonly uploads = new Map<string, { mimeType: string; data: Buffer }>();
+  private setupHints: SetupHints = {
+    authConfigured: false,
+    configuredProviders: [],
+    needsSetup: true,
+    homeDir: "",
+    workspaceRoot: null,
+  };
 
   constructor(
-    private readonly config: AppConfig,
+    private config: AppConfig,
     private readonly store: TaskStore,
     readonly piVersion: string | null,
     readonly piError: string | null,
@@ -44,9 +61,8 @@ export class TaskService {
         void this.apply(taskId, "abort_confirmed");
       },
     );
-    this.events = new EventDispatcher((taskId) => this.supervisor.nextSequence(taskId));
     this.supervisor.onEvent((event) => {
-      this.events.dispatch(event);
+      this.broadcast(event);
       if (event.type === "approval.resolved") {
         const task = this.store.get(event.taskId);
         if (task?.status === "waiting_approval") {
@@ -59,23 +75,28 @@ export class TaskService {
     });
   }
 
+  updateConfig(config: AppConfig): void {
+    this.config = config;
+    this.supervisor.updateConfig(config);
+  }
+
+  setSetupHints(hints: SetupHints): void {
+    this.setupHints = hints;
+  }
+
   addSocket(socket: SocketLike): void {
-    this.events.addSocket(socket);
+    this.sockets.add(socket);
   }
 
   removeSocket(socket: SocketLike): void {
-    this.events.removeSocket(socket);
-    if (this.events.connectionCount === 0) {
+    this.sockets.delete(socket);
+    if (this.sockets.size === 0) {
       this.supervisor.denyAllApprovals("Browser disconnected");
     }
   }
 
   listTasks(): TaskRecord[] {
     return this.store.listVisible().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
-  }
-
-  storeUpload(id: string, mimeType: string, data: Buffer): boolean {
-    return this.uploads.add(id, mimeType, data);
   }
 
   async handleCommand(command: ClientCommand): Promise<unknown> {
@@ -114,7 +135,7 @@ export class TaskService {
         return { ok: true };
       case "approval.respond": {
         const ok = this.supervisor.respondApproval(command.payload.requestId, command.payload.allow);
-        if (!ok) throw new Error("Approval request is no longer pending");
+        if (!ok) throw new Error("这条确认已经失效");
         return { ok: true };
       }
       case "session.compact":
@@ -164,6 +185,11 @@ export class TaskService {
       allowedRoots: this.config.allowedRoots,
       dataDir: this.config.dataDir,
       maxProcesses: this.config.maxProcesses,
+      authConfigured: this.setupHints.authConfigured,
+      configuredProviders: this.setupHints.configuredProviders,
+      needsSetup: this.setupHints.needsSetup,
+      homeDir: this.setupHints.homeDir || this.config.homeDir,
+      workspaceRoot: this.setupHints.workspaceRoot,
       status: active?.status ?? "stopped",
     };
   }
@@ -174,7 +200,7 @@ export class TaskService {
     const task: TaskRecord = {
       schemaVersion: 1,
       id: randomUUID(),
-      title: title?.trim() || path.basename(resolved) || "New task",
+      title: title?.trim() || path.basename(resolved) || "新对话",
       cwd: resolved,
       sessionPath: null,
       status: "stopped",
@@ -240,30 +266,19 @@ export class TaskService {
     if (this.supervisor.has(taskId)) return;
     const pendingBoot = this.booting.get(taskId);
     if (pendingBoot) return pendingBoot;
-    // Idempotency guard: a task already queued (or mid-drain) must not be
-    // re-enqueued or double-booted, which would exceed maxProcesses.
-    if (this.queue.includes(taskId)) return;
-    if (this.reservedProcessCount() >= this.config.maxProcesses) {
-      this.queue.push(taskId);
+    const pendingOnly = [...this.booting.keys()].filter((id) => !this.supervisor.has(id)).length;
+    if (this.supervisor.runningCount() + pendingOnly >= this.config.maxProcesses) {
+      if (!this.queue.includes(taskId)) this.queue.push(taskId);
       await this.apply(taskId, "queued");
       return;
     }
-    await this.startBoot(taskId);
-  }
-
-  private reservedProcessCount(): number {
-    const pendingOnly = [...this.booting.keys()].filter((taskId) => !this.supervisor.has(taskId)).length;
-    return this.supervisor.runningCount() + pendingOnly;
-  }
-
-  private startBoot(taskId: string): Promise<void> {
-    const existing = this.booting.get(taskId);
-    if (existing) return existing;
-    const boot = this.boot(taskId).finally(() => {
-      this.booting.delete(taskId);
-    });
+    const boot = this.boot(taskId);
     this.booting.set(taskId, boot);
-    return boot;
+    try {
+      await boot;
+    } finally {
+      this.booting.delete(taskId);
+    }
   }
 
   private async boot(taskId: string): Promise<void> {
@@ -304,7 +319,7 @@ export class TaskService {
   ): Promise<{ ok: true }> {
     const task = this.requireTask(taskId);
     if (task.status === "queued") {
-      throw new Error("Task is queued waiting for a Pi slot");
+      throw new Error("正在排队，请稍等。");
     }
     if (task.status === "stopped" || task.status === "error") {
       await this.activate(taskId);
@@ -315,19 +330,21 @@ export class TaskService {
     const rpcMode: "prompt" | "steer" | "follow_up" =
       mode === "follow_up" && latest.status === "idle" ? "prompt" : mode;
     if (rpcMode === "prompt" && isBusyStatus(latest.status)) {
-      throw new Error("Agent is running. Use Steer or Follow-up.");
+      throw new Error("正在回复。直接发送即可补充。");
     }
     if (rpcMode === "steer" && latest.status !== "running" && latest.status !== "waiting_approval") {
-      throw new Error("Steer is only available while the agent is running");
+      throw new Error("只有正在回复时才能补充这条消息。");
     }
     if (rpcMode === "follow_up" && latest.status !== "running" && latest.status !== "waiting_approval") {
-      throw new Error("Queued follow-up is only available while the agent is running");
+      throw new Error("只有正在回复时才能排队下一条消息。");
     }
     if (!this.supervisor.has(taskId)) {
-      throw new Error("Pi process is not running");
+      throw new Error("AI 还没启动");
     }
 
-    const images = this.uploads.consume(imageIds ?? [])
+    const images = (imageIds ?? [])
+      .map((id) => this.uploads.get(id))
+      .filter((item): item is { mimeType: string; data: Buffer } => Boolean(item))
       .map((item) => ({
         type: "image",
         data: item.data.toString("base64"),
@@ -345,7 +362,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "Pi could not authenticate with the model provider. Sign in with the Pi CLI. MyPi never displays API keys."
+          ? "连不上 AI 服务商。打开设置粘贴 API Key。ohMyPi 不会显示完整密钥。"
           : text,
         authHint,
       });
@@ -354,7 +371,7 @@ export class TaskService {
 
     if (rpcMode === "prompt") {
       await this.apply(taskId, "prompt_accepted");
-      if (task.title === path.basename(task.cwd) || task.title === "New task") {
+      if (task.title === path.basename(task.cwd) || task.title === "New task" || task.title === "新对话") {
         const titled = await this.store.upsert({
           ...this.requireTask(taskId),
           title: message.trim().slice(0, 72) || task.title,
@@ -417,15 +434,40 @@ export class TaskService {
 
   private async fileTree(taskId: string): Promise<{ entries: Array<{ path: string; name: string; kind: "file" | "dir" }> }> {
     const task = this.requireTask(taskId);
-    const entries = await listProjectFiles(task.cwd);
+    const entries: Array<{ path: string; name: string; kind: "file" | "dir" }> = [];
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      if (depth > 6 || entries.length > 400) return;
+      const names = await readdir(dir);
+      for (const name of names) {
+        if (name.startsWith(".") || IGNORED_DIR_NAMES.has(name)) continue;
+        const full = path.join(dir, name);
+        const info = await stat(full);
+        const rel = path.relative(task.cwd, full);
+        if (info.isDirectory()) {
+          entries.push({ path: rel, name, kind: "dir" });
+          await walk(full, depth + 1);
+        } else {
+          entries.push({ path: rel, name, kind: "file" });
+        }
+      }
+    };
+    await walk(task.cwd, 0);
     this.emit(taskId, "files.tree", { entries });
     return { entries };
   }
 
   private async filePreview(taskId: string, relativePath: string): Promise<void> {
     const task = this.requireTask(taskId);
-    const preview = await previewProjectFile(relativePath, task.cwd, this.config.allowedRoots);
-    this.emit(taskId, "files.preview", preview);
+    const resolved = await resolveAllowedPath(relativePath, task.cwd, this.config.allowedRoots);
+    const buf = await readFile(resolved);
+    const truncated = buf.byteLength > 200_000;
+    const content = buf.subarray(0, 200_000).toString("utf8");
+    this.emit(taskId, "files.preview", {
+      path: relativePath,
+      content,
+      truncated,
+      language: path.extname(relativePath).slice(1),
+    });
   }
 
   private async handleUnexpectedExit(taskId: string, generation: number, error: string): Promise<void> {
@@ -433,19 +475,18 @@ export class TaskService {
       return;
     }
     await this.supervisor.stop(taskId, "SIGKILL");
-    this.removeQueued(taskId);
     await this.apply(taskId, "pi_exit", error);
     await this.drainQueue();
   }
 
   private async drainQueue(): Promise<void> {
-    while (this.queue.length > 0 && this.reservedProcessCount() < this.config.maxProcesses) {
+    while (this.queue.length > 0 && this.supervisor.runningCount() < this.config.maxProcesses) {
       const nextId = this.queue.shift();
       if (!nextId) break;
       const task = this.store.get(nextId);
       if (!task || task.archivedAt) continue;
       try {
-        await this.startBoot(nextId);
+        await this.boot(nextId);
       } catch {
         // boot records error state
       }
@@ -496,17 +537,27 @@ export class TaskService {
   private requireTask(taskId: string): TaskRecord {
     const task = this.store.get(taskId);
     if (!task || task.archivedAt) {
-      throw new Error("Task not found");
+      throw new Error("找不到这个对话");
     }
     return task;
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {
-    this.events.emit(taskId, type, payload);
+    const meta = this.supervisor.nextSequence(taskId);
+    const event = {
+      ...meta,
+      taskId,
+      type,
+      payload,
+    } as ServerEvent;
+    this.broadcast(event);
   }
 
-  sendTo(socket: SocketLike, taskId: string, type: ServerEvent["type"], payload: unknown): void {
-    this.events.sendTo(socket, taskId, type, payload);
+  broadcast(event: ServerEvent): void {
+    const data = JSON.stringify(event);
+    for (const socket of this.sockets) {
+      if (!socket.closed) socket.send(data);
+    }
   }
 
   restoredMessages(taskId: string): TimelineMessage[] {

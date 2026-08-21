@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
-import { clientCommandSchema } from "@mypi/protocol";
+import { clientCommandSchema } from "@ohmypi/protocol";
 import type { AppConfig } from "../config.js";
 import { isAllowedOrigin } from "../config.js";
 import { hasSession, readSessionToken } from "../security/session-cookie.js";

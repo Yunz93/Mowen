@@ -1,18 +1,28 @@
 {
-  "name": "mypi",
+  "name": "ohmypi",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "pnpm --filter @mypi/protocol build && pnpm --parallel --filter @mypi/server --filter @mypi/web dev",
-    "typecheck": "pnpm --filter @mypi/protocol build && pnpm -r --if-present typecheck",
+    "dev": "pnpm --filter @ohmypi/protocol build && pnpm --parallel --filter @ohmypi/server --filter @ohmypi/web dev",
+    "typecheck": "pnpm --filter @ohmypi/protocol build && pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
-    "build": "pnpm -r --filter @mypi/protocol --filter @mypi/web --filter @mypi/server build",
+    "build": "pnpm --filter @ohmypi/protocol build && pnpm --filter @ohmypi/web build && pnpm --filter @ohmypi/server build",
     "start": "node apps/server/dist/index.js",
+    "doctor": "tsx scripts/doctor.ts",
+    "desktop:dev": "pnpm --filter @ohmypi/protocol build && pnpm --filter @ohmypi/server build && pnpm --filter @ohmypi/desktop build && pnpm --parallel --filter @ohmypi/web --filter @ohmypi/desktop dev",
+    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack",
+    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack:mac",
+    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack:win",
+    "desktop:install:mac": "bash scripts/install-macos.sh",
+    "desktop:install:win": "pwsh -File scripts/install-windows.ps1",
     "smoke:real": "tsx scripts/smoke-real.ts"
   },
   "devDependencies": {

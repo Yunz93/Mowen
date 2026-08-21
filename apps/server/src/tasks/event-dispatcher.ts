@@ -1,4 +1,4 @@
-import type { ServerEvent } from "@mypi/protocol";
+import type { ServerEvent } from "@ohmypi/protocol";
 
 export type SocketLike = { send: (data: string) => void; closed: boolean };
 
