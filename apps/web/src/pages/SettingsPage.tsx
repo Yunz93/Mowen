@@ -30,14 +30,12 @@ export function SettingsPage() {
 
       <div className="mt-8 max-w-xl">
         <p className="text-sm text-mute">外观</p>
-        <div className="mt-2 flex gap-2">
+        <div className="seg mt-2 w-fit min-w-[200px]">
           {(["dark", "light"] as const).map((value) => (
             <button
               key={value}
               type="button"
-              className={`pressable h-10 rounded-sm px-4 text-sm ${
-                theme === value ? "btn-primary" : "border border-line bg-elevated text-ink"
-              }`}
+              className={`pressable btn ${theme === value ? "seg-active" : "text-mute"}`}
               aria-pressed={theme === value}
               onClick={() => setTheme(value)}
             >
@@ -50,7 +48,7 @@ export function SettingsPage() {
       <div className="mt-6">
         <button
           type="button"
-          className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
+          className="pressable btn btn-primary"
           onClick={() => setWizardOpen(true)}
         >
           打开设置向导
@@ -84,6 +82,7 @@ export function SettingsPage() {
 
       {wizardOpen ? (
         <SetupWizard
+          onCancel={() => setWizardOpen(false)}
           onFinished={(status: SetupStatus) => {
             useAgentStore.getState().setSetupState({
               needsSetup: status.needsSetup,

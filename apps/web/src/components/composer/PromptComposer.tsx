@@ -129,7 +129,7 @@ export function PromptComposer({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
-            className="pressable h-10 rounded-sm px-3 text-sm text-mute hover:text-ink"
+            className="pressable btn btn-ghost min-w-0 px-3"
             onClick={() => setOptionsOpen((open) => !open)}
           >
             选项
@@ -150,18 +150,14 @@ export function PromptComposer({
           {imageCount > 0 ? <span className="text-[12px] text-mute">{imageCount} 张图</span> : null}
           <div className="flex-1" />
           {running ? (
-            <button
-              type="button"
-              className="pressable flex h-10 items-center gap-2 rounded-sm px-3 text-sm text-danger"
-              onClick={onAbort}
-            >
+            <button type="button" className="pressable btn btn-danger gap-2" onClick={onAbort}>
               <Square size={12} fill="currentColor" />
               停止
             </button>
           ) : null}
           <button
             type="button"
-            className="pressable btn-primary h-10 rounded-sm px-4 text-sm font-medium disabled:opacity-40"
+            className="pressable btn btn-primary"
             onClick={submit}
             disabled={disabled || !value.trim()}
           >

@@ -36,7 +36,7 @@ function NativeFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
       <p className="mt-1 break-all font-mono text-[12px] text-ink">{current || "还没选择文件夹"}</p>
       <button
         type="button"
-        className="pressable btn-primary mt-3 h-11 rounded-sm px-4 text-sm"
+        className="pressable btn btn-secondary mt-3"
         onClick={() => void choose()}
       >
         选择文件夹…

@@ -21,36 +21,36 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="approval-title"
-      className="mb-3 rounded-md border border-line bg-elevated p-4 shadow-dialog"
+      className="dialog-panel mb-3 max-w-none shadow-dialog"
     >
-      <h2 id="approval-title" className="text-base text-ink">
-        {heading(approval.toolName)}
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-mute">{approval.risk}</p>
-      <dl className="mt-3 space-y-2 text-xs text-ink">
-        <div>
-          <dt className="text-mute">工作文件夹</dt>
-          <dd className="break-all">{approval.cwd || "—"}</dd>
+      <div className="dialog-head">
+        <div className="dialog-head-text">
+          <h2 id="approval-title" className="dialog-title">
+            {heading(approval.toolName)}
+          </h2>
+          <p className="dialog-copy">{approval.risk}</p>
         </div>
-        <div>
-          <dt className="text-mute">{approval.toolName === "bash" ? "命令" : "目标"}</dt>
-          <dd className="whitespace-pre-wrap break-all">{approval.rawCommand ?? approval.target}</dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-[12px] text-mute">{seconds} 秒后自动拒绝</p>
-      <div className="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          className="pressable h-10 min-w-10 rounded-sm px-4 text-sm text-danger"
-          onClick={() => onRespond(false)}
-        >
+      </div>
+      <div className="dialog-body">
+        <dl className="space-y-3 text-xs text-ink">
+          <div>
+            <dt className="text-mute">工作文件夹</dt>
+            <dd className="mt-1 break-all font-mono text-[12px]">{approval.cwd || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-mute">{approval.toolName === "bash" ? "命令" : "目标"}</dt>
+            <dd className="mt-1 whitespace-pre-wrap break-all font-mono text-[12px]">
+              {approval.rawCommand ?? approval.target}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-[12px] text-mute">{seconds} 秒后自动拒绝</p>
+      </div>
+      <div className="dialog-actions dialog-actions-split">
+        <button type="button" className="pressable btn btn-danger" onClick={() => onRespond(false)}>
           拒绝
         </button>
-        <button
-          type="button"
-          className="pressable btn-primary h-10 min-w-10 rounded-sm px-4 text-sm"
-          onClick={() => onRespond(true)}
-        >
+        <button type="button" className="pressable btn btn-primary" onClick={() => onRespond(true)}>
           允许这次
         </button>
       </div>
