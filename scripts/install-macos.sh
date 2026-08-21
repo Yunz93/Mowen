@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ohMyPi one-click installer for macOS.
-# Default: download the latest GitHub Release, copy into Applications, then
-# apply local trust (quarantine + ad-hoc codesign + optional spctl).
+# Official install path: download the GitHub Release, copy into Applications,
+# then apply local trust (quarantine + ad-hoc codesign + optional spctl).
+# There is no Apple Developer ID / notarization; do not double-click the DMG.
 #
 # Usage:
 #   curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
@@ -64,7 +65,9 @@ mac_arch() {
 
 usage() {
   cat <<EOF
-ohMyPi macOS 一键安装（从 GitHub Release 下载）
+ohMyPi macOS 一键安装（官方方式：从 GitHub Release 下载并在本机完成信任）
+
+没有 Apple 公证。请用这个脚本，不要双击 .dmg。
 
 用法:
   curl -fsSL https://github.com/${REPO}/releases/latest/download/install-macos.sh | bash

@@ -120,13 +120,16 @@ jobs:
           body: |
             Automated desktop build from `${{ github.sha }}`.
 
+            macOS has no Apple notarization. Install with the script (do not double-click the DMG):
+
             **macOS**
             ```bash
-            curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install-macos.sh | bash
-            ```
-            Nightly:
-            ```bash
             curl -fsSL https://github.com/${{ github.repository }}/releases/download/nightly/install-macos.sh | bash -s -- --nightly
+            ```
+
+            Stable (when a version tag exists):
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install-macos.sh | bash
             ```
 
             **Windows (PowerShell)**

@@ -1,66 +1,62 @@
 # ohMyPi
 
-Local-first workbench for the [Pi](https://pi.dev) coding agent. Runs on your computer, keeps API keys off the screen, and asks before writing files or running commands.
+本机运行的 [Pi](https://pi.dev) 编程助手。API 密钥只存在这台电脑上，改文件或跑命令前会先问你。
 
-## One-click install
+免费开源（MIT）。没有 Apple 开发者证书，也没有公证。**macOS 请用下面的安装脚本**，不要双击 GitHub 上的 `.dmg`——系统会提示无法验证开发者。
 
-GitHub Actions builds desktop packages on every `main` push (`nightly`) and on version tags (`v1.2.3`). The install script downloads that package and, on macOS, applies Gatekeeper trust automatically.
+## 安装
 
-**macOS**
+**macOS（推荐，也是目前唯一支持的安装方式）**
+
+打开「终端」，粘贴后回车：
 
 ```bash
 curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
 ```
 
-Nightly (latest `main`):
+脚本会下载应用、拷到 `/Applications`、去掉隔离属性、在本机做 ad-hoc 签名，然后打开 ohMyPi。
+
+开发中的每日构建：
 
 ```bash
 curl -fsSL https://github.com/Yunz93/ohMyPi/releases/download/nightly/install-macos.sh | bash -s -- --nightly
 ```
 
-**Windows (PowerShell)**
+若仍无法打开：系统设置 → 隐私与安全性 → 仍要打开。或再跑一次：
+
+```bash
+bash <(curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh) --trust-only /Applications/ohMyPi.app
+```
+
+**Windows（PowerShell）**
 
 ```powershell
 irm https://github.com/Yunz93/ohMyPi/releases/latest/download/install-windows.ps1 | iex
 ```
 
-Then open ohMyPi, paste an API key, and choose a work folder. If macOS still blocks the app: **System Settings → Privacy & Security → Open Anyway**.
+装好后打开 ohMyPi，粘贴 API Key，选一个工作文件夹。密钥保存在 `~/.pi/agent/auth.json`，界面里不会再显示完整密钥。对话会发给你选择的 AI 服务商，不会经过 ohMyPi 的服务器。
 
-### Publish a stable release
+### 发布稳定版
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-That runs `.github/workflows/release.yml`, uploads `ohMyPi-mac-*.dmg` / `ohMyPi-win-*-setup.exe`, and attaches the install scripts.
+这会跑 `.github/workflows/release.yml`，上传安装包和上述脚本。日常 `main` 推送会更新 `nightly` 预发布。
 
-Manual run: **Actions → Release → Run workflow**.
+## 开发者
 
-## Desktop app (Windows + macOS)
-
-### Local install from a clone
+从仓库本地安装：
 
 ```bash
-bash scripts/install-macos.sh --nightly   # download GitHub package
-bash scripts/install-macos.sh --build     # pack on this Mac, then install
-bash scripts/install-macos.sh --user      # ~/Applications, no admin
+bash scripts/install-macos.sh --nightly   # 下载 GitHub 包
+bash scripts/install-macos.sh --build     # 本机打包再安装
+bash scripts/install-macos.sh --user      # ~/Applications，不需要管理员
 bash scripts/install-macos.sh --trust-only /Applications/ohMyPi.app
-pnpm desktop:install:mac
 ```
 
-The macOS script:
-
-1. Downloads (or packs) `ohMyPi.app`
-2. Copies it to `/Applications`
-3. Removes `com.apple.quarantine`
-4. Ad-hoc code-signs the app
-5. Registers Gatekeeper (`spctl --add`, if sudo is available)
-6. Opens ohMyPi
-
-### Build the installer locally
-
-On the target OS (Windows on Windows, macOS on a Mac):
+本机打包（在对应系统上）：
 
 ```bash
 corepack enable
@@ -69,79 +65,58 @@ pnpm desktop:pack:mac   # → apps/desktop/release/ohMyPi-mac-*.dmg
 pnpm desktop:pack:win   # → apps/desktop/release/ohMyPi-win-*-setup.exe
 ```
 
-The pack step vendors a matching Pi CLI, so the user does not install Node or Pi.
+打包时会带上 Pi，用户不必再装 Node。
 
-### What the user sees
-
-1. Open **ohMyPi**
-2. Welcome → paste an API key (Anthropic / OpenAI / Gemini / OpenRouter / DeepSeek)
-3. **Choose folder…** (native file dialog)
-4. Chat. ohMyPi asks before editing files or running commands
-
-Settings → **Open setup** to change the key or folder later. Keys are stored in `~/.pi/agent/auth.json` and never shown in full.
-
-### Run the desktop app in development
-
-```bash
-pnpm desktop:dev
-```
-
-Starts the web UI (Vite) and the Electron window together. The first-run wizard still appears.
-
-## Browser / developer mode
+浏览器开发模式：
 
 ```bash
 pnpm install
 cp .env.example .env
 pnpm dev                 # http://127.0.0.1:5173
+pnpm desktop:dev         # Electron + web
 ```
 
-Optional: install Pi on your PATH if you are not using the desktop bundle:
+可选：不走桌面包时，把 Pi 装到 PATH：
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 pi --version
 ```
 
-Production web server:
+生产 web 服务：
 
 ```bash
 pnpm build
 NODE_ENV=production pnpm start   # http://127.0.0.1:4310
 ```
 
-## Configuration
+### 环境变量
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `HOST` / `PORT` | `127.0.0.1` / `4310` | Server bind address |
-| `PI_BIN` | `pi` | Pi executable (PATH) |
-| `OHMYPI_PI_ENTRY` | (desktop sets this) | Pi CLI file run with Node/Electron |
-| `OHMYPI_DATA_DIR` | `~/.ohmypi` | Tasks + settings |
-| `OHMYPI_ALLOWED_ROOTS` | home (or Setup folder) | Allowed project roots |
-| `OHMYPI_MUTATIONS` | `approval` | `approval` or `disabled` |
-| `OHMYPI_MAX_PROCESSES` | `3` | Concurrent Pi processes |
-| `OHMYPI_REPO` | `Yunz93/ohMyPi` | GitHub repo for the install script |
+| 变量 | 默认 | 含义 |
+|------|------|------|
+| `HOST` / `PORT` | `127.0.0.1` / `4310` | 服务监听地址 |
+| `PI_BIN` | `pi` | PATH 上的 Pi |
+| `OHMYPI_PI_ENTRY` | （桌面版会设置） | 用 Node/Electron 跑的 Pi CLI |
+| `OHMYPI_DATA_DIR` | `~/.ohmypi` | 会话和设置 |
+| `OHMYPI_ALLOWED_ROOTS` | 家目录或向导所选文件夹 | 允许访问的根目录 |
+| `OHMYPI_MUTATIONS` | `approval` | `approval` 或 `disabled` |
+| `OHMYPI_MAX_PROCESSES` | `3` | 同时运行的 Pi 进程数 |
+| `OHMYPI_REPO` | `Yunz93/ohMyPi` | 安装脚本下载用的仓库 |
 
-`.env` is loaded automatically. Real environment variables override `.env`.
+`.env` 会自动加载。真正的环境变量优先于 `.env`。
 
-## Scripts
+### 常用命令
 
 ```bash
-pnpm dev                 # web + server
-pnpm desktop:dev         # Electron + web
-pnpm desktop:pack:mac    # macOS dmg/zip
-pnpm desktop:pack:win    # Windows nsis + portable exe
-pnpm desktop:install:mac # download/copy to /Applications + Gatekeeper trust
-pnpm build
-pnpm start
 pnpm test
 pnpm test:integration
 pnpm doctor
+pnpm desktop:install:mac
 ```
 
-## Security notes
+## 安全
 
-- Bind stays on localhost by default
-- Writes to `.env`, `.ssh`, and Pi `auth.json` are blocked
-- Mutation tools require approval unless `OHMYPI_MUTATIONS=disabled`
+- 默认只监听本机
+- 禁止写入 `.env`、`.ssh` 和 Pi 的 `auth.json`
+- 改文件、跑命令默认要你点允许（`OHMYPI_MUTATIONS=disabled` 时全部拒绝）
+- macOS 安装包目前**没有** Apple 公证；信任由安装脚本在本机完成
