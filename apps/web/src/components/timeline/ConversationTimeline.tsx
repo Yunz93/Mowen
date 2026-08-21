@@ -39,7 +39,7 @@ function renderAssistant(text: string) {
       return (
         <pre
           key={index}
-          className="my-3 overflow-x-auto rounded-2xl bg-elevated px-3 py-2 font-mono text-[13px] leading-6 text-ink"
+          className="my-3 overflow-x-auto rounded-sm bg-canvas px-3 py-2 font-mono text-[13px] leading-6 text-ink"
         >
           {body}
         </pre>
@@ -74,7 +74,7 @@ export function ConversationTimeline({ messages, tools }: Props) {
           return (
             <article
               key={message.id}
-              className="ml-auto max-w-[85%] rounded-3xl rounded-br-md bg-elevated px-4 py-3 text-[15px] leading-7 text-ink"
+              className="ml-auto max-w-[85%] rounded-sm border border-line bg-elevated px-4 py-3 text-[15px] leading-7 text-ink"
             >
               {message.text}
             </article>

@@ -21,7 +21,7 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="approval-title"
-      className="mb-3 rounded-3xl border border-line bg-elevated p-4 shadow-xl"
+      className="mb-3 rounded-md border border-line bg-elevated p-4 shadow-dialog"
     >
       <h2 id="approval-title" className="text-base text-ink">
         {heading(approval.toolName)}
@@ -41,14 +41,14 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"
-          className="pressable h-10 min-w-10 rounded-full px-4 text-sm text-danger"
+          className="pressable h-10 min-w-10 rounded-sm px-4 text-sm text-danger"
           onClick={() => onRespond(false)}
         >
           拒绝
         </button>
         <button
           type="button"
-          className="pressable h-10 min-w-10 rounded-full bg-accent px-4 text-sm text-canvas"
+          className="pressable btn-primary h-10 min-w-10 rounded-sm px-4 text-sm"
           onClick={() => onRespond(true)}
         >
           允许这次

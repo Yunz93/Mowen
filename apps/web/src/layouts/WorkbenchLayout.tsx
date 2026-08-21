@@ -7,6 +7,7 @@ import { PromptComposer } from "../components/composer/PromptComposer";
 import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { PiStatusRing } from "../components/status/PiStatusRing";
+import { ThemeToggle } from "../components/status/ThemeToggle";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
@@ -124,10 +125,10 @@ export function WorkbenchLayout() {
         跳到正文
       </a>
       <div className="flex min-w-0 flex-1 flex-col bg-canvas">
-        <header className="flex h-14 items-center gap-2 border-b border-line px-3 sm:px-4">
+        <header className="flex h-12 items-center gap-2 border-b border-line px-3 sm:px-4">
           <button
             type="button"
-            className="pressable inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-ink hover:bg-elevated"
+            className="pressable hover-fill inline-flex h-10 items-center gap-2 rounded-sm px-3 text-sm text-ink"
             onClick={() => setTaskOpen(true)}
           >
             <MessageSquare size={16} />
@@ -135,7 +136,7 @@ export function WorkbenchLayout() {
           </button>
           <button
             type="button"
-            className="pressable inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-elevated"
+            className="pressable icon-btn"
             aria-label="新对话"
             onClick={() => setCreating(true)}
           >
@@ -144,13 +145,14 @@ export function WorkbenchLayout() {
           <PiStatusRing status={status} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-ink">{task?.title ?? "还没有对话"}</p>
-            <p className="truncate text-[12px] text-mute">
+            <p className="hidden truncate text-[12px] text-mute sm:block">
               {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
           </div>
+          <ThemeToggle />
           <button
             type="button"
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:bg-elevated hover:text-ink"
+            className="pressable icon-btn"
             aria-label="详情"
             onClick={() => setInspectorOpen(true)}
           >
@@ -159,7 +161,7 @@ export function WorkbenchLayout() {
           <Link
             to="/settings"
             aria-label="设置"
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:bg-elevated hover:text-ink"
+            className="pressable icon-btn"
           >
             <Settings size={16} />
           </Link>
@@ -190,7 +192,7 @@ export function WorkbenchLayout() {
               </p>
               <button
                 type="button"
-                className="pressable mt-6 h-11 rounded-full bg-accent px-5 text-sm text-canvas"
+                className="pressable btn-primary mt-6 h-11 rounded-sm px-5 text-sm"
                 onClick={() => setCreating(true)}
               >
                 开始对话
@@ -252,7 +254,7 @@ export function WorkbenchLayout() {
             aria-label="关闭会话列表"
             onClick={() => setTaskOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 z-40 shadow-2xl">
+          <div className="absolute inset-y-0 left-0 z-40 shadow-dialog">
             <TaskSidebar
               tasks={tasks}
               activeTaskId={activeTaskId}

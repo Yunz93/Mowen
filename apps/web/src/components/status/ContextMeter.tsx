@@ -84,7 +84,7 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
           {onCompact ? (
             <button
               type="button"
-              className="pressable mt-4 h-10 w-full rounded-md bg-accent px-3 text-sm font-medium text-canvas"
+              className="pressable mt-4 h-10 w-full rounded-sm btn-primary px-3 text-sm font-medium"
               onClick={() => {
                 onCompact();
                 setOpen(false);

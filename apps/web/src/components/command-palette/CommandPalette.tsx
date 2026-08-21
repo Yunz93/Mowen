@@ -47,7 +47,7 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-canvas/70 pt-24">
-      <div className="w-full max-w-lg rounded-lg bg-elevated p-2">
+      <div className="w-full max-w-lg rounded-md bg-elevated p-2 shadow-dialog">
         <input
           autoFocus
           value={query}

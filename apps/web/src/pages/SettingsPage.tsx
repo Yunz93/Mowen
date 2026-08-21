@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
+import { useTheme } from "../hooks/useTheme";
 
 export function SettingsPage() {
   const piVersion = useAgentStore((state) => state.piVersion);
@@ -12,6 +13,7 @@ export function SettingsPage() {
   const configuredProviders = useAgentStore((state) => state.configuredProviders);
   const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [theme, setTheme] = useTheme();
 
   return (
     <main id="main-content" className="min-h-dvh bg-canvas px-6 py-8 text-ink">
@@ -26,10 +28,29 @@ export function SettingsPage() {
         ohMyPi 只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
       </p>
 
+      <div className="mt-8 max-w-xl">
+        <p className="text-sm text-mute">外观</p>
+        <div className="mt-2 flex gap-2">
+          {(["dark", "light"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`pressable h-10 rounded-sm px-4 text-sm ${
+                theme === value ? "btn-primary" : "border border-line bg-elevated text-ink"
+              }`}
+              aria-pressed={theme === value}
+              onClick={() => setTheme(value)}
+            >
+              {value === "dark" ? "深色" : "浅色"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-6">
         <button
           type="button"
-          className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas"
+          className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
           onClick={() => setWizardOpen(true)}
         >
           打开设置向导

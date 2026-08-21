@@ -78,7 +78,7 @@ export function PromptComposer({
 
   return (
     <div className="px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-      <div className="mx-auto max-w-[720px] rounded-3xl border border-line bg-elevated px-3 py-2">
+      <div className="mx-auto max-w-[720px] rounded-md border border-line bg-elevated px-3 py-2">
         <textarea
           ref={ref}
           value={value}
@@ -96,7 +96,7 @@ export function PromptComposer({
             </label>
             <select
               id="model-select"
-              className="h-10 max-w-[220px] rounded-full bg-surface px-3 text-xs text-ink"
+              className="field h-10 max-w-[220px] rounded-sm bg-canvas px-3 text-xs text-ink"
               value={modelId ?? ""}
               onChange={(event) => {
                 const [provider, ...rest] = event.target.value.split("/");
@@ -114,7 +114,7 @@ export function PromptComposer({
             </label>
             <select
               id="thinking-select"
-              className="h-10 rounded-full bg-surface px-3 text-xs text-ink"
+              className="field h-10 rounded-sm bg-canvas px-3 text-xs text-ink"
               value={thinkingLevel}
               onChange={(event) => onThinking(event.target.value as ThinkingLevel)}
             >
@@ -129,12 +129,12 @@ export function PromptComposer({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
-            className="pressable h-10 rounded-full px-3 text-sm text-mute hover:text-ink"
+            className="pressable h-10 rounded-sm px-3 text-sm text-mute hover:text-ink"
             onClick={() => setOptionsOpen((open) => !open)}
           >
             选项
           </button>
-          <label className="pressable flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-mute hover:text-ink">
+          <label className="pressable icon-btn cursor-pointer">
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
@@ -152,7 +152,7 @@ export function PromptComposer({
           {running ? (
             <button
               type="button"
-              className="pressable flex h-10 items-center gap-2 rounded-full px-3 text-sm text-danger"
+              className="pressable flex h-10 items-center gap-2 rounded-sm px-3 text-sm text-danger"
               onClick={onAbort}
             >
               <Square size={12} fill="currentColor" />
@@ -161,7 +161,7 @@ export function PromptComposer({
           ) : null}
           <button
             type="button"
-            className="pressable h-10 rounded-full bg-accent px-4 text-sm font-medium text-canvas disabled:opacity-40"
+            className="pressable btn-primary h-10 rounded-sm px-4 text-sm font-medium disabled:opacity-40"
             onClick={submit}
             disabled={disabled || !value.trim()}
           >

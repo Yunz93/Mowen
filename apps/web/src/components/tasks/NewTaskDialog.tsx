@@ -18,7 +18,7 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-canvas/70 p-4">
       <form
-        className="w-full max-w-md rounded-lg bg-elevated p-4"
+        className="w-full max-w-md rounded-md bg-elevated p-4 shadow-dialog"
         onSubmit={(event) => {
           event.preventDefault();
           if (!cwd.trim()) {
@@ -88,7 +88,7 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
           <button type="button" className="pressable h-10 px-3 text-sm text-mute" onClick={onCancel}>
             取消
           </button>
-          <button type="submit" className="pressable h-10 rounded-md bg-accent px-4 text-sm text-canvas">
+          <button type="submit" className="pressable btn-primary h-10 rounded-sm px-4 text-sm">
             创建对话
           </button>
         </div>

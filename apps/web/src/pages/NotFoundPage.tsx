@@ -11,7 +11,7 @@ export function NotFoundPage() {
       <p className="mt-4 max-w-[40ch] text-sm leading-6 text-mute">
         这个地址不属于 ohMyPi。返回当前对话。
       </p>
-      <Link to="/" className="pressable mt-8 inline-flex h-10 w-fit items-center rounded-md bg-accent px-4 text-sm text-canvas">
+      <Link to="/" className="pressable btn-primary mt-8 inline-flex h-10 w-fit items-center rounded-sm px-4 text-sm">
         返回对话
       </Link>
     </main>

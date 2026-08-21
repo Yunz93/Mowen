@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AppRouter } from "./router";
 import { socketClient } from "../transport/socket-client";
 import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
 import { useAgentStore } from "../stores/agent-store";
+import { applyTheme, readTheme } from "../lib/theme";
 
 export function App() {
   const needsSetup = useAgentStore((state) => state.needsSetup);
   const [checked, setChecked] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+
+  useLayoutEffect(() => {
+    applyTheme(readTheme());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

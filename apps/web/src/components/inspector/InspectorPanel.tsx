@@ -57,14 +57,14 @@ export function InspectorPanel({
 
   return (
     <aside
-      className={`flex h-full w-[360px] shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "absolute inset-y-0 right-0 z-30 shadow-2xl" : ""}`}
+      className={`flex h-full w-[360px] max-w-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "absolute inset-y-0 right-0 z-30 shadow-dialog" : ""}`}
     >
       <div className="flex h-[52px] items-center gap-1 border-b border-line px-2">
         {(["changes", "files", "activity"] as const).map((item) => (
           <button
             key={item}
             type="button"
-            className={`pressable h-10 rounded-full px-3 text-sm ${tab === item ? "bg-elevated text-ink" : "text-mute"}`}
+            className={`pressable h-10 rounded-sm px-3 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
             onClick={() => {
               setTab(item);
               if (item === "files") onLoadTree();
@@ -88,7 +88,7 @@ export function InspectorPanel({
               </p>
             ) : null}
             {onCompact ? (
-              <button type="button" className="pressable mb-3 h-10 rounded-full bg-elevated px-3 text-sm text-ink" onClick={onCompact}>
+              <button type="button" className="pressable mb-3 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={onCompact}>
                 压缩上下文
               </button>
             ) : null}

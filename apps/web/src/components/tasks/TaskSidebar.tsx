@@ -49,7 +49,7 @@ export function TaskSidebar({
         {onNew ? (
           <button
             type="button"
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-elevated"
+            className="pressable icon-btn"
             aria-label="新对话"
             onClick={onNew}
           >
@@ -59,7 +59,7 @@ export function TaskSidebar({
         {onClose ? (
           <button
             type="button"
-            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:text-ink"
+            className="pressable icon-btn"
             aria-label="关闭会话列表"
             onClick={onClose}
           >
@@ -92,7 +92,7 @@ export function TaskSidebar({
                   return (
                     <li key={task.id}>
                       <div
-                        className={`group flex items-start gap-2 rounded-2xl px-1 ${active ? "bg-elevated" : "hover:bg-surface"}`}
+                        className={`group flex items-start gap-2 rounded-sm px-1 ${active ? "bg-fill" : "hover-fill"}`}
                       >
                         <button
                           type="button"
@@ -107,7 +107,7 @@ export function TaskSidebar({
                             </span>
                           </span>
                           {task.unreadCount > 0 && !active ? (
-                            <span className="rounded-pill bg-accent px-1.5 text-[10px] text-canvas">
+                            <span className="rounded-pill bg-accent px-1.5 text-[10px] text-snow">
                               {task.unreadCount}
                             </span>
                           ) : null}

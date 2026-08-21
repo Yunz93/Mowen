@@ -113,7 +113,7 @@ export function SetupWizard({ onFinished }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-elevated p-5 shadow-xl">
+      <div className="w-full max-w-lg rounded-md bg-elevated p-5 shadow-dialog">
         <p className="text-xs text-mute">{isDesktopApp() ? "欢迎使用 ohMyPi" : "ohMyPi 设置"}</p>
         <h1 className="mt-2 text-2xl text-ink">
           {step === "welcome" && "先花半分钟准备一下"}
@@ -136,7 +136,7 @@ export function SetupWizard({ onFinished }: Props) {
             </ol>
             <button
               type="button"
-              className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas"
+              className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
               onClick={() => setStep(status?.piAvailable ? (status.authConfigured ? "workspace" : "auth") : "pi")}
             >
               继续
@@ -159,7 +159,7 @@ export function SetupWizard({ onFinished }: Props) {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas"
+                className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
                 disabled={busy}
                 onClick={() => {
                   setBusy(true);
@@ -200,7 +200,7 @@ export function SetupWizard({ onFinished }: Props) {
             </label>
             <select
               id="provider"
-              className="h-11 w-full rounded-2xl bg-surface px-3 text-sm text-ink"
+              className="field h-11 w-full rounded-sm bg-canvas px-3 text-sm text-ink"
               value={provider}
               onChange={(event) => setProvider(event.target.value)}
             >
@@ -217,7 +217,7 @@ export function SetupWizard({ onFinished }: Props) {
               id="api-key"
               type="password"
               autoComplete="off"
-              className="h-11 w-full rounded-2xl bg-surface px-3 font-mono text-sm text-ink"
+              className="field h-11 w-full rounded-sm bg-canvas px-3 font-mono text-sm text-ink"
               value={apiKey}
               placeholder={status?.providers.find((item) => item.id === provider)?.hint ?? "API Key"}
               onChange={(event) => setApiKey(event.target.value)}
@@ -225,7 +225,7 @@ export function SetupWizard({ onFinished }: Props) {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas disabled:opacity-50"
+                className="pressable btn-primary h-11 rounded-sm px-4 text-sm disabled:opacity-50"
                 disabled={busy || apiKey.trim().length < 8}
                 onClick={() => void saveApiKey()}
               >
@@ -264,7 +264,7 @@ export function SetupWizard({ onFinished }: Props) {
             />
             <button
               type="button"
-              className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas disabled:opacity-50"
+              className="pressable btn-primary h-11 rounded-sm px-4 text-sm disabled:opacity-50"
               disabled={busy || !workspace}
               onClick={() => void saveWorkspace()}
             >
