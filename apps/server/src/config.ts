@@ -180,9 +180,9 @@ export async function readPiVersion(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/ENOENT/i.test(message)) {
-      return { version: null, error: "Pi is not installed or PI_BIN is not executable." };
+      return { version: null, error: "还没有安装 Pi，或找不到可执行文件。" };
     }
-    return { version: null, error: `Could not read Pi version: ${message}` };
+    return { version: null, error: `无法读取 Pi 版本：${message}` };
   }
 }
 

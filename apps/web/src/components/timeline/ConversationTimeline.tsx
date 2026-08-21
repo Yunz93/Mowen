@@ -15,16 +15,16 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
       ? `${Math.max(1, Math.round(message.thinkingDurationMs / 100) / 10)}s`
       : null;
   return (
-    <div className="mb-3">
+    <div className="mb-2">
       <button
         type="button"
-        className="pressable min-h-10 text-left font-mono text-[11px] text-mute tabular"
+        className="pressable min-h-10 text-left text-[12px] text-mute"
         onClick={() => setOpen((value) => !value)}
       >
-        Thinking {duration ? `· ${duration}` : ""} {open ? "hide" : "show"}
+        思考中{duration ? ` · ${duration}` : ""} {open ? "收起" : "展开"}
       </button>
       {open ? (
-        <pre className="fade-in mt-1 whitespace-pre-wrap font-mono text-xs leading-6 text-mute">{message.thinking}</pre>
+        <pre className="fade-in mt-1 whitespace-pre-wrap text-xs leading-6 text-mute">{message.thinking}</pre>
       ) : null}
     </div>
   );
@@ -39,7 +39,7 @@ function renderAssistant(text: string) {
       return (
         <pre
           key={index}
-          className="my-3 overflow-x-auto rounded-md bg-canvas px-3 py-2 font-mono text-[13px] leading-6 text-ink"
+          className="my-3 overflow-x-auto rounded-2xl bg-elevated px-3 py-2 font-mono text-[13px] leading-6 text-ink"
         >
           {body}
         </pre>
@@ -63,10 +63,10 @@ export function ConversationTimeline({ messages, tools }: Props) {
   const renderedTools = new Set<string>();
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-6 py-6">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 px-4 py-6 sm:px-6">
       {messages.length === 0 ? (
-        <div className="pt-10">
-          <p className="text-sm text-mute">No turns yet. Choose a project directory, then send the next action.</p>
+        <div className="pt-16 text-center">
+          <p className="text-sm leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
         </div>
       ) : null}
       {messages.map((message) => {
@@ -74,7 +74,7 @@ export function ConversationTimeline({ messages, tools }: Props) {
           return (
             <article
               key={message.id}
-              className="rounded-md bg-elevated px-4 py-3 text-[15px] leading-7 text-ink"
+              className="ml-auto max-w-[85%] rounded-3xl rounded-br-md bg-elevated px-4 py-3 text-[15px] leading-7 text-ink"
             >
               {message.text}
             </article>
@@ -92,7 +92,7 @@ export function ConversationTimeline({ messages, tools }: Props) {
           return null;
         }
         return (
-          <article key={message.id} className="max-w-[65ch]">
+          <article key={message.id} className="mr-auto max-w-[90%]">
             <ThinkingBlock message={message} />
             {message.text ? renderAssistant(message.text) : null}
           </article>

@@ -27,7 +27,7 @@ function changeText(tool: ToolExecution): string {
   if (args && typeof args.content === "string") {
     return args.content;
   }
-  return tool.resultText ?? "No diff yet.";
+  return tool.resultText ?? "还没有差异。";
 }
 
 function highlight(content: string, language?: string): string {
@@ -64,18 +64,18 @@ export function InspectorPanel({
           <button
             key={item}
             type="button"
-            className={`pressable h-10 rounded-md px-3 text-sm capitalize ${tab === item ? "bg-elevated text-ink" : "text-mute"}`}
+            className={`pressable h-10 rounded-full px-3 text-sm ${tab === item ? "bg-elevated text-ink" : "text-mute"}`}
             onClick={() => {
               setTab(item);
               if (item === "files") onLoadTree();
             }}
           >
-            {item}
+            {item === "changes" ? "改动" : item === "files" ? "文件" : "动态"}
           </button>
         ))}
         {drawer ? (
           <button type="button" className="pressable ml-auto h-10 px-3 text-sm text-mute" onClick={onClose}>
-            Close
+            关闭
           </button>
         ) : null}
       </div>
@@ -84,15 +84,15 @@ export function InspectorPanel({
           <div className="space-y-2">
             {stats ? (
               <p className="mb-3 font-mono text-[11px] text-mute tabular">
-                tokens {stats.tokens?.total ?? "—"} · cost {stats.cost?.toFixed?.(4) ?? "—"}
+                用量 {stats.tokens?.total ?? "—"} · 费用 {stats.cost?.toFixed?.(4) ?? "—"}
               </p>
             ) : null}
             {onCompact ? (
-              <button type="button" className="pressable mb-3 h-10 rounded-md bg-elevated px-3 text-sm text-ink" onClick={onCompact}>
-                Compact session
+              <button type="button" className="pressable mb-3 h-10 rounded-full bg-elevated px-3 text-sm text-ink" onClick={onCompact}>
+                压缩上下文
               </button>
             ) : null}
-            {tools.length === 0 ? <p className="text-sm text-mute">No tool activity yet.</p> : null}
+            {tools.length === 0 ? <p className="text-sm text-mute">还没有操作记录。</p> : null}
             {tools.map((tool) => (
               <ToolExecutionRow key={tool.toolCallId} tool={tool} />
             ))}
@@ -100,7 +100,7 @@ export function InspectorPanel({
         ) : null}
         {tab === "changes" ? (
           <div className="space-y-3">
-            {changed.length === 0 ? <p className="text-sm text-mute">No file mutations in this session.</p> : null}
+            {changed.length === 0 ? <p className="text-sm text-mute">这次对话还没有改文件。</p> : null}
             {changed.map((tool) => (
               <div key={tool.toolCallId}>
                 <p className="font-mono text-xs text-accent">{tool.target}</p>
@@ -138,7 +138,7 @@ export function InspectorPanel({
                 }}
               />
             ) : (
-              <p className="text-sm text-mute">Select a file to preview. Editor is read-only.</p>
+              <p className="text-sm text-mute">点一个文件预览。这里只能看，不能直接编辑。</p>
             )}
           </div>
         ) : null}

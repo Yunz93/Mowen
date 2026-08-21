@@ -134,7 +134,7 @@ export class TaskService {
         return { ok: true };
       case "approval.respond": {
         const ok = this.supervisor.respondApproval(command.payload.requestId, command.payload.allow);
-        if (!ok) throw new Error("Approval request is no longer pending");
+        if (!ok) throw new Error("这条确认已经失效");
         return { ok: true };
       }
       case "session.compact":
@@ -199,7 +199,7 @@ export class TaskService {
     const task: TaskRecord = {
       schemaVersion: 1,
       id: randomUUID(),
-      title: title?.trim() || path.basename(resolved) || "New task",
+      title: title?.trim() || path.basename(resolved) || "新对话",
       cwd: resolved,
       sessionPath: null,
       status: "stopped",
@@ -309,7 +309,7 @@ export class TaskService {
   ): Promise<{ ok: true }> {
     const task = this.requireTask(taskId);
     if (task.status === "queued") {
-      throw new Error("Task is queued waiting for a Pi slot");
+      throw new Error("正在排队，请稍等。");
     }
     if (task.status === "stopped" || task.status === "error") {
       await this.activate(taskId);
@@ -320,16 +320,16 @@ export class TaskService {
     const rpcMode: "prompt" | "steer" | "follow_up" =
       mode === "follow_up" && latest.status === "idle" ? "prompt" : mode;
     if (rpcMode === "prompt" && isBusyStatus(latest.status)) {
-      throw new Error("Agent is running. Use Steer or Follow-up.");
+      throw new Error("正在回复。直接发送即可补充。");
     }
     if (rpcMode === "steer" && latest.status !== "running" && latest.status !== "waiting_approval") {
-      throw new Error("Steer is only available while the agent is running");
+      throw new Error("只有正在回复时才能补充这条消息。");
     }
     if (rpcMode === "follow_up" && latest.status !== "running" && latest.status !== "waiting_approval") {
-      throw new Error("Queued follow-up is only available while the agent is running");
+      throw new Error("只有正在回复时才能排队下一条消息。");
     }
     if (!this.supervisor.has(taskId)) {
-      throw new Error("Pi process is not running");
+      throw new Error("AI 还没启动");
     }
 
     const images = (imageIds ?? [])
@@ -352,7 +352,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "Could not reach the AI provider. Open Settings → Setup and paste an API key. ohMyPi never shows the full key."
+          ? "连不上 AI 服务商。打开设置粘贴 API Key。ohMyPi 不会显示完整密钥。"
           : text,
         authHint,
       });
@@ -361,7 +361,7 @@ export class TaskService {
 
     if (rpcMode === "prompt") {
       await this.apply(taskId, "prompt_accepted");
-      if (task.title === path.basename(task.cwd) || task.title === "New task") {
+      if (task.title === path.basename(task.cwd) || task.title === "New task" || task.title === "新对话") {
         const titled = await this.store.upsert({
           ...this.requireTask(taskId),
           title: message.trim().slice(0, 72) || task.title,
@@ -527,7 +527,7 @@ export class TaskService {
   private requireTask(taskId: string): TaskRecord {
     const task = this.store.get(taskId);
     if (!task || task.archivedAt) {
-      throw new Error("Task not found");
+      throw new Error("找不到这个对话");
     }
     return task;
   }

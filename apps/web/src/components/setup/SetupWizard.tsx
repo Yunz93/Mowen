@@ -27,7 +27,7 @@ type Step = "welcome" | "pi" | "auth" | "workspace";
 
 async function fetchSetup(): Promise<SetupStatus> {
   const response = await fetch("/api/setup", { credentials: "same-origin" });
-  if (!response.ok) throw new Error("Could not load setup status");
+  if (!response.ok) throw new Error("无法加载设置状态");
   return (await response.json()) as SetupStatus;
 }
 
@@ -48,7 +48,7 @@ export function SetupWizard({ onFinished }: Props) {
         setProvider(next.providers[0]?.id ?? "anthropic");
         setStep("welcome");
       })
-      .catch(() => setError("Could not reach ohMyPi. Is it running?"));
+      .catch(() => setError("连不上 ohMyPi。确认应用正在运行。"));
   }, []);
 
   async function saveApiKey() {
@@ -63,14 +63,14 @@ export function SetupWizard({ onFinished }: Props) {
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
-        setError(json.error ?? "Could not save API key.");
+        setError(json.error ?? "密钥保存失败。");
         return;
       }
       setStatus(json);
       setApiKey("");
       setStep("workspace");
     } catch {
-      setError("Could not save API key.");
+      setError("密钥保存失败。");
     } finally {
       setBusy(false);
     }
@@ -88,13 +88,12 @@ export function SetupWizard({ onFinished }: Props) {
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
-        setError(json.error ?? "Could not save that folder.");
+        setError(json.error ?? "文件夹保存失败。");
         return;
       }
-      setStatus(json);
       onFinished(json);
     } catch {
-      setError("Could not save that folder.");
+      setError("文件夹保存失败。");
     } finally {
       setBusy(false);
     }
@@ -107,42 +106,40 @@ export function SetupWizard({ onFinished }: Props) {
   if (!status && !error) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
-        <p className="text-sm text-mute">Checking your computer…</p>
+        <p className="text-sm text-mute">正在检查这台电脑…</p>
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-elevated p-5 shadow-xl">
-        <p className="text-xs uppercase tracking-[0.16em] text-mute">
-          {isDesktopApp() ? "Welcome to ohMyPi" : "ohMyPi setup"}
-        </p>
+      <div className="w-full max-w-lg rounded-3xl bg-elevated p-5 shadow-xl">
+        <p className="text-xs text-mute">{isDesktopApp() ? "欢迎使用 ohMyPi" : "ohMyPi 设置"}</p>
         <h1 className="mt-2 text-2xl text-ink">
-          {step === "welcome" && "Let’s get you ready"}
-          {step === "pi" && (status?.piBundled ? "AI engine missing" : "Install Pi")}
-          {step === "auth" && "Connect an AI"}
-          {step === "workspace" && "Choose a folder"}
+          {step === "welcome" && "先花半分钟准备一下"}
+          {step === "pi" && (status?.piBundled ? "AI 引擎出了点问题" : "需要安装 Pi")}
+          {step === "auth" && "连接一个 AI"}
+          {step === "workspace" && "选一个工作文件夹"}
         </h1>
 
         {step === "welcome" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
               {isDesktopApp()
-                ? "ohMyPi is a private chat on this computer. Next we will connect an AI and pick a folder it may use."
-                : "ohMyPi is a simple place to chat with an AI that can help with files on this computer. We will set up three things: Pi, an AI key, and a work folder."}
+                ? "ohMyPi 是这台电脑上的私人对话。接下来粘贴一把密钥，再选一个它可以工作的文件夹。"
+                : "ohMyPi 让 AI 帮你处理这台电脑上的文件。我们会准备三件事：Pi、AI 密钥、工作文件夹。"}
             </p>
             <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-mute">
-              <li>Paste an API key (it stays on this computer)</li>
-              <li>Choose a work folder</li>
-              <li>Start chatting — ohMyPi will ask before changing files</li>
+              <li>粘贴 API Key（只保存在这台电脑）</li>
+              <li>选一个工作文件夹</li>
+              <li>开始聊天 — 改文件前会先问你</li>
             </ol>
             <button
               type="button"
-              className="pressable h-11 rounded-md bg-accent px-4 text-sm text-canvas"
+              className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas"
               onClick={() => setStep(status?.piAvailable ? (status.authConfigured ? "workspace" : "auth") : "pi")}
             >
-              Continue
+              继续
             </button>
           </div>
         ) : null}
@@ -151,18 +148,18 @@ export function SetupWizard({ onFinished }: Props) {
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
               {status?.piBundled
-                ? "ohMyPi could not start its built-in AI engine. Try quitting and opening ohMyPi again. If it still fails, reinstall the app."
-                : "Pi is the AI engine ohMyPi uses. Ask the person who installed ohMyPi to put Pi on this computer, then click Check again."}
+                ? "内置 AI 引擎没能启动。请退出后重新打开 ohMyPi。如果还是不行，重新安装一次。"
+                : "Pi 是 ohMyPi 使用的 AI 引擎。请让帮你安装的人把它装到这台电脑上，然后点「再检查」。"}
             </p>
-            <div className="rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] text-mute">
+            <div className="rounded-2xl border border-line bg-surface px-3 py-2 text-[12px] text-mute">
               {status?.piAvailable
-                ? `Found Pi ${status.piVersion}`
-                : status?.piError ?? "Pi is not installed yet."}
+                ? `已找到 Pi ${status.piVersion}`
+                : status?.piError ?? "还没有安装 Pi。"}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="pressable h-11 rounded-md bg-accent px-4 text-sm text-canvas"
+                className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas"
                 disabled={busy}
                 onClick={() => {
                   setBusy(true);
@@ -171,11 +168,11 @@ export function SetupWizard({ onFinished }: Props) {
                       setStatus(next);
                       if (next.piAvailable) setStep(next.authConfigured ? "workspace" : "auth");
                     })
-                    .catch(() => setError("Could not check Pi."))
+                    .catch(() => setError("检查 Pi 失败。"))
                     .finally(() => setBusy(false));
                 }}
               >
-                Check again
+                再检查
               </button>
               {status?.piAvailable ? (
                 <button
@@ -183,7 +180,7 @@ export function SetupWizard({ onFinished }: Props) {
                   className="pressable h-11 px-4 text-sm text-mute"
                   onClick={() => setStep(status.authConfigured ? "workspace" : "auth")}
                 >
-                  Continue
+                  继续
                 </button>
               ) : null}
             </div>
@@ -193,20 +190,17 @@ export function SetupWizard({ onFinished }: Props) {
         {step === "auth" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
-              Paste an API key from your AI provider. ohMyPi saves it only on this computer and never
-              shows the full key again.
+              从 AI 服务商复制一把 API Key 贴过来。ohMyPi 只会保存在这台电脑上，之后也不会再显示完整密钥。
             </p>
             {status?.configuredProviders.length ? (
-              <p className="text-sm text-success">
-                Already connected: {status.configuredProviders.join(", ")}
-              </p>
+              <p className="text-sm text-success">已经连上：{status.configuredProviders.join("、")}</p>
             ) : null}
             <label className="block text-sm text-mute" htmlFor="provider">
-              Provider
+              服务商
             </label>
             <select
               id="provider"
-              className="h-11 w-full rounded-md bg-surface px-3 text-sm text-ink"
+              className="h-11 w-full rounded-2xl bg-surface px-3 text-sm text-ink"
               value={provider}
               onChange={(event) => setProvider(event.target.value)}
             >
@@ -217,25 +211,25 @@ export function SetupWizard({ onFinished }: Props) {
               ))}
             </select>
             <label className="block text-sm text-mute" htmlFor="api-key">
-              API key
+              API Key
             </label>
             <input
               id="api-key"
               type="password"
               autoComplete="off"
-              className="h-11 w-full rounded-md bg-surface px-3 font-mono text-sm text-ink"
+              className="h-11 w-full rounded-2xl bg-surface px-3 font-mono text-sm text-ink"
               value={apiKey}
-              placeholder={status?.providers.find((item) => item.id === provider)?.hint ?? "API key"}
+              placeholder={status?.providers.find((item) => item.id === provider)?.hint ?? "API Key"}
               onChange={(event) => setApiKey(event.target.value)}
             />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="pressable h-11 rounded-md bg-accent px-4 text-sm text-canvas disabled:opacity-50"
+                className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas disabled:opacity-50"
                 disabled={busy || apiKey.trim().length < 8}
                 onClick={() => void saveApiKey()}
               >
-                Save key
+                保存密钥
               </button>
               {status?.authConfigured ? (
                 <button
@@ -243,7 +237,7 @@ export function SetupWizard({ onFinished }: Props) {
                   className="pressable h-11 px-4 text-sm text-mute"
                   onClick={() => setStep("workspace")}
                 >
-                  Continue
+                  继续
                 </button>
               ) : (
                 <button
@@ -251,7 +245,7 @@ export function SetupWizard({ onFinished }: Props) {
                   className="pressable h-11 px-4 text-sm text-mute"
                   onClick={() => void skipAuthForNow()}
                 >
-                  Skip for now
+                  暂时跳过
                 </button>
               )}
             </div>
@@ -261,8 +255,7 @@ export function SetupWizard({ onFinished }: Props) {
         {step === "workspace" ? (
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-6 text-mute">
-              Pick the folder where ohMyPi is allowed to work. You can open projects inside this folder
-              later.
+              选一个文件夹，ohMyPi 只在这里面工作。之后可以在这个文件夹里打开具体项目。
             </p>
             <FolderPicker
               initialPath={workspace || status?.homeDir}
@@ -271,11 +264,11 @@ export function SetupWizard({ onFinished }: Props) {
             />
             <button
               type="button"
-              className="pressable h-11 rounded-md bg-accent px-4 text-sm text-canvas disabled:opacity-50"
+              className="pressable h-11 rounded-full bg-accent px-4 text-sm text-canvas disabled:opacity-50"
               disabled={busy || !workspace}
               onClick={() => void saveWorkspace()}
             >
-              Finish setup
+              完成设置
             </button>
           </div>
         ) : null}

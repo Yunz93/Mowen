@@ -32,14 +32,14 @@ function NativeFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
 
   return (
     <div className="rounded-md border border-line bg-surface p-3">
-      <p className="text-sm text-mute">Folder</p>
-      <p className="mt-1 break-all font-mono text-[12px] text-ink">{current || "No folder selected"}</p>
+      <p className="text-sm text-mute">文件夹</p>
+      <p className="mt-1 break-all font-mono text-[12px] text-ink">{current || "还没选择文件夹"}</p>
       <button
         type="button"
         className="pressable mt-3 h-11 rounded-md bg-accent px-4 text-sm text-canvas"
         onClick={() => void choose()}
       >
-        Choose folder…
+        选择文件夹…
       </button>
     </div>
   );
@@ -58,13 +58,13 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
       const response = await fetch(`/api/folders${query}`, { credentials: "same-origin" });
       const json = (await response.json()) as FolderBrowseResult & { error?: string };
       if (!response.ok) {
-        setError(json.error ?? "Could not open that folder.");
+        setError(json.error ?? "打不开这个文件夹。");
         return;
       }
       setData(json);
       onSelect(json.cwd);
     } catch {
-      setError("Could not browse folders.");
+      setError("无法浏览文件夹。");
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
           type="button"
           className="pressable inline-flex h-10 w-10 items-center justify-center text-mute disabled:opacity-40"
           disabled={!data?.parent || loading}
-          aria-label="Go up one folder"
+          aria-label="上一级"
           onClick={() => data?.parent && void load(data.parent)}
         >
           <ChevronLeft size={18} />
@@ -92,7 +92,7 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
         </p>
       </div>
       <div className="max-h-56 overflow-y-auto p-1">
-        {loading ? <p className="px-3 py-2 text-sm text-mute">Loading folders…</p> : null}
+        {loading ? <p className="px-3 py-2 text-sm text-mute">正在加载文件夹…</p> : null}
         {error ? <p className="px-3 py-2 text-sm text-danger">{error}</p> : null}
         {!loading && data
           ? data.entries.map((entry) => (
@@ -110,11 +110,11 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
             ))
           : null}
         {!loading && data && data.entries.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-mute">No subfolders here. Use this folder.</p>
+          <p className="px-3 py-2 text-sm text-mute">这里没有子文件夹，就用当前文件夹。</p>
         ) : null}
       </div>
       <div className="border-t border-line px-3 py-2 text-sm text-mute">
-        Selected: <span className="font-mono text-[12px] text-ink">{selectedPath || data?.cwd || "—"}</span>
+        已选：<span className="font-mono text-[12px] text-ink">{selectedPath || data?.cwd || "—"}</span>
       </div>
     </div>
   );

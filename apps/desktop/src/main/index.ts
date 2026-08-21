@@ -50,11 +50,11 @@ function installMenu(): void {
       role: "help",
       submenu: [
         {
-          label: "Open setup again",
+          label: "再次打开设置",
           click: () => mainWindow?.webContents.send("ohmypi:open-setup"),
         },
         {
-          label: "ohMyPi on GitHub",
+          label: "在 GitHub 查看 ohMyPi",
           click: () => void shell.openExternal("https://github.com/Yunz93/ohMyPi"),
         },
       ],
@@ -131,7 +131,7 @@ async function createMainWindow(port: number): Promise<void> {
 function registerIpc(): void {
   ipcMain.handle("ohmypi:pick-folder", async (_event, defaultPath?: string) => {
     const options: Electron.OpenDialogOptions = {
-      title: "Choose a folder",
+      title: "选择文件夹",
       defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
       properties: ["openDirectory", "createDirectory"],
     };
@@ -161,7 +161,7 @@ app.on("before-quit", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     void boot().catch((error) => {
-      dialog.showErrorBox("ohMyPi failed to start", error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox("ohMyPi 启动失败", error instanceof Error ? error.message : String(error));
       app.quit();
     });
   }
@@ -169,7 +169,7 @@ app.on("activate", () => {
 
 app.whenReady().then(() => {
   void boot().catch((error) => {
-    dialog.showErrorBox("ohMyPi failed to start", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox("ohMyPi 启动失败", error instanceof Error ? error.message : String(error));
     app.quit();
   });
 });

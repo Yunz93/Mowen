@@ -22,14 +22,14 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
         onSubmit={(event) => {
           event.preventDefault();
           if (!cwd.trim()) {
-            setError("Choose a folder first.");
+            setError("请先选择一个文件夹。");
             return;
           }
           onCreate(cwd.trim(), title.trim() || undefined);
         }}
       >
-        <h2 className="text-lg text-ink">New task</h2>
-        <p className="mt-1 text-sm text-mute">Choose the folder this chat can work in.</p>
+        <h2 className="text-lg text-ink">新对话</h2>
+        <p className="mt-1 text-sm text-mute">选一个这个对话可以工作的文件夹。</p>
 
         {desktop ? null : (
           <div className="mt-4 flex gap-2">
@@ -38,14 +38,14 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
               className={`pressable h-10 rounded-md px-3 text-sm ${mode === "browse" ? "bg-surface text-accent" : "text-mute"}`}
               onClick={() => setMode("browse")}
             >
-              Browse
+              浏览
             </button>
             <button
               type="button"
               className={`pressable h-10 rounded-md px-3 text-sm ${mode === "type" ? "bg-surface text-accent" : "text-mute"}`}
               onClick={() => setMode("type")}
             >
-              Type path
+              输入路径
             </button>
           </div>
         )}
@@ -57,7 +57,7 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
         ) : (
           <>
             <label className="mt-4 block text-sm text-mute" htmlFor="task-cwd">
-              Working directory
+              工作文件夹
             </label>
             <input
               id="task-cwd"
@@ -75,21 +75,21 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
 
         {error ? <p className="mt-1 text-sm text-danger">{error}</p> : null}
         <label className="mt-3 block text-sm text-mute" htmlFor="task-title">
-          Title
+          标题
         </label>
         <input
           id="task-title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           className="mt-1 h-10 w-full rounded-md bg-surface px-3 text-sm text-ink"
-          placeholder="Optional"
+          placeholder="可选"
         />
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="pressable h-10 px-3 text-sm text-mute" onClick={onCancel}>
-            Cancel
+            取消
           </button>
           <button type="submit" className="pressable h-10 rounded-md bg-accent px-4 text-sm text-canvas">
-            Create task
+            创建对话
           </button>
         </div>
       </form>

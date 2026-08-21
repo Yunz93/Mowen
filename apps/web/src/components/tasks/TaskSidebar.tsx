@@ -1,6 +1,7 @@
-import { Archive, Search } from "lucide-react";
+import { Archive, Plus, Search, X } from "lucide-react";
 import type { TaskRecord } from "@ohmypi/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
+import { folderName, taskStatusLabel } from "../../copy";
 
 type Props = {
   tasks: TaskRecord[];
@@ -9,6 +10,8 @@ type Props = {
   onQuery: (value: string) => void;
   onSelect: (taskId: string) => void;
   onArchive: (taskId: string) => void;
+  onNew?: () => void;
+  onClose?: () => void;
 };
 
 function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
@@ -22,11 +25,16 @@ function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
   return [...groups.entries()];
 }
 
-function statusLabel(task: TaskRecord): string {
-  return task.status.replaceAll("_", " ");
-}
-
-export function TaskSidebar({ tasks, activeTaskId, query, onQuery, onSelect, onArchive }: Props) {
+export function TaskSidebar({
+  tasks,
+  activeTaskId,
+  query,
+  onQuery,
+  onSelect,
+  onArchive,
+  onNew,
+  onClose,
+}: Props) {
   const filtered = tasks.filter((task) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -35,25 +43,48 @@ export function TaskSidebar({ tasks, activeTaskId, query, onQuery, onSelect, onA
   const groups = groupByProject(filtered);
 
   return (
-    <aside className="flex h-full w-[272px] shrink-0 flex-col border-r border-line bg-sidebar">
-      <div className="flex h-[52px] items-center gap-2 border-b border-line px-3">
+    <aside className="flex h-full w-[min(320px,90vw)] shrink-0 flex-col border-r border-line bg-sidebar">
+      <div className="flex h-14 items-center gap-2 border-b border-line px-3">
+        <p className="flex-1 text-sm text-ink">会话</p>
+        {onNew ? (
+          <button
+            type="button"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-elevated"
+            aria-label="新对话"
+            onClick={onNew}
+          >
+            <Plus size={16} />
+          </button>
+        ) : null}
+        {onClose ? (
+          <button
+            type="button"
+            className="pressable flex h-10 w-10 items-center justify-center rounded-full text-mute hover:text-ink"
+            aria-label="关闭会话列表"
+            onClick={onClose}
+          >
+            <X size={16} />
+          </button>
+        ) : null}
+      </div>
+      <div className="flex h-12 items-center gap-2 border-b border-line px-3">
         <Search size={14} className="text-mute" />
         <input
           value={query}
           onChange={(event) => onQuery(event.target.value)}
-          placeholder="Search tasks"
-          aria-label="Search tasks"
+          placeholder="搜索会话"
+          aria-label="搜索会话"
           className="h-10 w-full bg-transparent text-sm text-ink placeholder:text-mute"
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {groups.length === 0 ? (
-          <p className="px-2 py-4 text-sm text-mute">No tasks yet. Create one to start a Pi session.</p>
+          <p className="px-2 py-4 text-sm text-mute">还没有会话。点右上角开始一个新对话。</p>
         ) : (
           groups.map(([cwd, items]) => (
             <section key={cwd} className="mb-4">
-              <h2 className="truncate px-2 pb-1 font-mono text-[11px] tracking-wide text-mute uppercase" title={cwd}>
-                {cwd.split("/").filter(Boolean).at(-1) ?? cwd}
+              <h2 className="truncate px-2 pb-1 text-[12px] text-mute" title={cwd}>
+                {folderName(cwd)}
               </h2>
               <ul>
                 {items.map((task) => {
@@ -61,7 +92,7 @@ export function TaskSidebar({ tasks, activeTaskId, query, onQuery, onSelect, onA
                   return (
                     <li key={task.id}>
                       <div
-                        className={`group flex items-start gap-2 rounded-md px-1 ${active ? "bg-elevated" : "hover:bg-surface"}`}
+                        className={`group flex items-start gap-2 rounded-2xl px-1 ${active ? "bg-elevated" : "hover:bg-surface"}`}
                       >
                         <button
                           type="button"
@@ -71,12 +102,12 @@ export function TaskSidebar({ tasks, activeTaskId, query, onQuery, onSelect, onA
                           <PiStatusRing status={task.status} size={18} />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm text-ink">{task.title}</span>
-                            <span className="block truncate font-mono text-[11px] text-mute tabular">
-                              {statusLabel(task)}
+                            <span className="block truncate text-[12px] text-mute">
+                              {taskStatusLabel(task.status)}
                             </span>
                           </span>
                           {task.unreadCount > 0 && !active ? (
-                            <span className="rounded-pill bg-accent px-1.5 font-mono text-[10px] text-canvas tabular">
+                            <span className="rounded-pill bg-accent px-1.5 text-[10px] text-canvas">
                               {task.unreadCount}
                             </span>
                           ) : null}
@@ -84,7 +115,7 @@ export function TaskSidebar({ tasks, activeTaskId, query, onQuery, onSelect, onA
                         <button
                           type="button"
                           className="pressable mt-1 flex h-10 w-10 items-center justify-center text-mute hover:text-ink"
-                          aria-label={`Archive ${task.title}`}
+                          aria-label={`归档 ${task.title}`}
                           onClick={() => onArchive(task.id)}
                         >
                           <Archive size={14} />
