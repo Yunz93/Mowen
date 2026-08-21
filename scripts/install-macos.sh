@@ -112,25 +112,51 @@ TMP_DIR=""
 ATTACHED_DMG=""
 
 cleanup() {
-  if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
-    rm -rf "${TMP_DIR}"
-  fi
   if [[ -n "${ATTACHED_DMG}" ]]; then
     hdiutil detach "${ATTACHED_DMG}" -quiet >/dev/null 2>&1 || true
+    ATTACHED_DMG=""
+  fi
+  if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
+    rm -rf "${TMP_DIR}"
   fi
 }
 trap cleanup EXIT
 
+ensure_tmp_dir() {
+  if [[ -z "${TMP_DIR}" ]]; then
+    TMP_DIR="$(mktemp -d -t ohmypi-install)"
+  fi
+}
+
 find_app_in_dir() {
   local dir="$1"
-  find "$dir" -maxdepth 5 \( -name "${APP_NAME}.app" -o -name "MyPi.app" \) -type d 2>/dev/null | head -n 1 || true
+  local found
+  found="$(find "$dir" -maxdepth 5 \( -name "${APP_NAME}.app" -o -name "MyPi.app" \) -type d 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$found" ]]; then
+    found="$(find "$dir" -maxdepth 5 -name "*.app" -type d 2>/dev/null | head -n 1 || true)"
+  fi
+  echo "$found"
+}
+
+# hdiutil prints: /dev/disk4s1  Apple_HFS  /Volumes/ohMyPi 0.1.0
+# awk $NF would be "0.1.0" because the volume name has a space.
+parse_hdiutil_mount() {
+  sed -n 's/.*\(\/Volumes\/.*\)$/\1/p' | tail -n 1
 }
 
 mount_dmg() {
   local dmg="$1"
-  local output
+  local mountpoint output
+  ensure_tmp_dir
+  mountpoint="${TMP_DIR}/volume"
+  mkdir -p "$mountpoint"
+  if hdiutil attach "$dmg" -nobrowse -readonly -noverify -mountpoint "$mountpoint" >/dev/null 2>&1; then
+    ATTACHED_DMG="$mountpoint"
+    echo "$mountpoint"
+    return
+  fi
   output="$(hdiutil attach "$dmg" -nobrowse -readonly -noverify 2>&1)" || die "无法打开磁盘映像: $dmg"
-  ATTACHED_DMG="$(echo "$output" | awk '/\/Volumes\// { print $NF; exit }')"
+  ATTACHED_DMG="$(printf '%s\n' "$output" | parse_hdiutil_mount)"
   [[ -n "${ATTACHED_DMG}" ]] || die "挂载 DMG 失败。"
   echo "${ATTACHED_DMG}"
 }
@@ -146,15 +172,20 @@ unpack_source() {
     local volume app
     volume="$(mount_dmg "$input")"
     app="$(find_app_in_dir "$volume")"
-    [[ -n "$app" ]] || die "DMG 里没有找到 ${APP_NAME}.app"
+    if [[ -z "$app" ]]; then
+      die "DMG 里没有找到 ${APP_NAME}.app（已挂载: ${volume}）
+$(ls -la "$volume" 2>/dev/null || true)"
+    fi
     echo "$app"
     return
   fi
   if [[ -f "$input" && "$input" == *.zip ]]; then
-    TMP_DIR="$(mktemp -d -t ohmypi-install)"
-    unzip -q "$input" -d "$TMP_DIR" || die "解压失败: ${input}"
-    local app
-    app="$(find_app_in_dir "$TMP_DIR")"
+    local unzip_dir app
+    ensure_tmp_dir
+    unzip_dir="${TMP_DIR}/unpacked"
+    mkdir -p "$unzip_dir"
+    unzip -q "$input" -d "$unzip_dir" || die "解压失败: ${input}"
+    app="$(find_app_in_dir "$unzip_dir")"
     [[ -n "$app" ]] || die "ZIP 里没有找到 ${APP_NAME}.app"
     echo "$app"
     return
@@ -195,10 +226,10 @@ download_release() {
   fi
 
   local names=(
-    "ohMyPi-mac-${arch}.dmg"
     "ohMyPi-mac-${arch}.zip"
-    "MyPi-mac-${arch}.dmg"
+    "ohMyPi-mac-${arch}.dmg"
     "MyPi-mac-${arch}.zip"
+    "MyPi-mac-${arch}.dmg"
   )
   local out="" name
   info "正在从 GitHub 下载 ${APP_NAME} (${arch}, ${tag})…"
@@ -297,6 +328,10 @@ if [[ "${OHMYPI_SELF_TEST:-}" == "1" ]]; then
   fi
   if ( copy_app "" ) 2>/dev/null; then
     die "copy_app should reject an empty path"
+  fi
+  parsed="$(printf '%s\n' '/dev/disk4s1        	Apple_HFS                      	/Volumes/ohMyPi 0.1.0' | parse_hdiutil_mount)"
+  if [[ "$parsed" != "/Volumes/ohMyPi 0.1.0" ]]; then
+    die "parse_hdiutil_mount should keep spaces in the volume path, got: ${parsed}"
   fi
   ok "self-test passed"
   echo "self-test passed"
