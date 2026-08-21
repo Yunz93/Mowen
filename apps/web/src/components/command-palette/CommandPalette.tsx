@@ -19,6 +19,18 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
     if (!open) setQuery("");
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const items = useMemo(() => {
     const commands = [
       { id: "new", label: "新对话", run: onNewTask },
@@ -46,18 +58,18 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
   if (!open) return null;
 
   return (
-    <div className="dialog-scrim items-start pt-24">
+    <div className="dialog-scrim items-start pt-[12vh]">
       <button type="button" className="absolute inset-0" aria-label="关闭" onClick={onClose} />
-      <div className="dialog-panel p-2">
+      <div className="dialog-panel dialog-panel-cmd" role="dialog" aria-modal="true" aria-label="命令面板">
         <input
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索会话和命令"
           aria-label="命令面板"
-          className="h-10 w-full bg-transparent px-3 text-sm text-ink"
+          className="h-11 w-full bg-transparent px-3 text-sm text-ink placeholder:text-mute"
         />
-        <ul className="mt-1 max-h-72 overflow-auto">
+        <ul className="mt-1 max-h-72 overflow-auto border-t border-line pt-1">
           {items.map((item) => (
             <li key={item.id}>
               <button
@@ -72,6 +84,9 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
               </button>
             </li>
           ))}
+          {items.length === 0 ? (
+            <li className="px-3 py-3 text-sm text-mute">没有匹配的命令</li>
+          ) : null}
         </ul>
       </div>
     </div>

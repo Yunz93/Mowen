@@ -157,7 +157,7 @@ export function PromptComposer({
           ) : null}
           <button
             type="button"
-            className="pressable btn btn-primary disabled:opacity-40"
+            className="pressable btn btn-primary"
             onClick={submit}
             disabled={disabled || !value.trim()}
           >

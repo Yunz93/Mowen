@@ -63,6 +63,11 @@ export function WorkbenchLayout() {
           setCreating(false);
           return;
         }
+        if (paletteOpen) {
+          event.preventDefault();
+          setPaletteOpen(false);
+          return;
+        }
         if (taskOpen) {
           setTaskOpen(false);
           return;
@@ -85,7 +90,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [creating, inspectorOpen, task, taskOpen]);
+  }, [creating, inspectorOpen, paletteOpen, task, taskOpen]);
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
