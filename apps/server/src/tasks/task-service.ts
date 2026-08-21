@@ -11,9 +11,9 @@ import type { AppConfig } from "../config.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
 import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
+import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { TaskStore } from "./task-store.js";
-
-type SocketLike = { send: (data: string) => void; closed: boolean };
+import { UploadStore } from "./upload-store.js";
 
 const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".ohmypi-test"]);
 
@@ -27,11 +27,11 @@ export type SetupHints = {
 
 export class TaskService {
   readonly supervisor: ProcessSupervisor;
-  private readonly sockets = new Set<SocketLike>();
+  private readonly events: EventDispatcher;
   private readonly queue: string[] = [];
   private readonly booting = new Map<string, Promise<void>>();
   private activeTaskId: string | null = null;
-  readonly uploads = new Map<string, { mimeType: string; data: Buffer }>();
+  private readonly uploads = new UploadStore();
   private setupHints: SetupHints = {
     authConfigured: false,
     configuredProviders: [],
@@ -61,8 +61,9 @@ export class TaskService {
         void this.apply(taskId, "abort_confirmed");
       },
     );
+    this.events = new EventDispatcher((taskId) => this.supervisor.nextSequence(taskId));
     this.supervisor.onEvent((event) => {
-      this.broadcast(event);
+      this.events.dispatch(event);
       if (event.type === "approval.resolved") {
         const task = this.store.get(event.taskId);
         if (task?.status === "waiting_approval") {
@@ -85,18 +86,22 @@ export class TaskService {
   }
 
   addSocket(socket: SocketLike): void {
-    this.sockets.add(socket);
+    this.events.addSocket(socket);
   }
 
   removeSocket(socket: SocketLike): void {
-    this.sockets.delete(socket);
-    if (this.sockets.size === 0) {
+    this.events.removeSocket(socket);
+    if (this.events.connectionCount === 0) {
       this.supervisor.denyAllApprovals("Browser disconnected");
     }
   }
 
   listTasks(): TaskRecord[] {
     return this.store.listVisible().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
+  }
+
+  storeUpload(id: string, mimeType: string, data: Buffer): boolean {
+    return this.uploads.add(id, mimeType, data);
   }
 
   async handleCommand(command: ClientCommand): Promise<unknown> {
@@ -342,14 +347,11 @@ export class TaskService {
       throw new Error("AI 还没启动");
     }
 
-    const images = (imageIds ?? [])
-      .map((id) => this.uploads.get(id))
-      .filter((item): item is { mimeType: string; data: Buffer } => Boolean(item))
-      .map((item) => ({
-        type: "image",
-        data: item.data.toString("base64"),
-        mimeType: item.mimeType,
-      }));
+    const images = this.uploads.consume(imageIds ?? []).map((item) => ({
+      type: "image",
+      data: item.data.toString("base64"),
+      mimeType: item.mimeType,
+    }));
 
     const payload: Record<string, unknown> & { type: string } = { type: rpcMode, message };
     if (images.length > 0) payload.images = images;
@@ -543,21 +545,15 @@ export class TaskService {
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {
-    const meta = this.supervisor.nextSequence(taskId);
-    const event = {
-      ...meta,
-      taskId,
-      type,
-      payload,
-    } as ServerEvent;
-    this.broadcast(event);
+    this.events.emit(taskId, type, payload);
+  }
+
+  sendTo(socket: SocketLike, taskId: string, type: ServerEvent["type"], payload: unknown): void {
+    this.events.sendTo(socket, taskId, type, payload);
   }
 
   broadcast(event: ServerEvent): void {
-    const data = JSON.stringify(event);
-    for (const socket of this.sockets) {
-      if (!socket.closed) socket.send(data);
-    }
+    this.events.dispatch(event);
   }
 
   restoredMessages(taskId: string): TimelineMessage[] {
