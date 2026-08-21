@@ -5,7 +5,7 @@
 # There is no Apple Developer ID / notarization; do not double-click the DMG.
 #
 # Usage:
-#   curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
+#   curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh | bash
 #   ./scripts/install-macos.sh
 #   ./scripts/install-macos.sh --nightly
 #   ./scripts/install-macos.sh /path/to/Mowen.dmg
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 APP_NAME="Mowen"
-REPO="${MOWEN_REPO:-${OHMYPI_REPO:-Yunz93/ohMyPi}}"
+REPO="${MOWEN_REPO:-${OHMYPI_REPO:-Yunz93/Mowen}}"
 DEST_DIR="/Applications"
 BUILD=0
 LOCAL=0

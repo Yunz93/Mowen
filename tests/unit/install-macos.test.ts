@@ -16,6 +16,7 @@ describe("install-macos.sh", () => {
     expect(out).toContain("--trust-only");
     expect(out).toContain("--nightly");
     expect(out).toContain("GitHub Release");
+    expect(out).toContain("Yunz93/Mowen");
   });
 
   it("does not expand an empty auth header array", () => {

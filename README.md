@@ -11,7 +11,7 @@
 打开「终端」，粘贴后回车：
 
 ```bash
-curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh | bash
+curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh | bash
 ```
 
 脚本会下载应用、拷到 `/Applications`、去掉隔离属性、在本机做 ad-hoc 签名，然后打开墨问。
@@ -19,19 +19,19 @@ curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-mac
 开发中的每日构建：
 
 ```bash
-curl -fsSL https://github.com/Yunz93/ohMyPi/releases/download/nightly/install-macos.sh | bash -s -- --nightly
+curl -fsSL https://github.com/Yunz93/Mowen/releases/download/nightly/install-macos.sh | bash -s -- --nightly
 ```
 
 若仍无法打开：系统设置 → 隐私与安全性 → 仍要打开。或再跑一次：
 
 ```bash
-bash <(curl -fsSL https://github.com/Yunz93/ohMyPi/releases/latest/download/install-macos.sh) --trust-only /Applications/Mowen.app
+bash <(curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh) --trust-only /Applications/Mowen.app
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-irm https://github.com/Yunz93/ohMyPi/releases/latest/download/install-windows.ps1 | iex
+irm https://github.com/Yunz93/Mowen/releases/latest/download/install-windows.ps1 | iex
 ```
 
 装好后打开墨问，粘贴 API Key，选一个工作文件夹。密钥保存在 `~/.pi/agent/auth.json`，界面里不会再显示完整密钥。对话会发给你选择的 AI 服务商，不会经过墨问的服务器。
@@ -39,8 +39,8 @@ irm https://github.com/Yunz93/ohMyPi/releases/latest/download/install-windows.ps
 ### 发布稳定版
 
 ```bash
-git tag v0.1.2
-git push origin v0.1.2
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 这会跑 `.github/workflows/release.yml`，上传安装包和上述脚本。日常 `main` 推送会更新 `nightly` 预发布。
@@ -101,7 +101,7 @@ NODE_ENV=production pnpm start   # http://127.0.0.1:4310
 | `MOWEN_ALLOWED_ROOTS` | 家目录或向导所选文件夹 | 允许访问的根目录 |
 | `MOWEN_MUTATIONS` | `approval` | `approval` 或 `disabled` |
 | `MOWEN_MAX_PROCESSES` | `3` | 同时运行的 Pi 进程数 |
-| `MOWEN_REPO` | `Yunz93/ohMyPi` | 安装脚本下载用的仓库 |
+| `MOWEN_REPO` | `Yunz93/Mowen` | 安装脚本下载用的仓库 |
 
 仍识别旧的 `OHMYPI_*` 变量和 `~/.ohmypi` 数据目录。`.env` 会自动加载。真正的环境变量优先于 `.env`。
 
