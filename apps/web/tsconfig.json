@@ -9,7 +9,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@ohmypi/protocol": ["../../packages/protocol/src/index.ts"]
+      "@mowen/protocol": ["../../packages/protocol/src/index.ts"]
     }
   },
   "include": ["src"]

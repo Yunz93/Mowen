@@ -1,4 +1,4 @@
-import type { TaskStatus, ToolExecution } from "@ohmypi/protocol";
+import type { TaskStatus, ToolExecution } from "@mowen/protocol";
 import { AlertTriangle, CheckCircle2, Clock3, LoaderCircle, ShieldAlert } from "lucide-react";
 
 type Props = {

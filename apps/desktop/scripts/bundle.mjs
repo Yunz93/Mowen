@@ -9,7 +9,7 @@ await esbuild.build({
   external: ["electron"],
   sourcemap: true,
   banner: {
-    js: "import { createRequire as __ohmypiCreateRequire } from 'node:module'; const require = __ohmypiCreateRequire(import.meta.url);",
+    js: "import { createRequire as __mowenCreateRequire } from 'node:module'; const require = __mowenCreateRequire(import.meta.url);",
   },
 });
 

@@ -11,7 +11,7 @@ import {
 
 describe("path policy", () => {
   it("rejects cwd outside allowed roots", async () => {
-    const allowed = await mkdtemp(path.join(os.tmpdir(), "ohmypi-allowed-"));
+    const allowed = await mkdtemp(path.join(os.tmpdir(), "mowen-allowed-"));
     await expect(assertAllowedCwd("/tmp", [allowed])).rejects.toBeInstanceOf(PathPolicyError);
   });
 
@@ -20,8 +20,8 @@ describe("path policy", () => {
   });
 
   it("blocks symlink escape", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ohmypi-root-"));
-    const outside = await mkdtemp(path.join(os.tmpdir(), "ohmypi-out-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-root-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "mowen-out-"));
     const secret = path.join(outside, "secret.txt");
     await writeFile(secret, "nope");
     const link = path.join(root, "escape");
@@ -30,7 +30,7 @@ describe("path policy", () => {
   });
 
   it("allows writes inside cwd", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "ohmypi-ok-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-ok-"));
     await mkdir(path.join(root, "src"));
     const resolved = await resolveAllowedPath("src/app.ts", root, [root]);
     expect(resolved.endsWith(`${path.sep}src${path.sep}app.ts`)).toBe(true);

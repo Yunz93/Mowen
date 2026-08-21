@@ -36,10 +36,21 @@ export type AppConfig = {
   piBundled: boolean;
 };
 
+export function mowenEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const current = env[`MOWEN_${name}`];
+  if (current != null && current !== "") return current;
+  const legacy = env[`OHMYPI_${name}`];
+  if (legacy != null && legacy !== "") return legacy;
+  return current ?? legacy;
+}
+
 export function defaultDataDir(homeDir = os.homedir()): string {
-  const current = path.join(homeDir, ".ohmypi");
+  const current = path.join(homeDir, ".mowen");
+  const ohmypi = path.join(homeDir, ".ohmypi");
   const legacy = path.join(homeDir, ".mypi-web");
-  if (!existsSync(current) && existsSync(legacy)) return legacy;
+  if (existsSync(current)) return current;
+  if (existsSync(ohmypi)) return ohmypi;
+  if (existsSync(legacy)) return legacy;
   return current;
 }
 
@@ -70,15 +81,15 @@ export function isJavaScriptFile(file: string): boolean {
 }
 
 /**
- * Desktop builds set OHMYPI_PI_ENTRY to Pi's CLI file and run it with Electron's
+ * Desktop builds set MOWEN_PI_ENTRY to Pi's CLI file and run it with Electron's
  * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
  * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
  * Node executable so Windows can run it (shebang spawn is Unix-only).
  */
 export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
-  const entry = env.OHMYPI_PI_ENTRY?.trim();
+  const entry = mowenEnv(env, "PI_ENTRY")?.trim();
   if (entry) {
-    const command = env.OHMYPI_NODE_BIN?.trim() || process.execPath;
+    const command = mowenEnv(env, "NODE_BIN")?.trim() || process.execPath;
     const extraEnv: NodeJS.ProcessEnv = {};
     if (process.versions.electron || command === process.execPath) {
       extraEnv.ELECTRON_RUN_AS_NODE = "1";
@@ -120,15 +131,16 @@ export function loadConfig(
     origins.add("http://localhost:5173");
   }
 
+  const allowedRootsValue = mowenEnv(env, "ALLOWED_ROOTS");
   const envRoots = parseAllowedRoots(
-    env.OHMYPI_ALLOWED_ROOTS,
+    allowedRootsValue,
     options.workspaceRoot
       ? [expandHome(options.workspaceRoot, homeDir)]
       : defaultAllowedRoots(homeDir),
   ).map((root) => path.resolve(expandHome(root, homeDir)));
 
   // Prefer an explicit workspace from settings when env did not override roots.
-  if (!env.OHMYPI_ALLOWED_ROOTS?.trim() && options.workspaceRoot) {
+  if (!allowedRootsValue?.trim() && options.workspaceRoot) {
     const workspace = path.resolve(expandHome(options.workspaceRoot, homeDir));
     if (!envRoots.includes(workspace)) {
       envRoots.unshift(workspace);
@@ -144,24 +156,24 @@ export function loadConfig(
     piCommand: pi.command,
     piPrefixArgs: pi.prefixArgs,
     piExtraEnv: pi.extraEnv,
-    dataDir: path.resolve(expandHome(env.OHMYPI_DATA_DIR ?? defaultDataDir(homeDir), homeDir)),
+    dataDir: path.resolve(expandHome(mowenEnv(env, "DATA_DIR") ?? defaultDataDir(homeDir), homeDir)),
     allowedRoots: envRoots,
-    maxProcesses: Number(env.OHMYPI_MAX_PROCESSES ?? "3"),
-    mutations: mutationsSchema.parse(env.OHMYPI_MUTATIONS ?? "approval"),
+    maxProcesses: Number(mowenEnv(env, "MAX_PROCESSES") ?? "3"),
+    mutations: mutationsSchema.parse(mowenEnv(env, "MUTATIONS") ?? "approval"),
     nodeEnv,
-    approvalTimeoutMs: Number(env.OHMYPI_APPROVAL_TIMEOUT_MS ?? String(5 * 60 * 1000)),
+    approvalTimeoutMs: Number(mowenEnv(env, "APPROVAL_TIMEOUT_MS") ?? String(5 * 60 * 1000)),
     allowedOrigins: [...origins],
-    webDistDir: env.OHMYPI_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
+    webDistDir: mowenEnv(env, "WEB_DIST") ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     approvalExtensionPath:
-      env.OHMYPI_APPROVAL_EXTENSION ??
+      mowenEnv(env, "APPROVAL_EXTENSION") ??
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
     homeDir,
-    piBundled: env.OHMYPI_PI_BUNDLED === "1" || Boolean(env.OHMYPI_PI_ENTRY?.trim()),
+    piBundled: mowenEnv(env, "PI_BUNDLED") === "1" || Boolean(mowenEnv(env, "PI_ENTRY")?.trim()),
   };
 }
 
 function entryDisplay(env: NodeJS.ProcessEnv, pi: PiRuntime): string {
-  return env.OHMYPI_PI_ENTRY?.trim() || pi.command;
+  return mowenEnv(env, "PI_ENTRY")?.trim() || pi.command;
 }
 
 export async function readPiVersion(

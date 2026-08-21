@@ -1,5 +1,5 @@
 {
-  "name": "@ohmypi/server",
+  "name": "@mowen/server",
   "version": "0.1.2",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "@fastify/multipart": "^9.0.3",
     "@fastify/static": "^8.2.0",
     "@fastify/websocket": "^11.2.0",
-    "@ohmypi/protocol": "workspace:*",
+    "@mowen/protocol": "workspace:*",
     "fastify": "^5.4.0",
     "zod": "^3.25.76"
   },

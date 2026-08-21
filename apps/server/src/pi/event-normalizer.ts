@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { TimelineMessage, ToolExecution } from "@ohmypi/protocol";
+import type { TimelineMessage, ToolExecution } from "@mowen/protocol";
 import type { RpcEvent } from "./rpc-client.js";
 
 export type NormalizedPiEvent =

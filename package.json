@@ -1,5 +1,5 @@
 {
-  "name": "ohmypi",
+  "name": "mowen",
   "private": true,
   "version": "0.1.2",
   "type": "module",
@@ -8,19 +8,19 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @ohmypi/protocol build && pnpm --parallel --filter @ohmypi/server --filter @ohmypi/web dev",
-    "typecheck": "pnpm --filter @ohmypi/protocol build && pnpm -r --if-present typecheck",
+    "dev": "pnpm --filter @mowen/protocol build && pnpm --parallel --filter @mowen/server --filter @mowen/web dev",
+    "typecheck": "pnpm --filter @mowen/protocol build && pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
-    "build": "pnpm --filter @ohmypi/protocol build && pnpm --filter @ohmypi/web build && pnpm --filter @ohmypi/server build",
+    "build": "pnpm --filter @mowen/protocol build && pnpm --filter @mowen/web build && pnpm --filter @mowen/server build",
     "start": "node apps/server/dist/index.js",
     "doctor": "tsx scripts/doctor.ts",
-    "desktop:dev": "pnpm --filter @ohmypi/protocol build && pnpm --filter @ohmypi/server build && pnpm --filter @ohmypi/desktop build && pnpm --parallel --filter @ohmypi/web --filter @ohmypi/desktop dev",
-    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack",
-    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack:mac",
-    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @ohmypi/desktop pack:win",
+    "desktop:dev": "pnpm --filter @mowen/protocol build && pnpm --filter @mowen/server build && pnpm --filter @mowen/desktop build && pnpm --parallel --filter @mowen/web --filter @mowen/desktop dev",
+    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack",
+    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack:mac",
+    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack:win",
     "desktop:install:mac": "bash scripts/install-macos.sh",
     "desktop:install:win": "pwsh -File scripts/install-windows.ps1",
     "smoke:real": "tsx scripts/smoke-real.ts"

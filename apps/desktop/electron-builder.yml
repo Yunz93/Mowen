@@ -1,7 +1,7 @@
-appId: com.ohmypi.desktop
-productName: ohMyPi
-copyright: Copyright © 2026 ohMyPi
-artifactName: ohMyPi-${os}-${arch}.${ext}
+appId: com.mowen.desktop
+productName: Mowen
+copyright: Copyright © 2026 墨问 / Mowen
+artifactName: Mowen-${os}-${arch}.${ext}
 asar: true
 directories:
   output: release
@@ -20,27 +20,27 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.png
   identity: null
-  artifactName: ohMyPi-${os}-${arch}.${ext}
+  artifactName: Mowen-${os}-${arch}.${ext}
   target:
     - dmg
     - zip
   hardenedRuntime: false
   gatekeeperAssess: false
 dmg:
-  title: ohMyPi
+  title: Mowen
 win:
   icon: build/icon.png
-  artifactName: ohMyPi-${os}-${arch}.${ext}
+  artifactName: Mowen-${os}-${arch}.${ext}
   target:
     - nsis
     - portable
 nsis:
   oneClick: true
   perMachine: false
-  shortcutName: ohMyPi
-  artifactName: ohMyPi-${os}-${arch}-setup.${ext}
+  shortcutName: Mowen
+  artifactName: Mowen-${os}-${arch}-setup.${ext}
 portable:
-  artifactName: ohMyPi-${os}-${arch}-portable.${ext}
+  artifactName: Mowen-${os}-${arch}-portable.${ext}
 linux:
   icon: build/icon.png
   target:

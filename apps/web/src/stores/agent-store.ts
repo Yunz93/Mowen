@@ -10,7 +10,7 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
-} from "@ohmypi/protocol";
+} from "@mowen/protocol";
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
 

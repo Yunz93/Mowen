@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "rm -rf .ohmypi-test/e2e && mkdir -p .ohmypi-test/e2e-project && OHMYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build && OHMYPI_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production OHMYPI_DATA_DIR=./.ohmypi-test/e2e PI_BIN=./tests/fixtures/fake-pi.mjs OHMYPI_ALLOWED_ROOTS=./.ohmypi-test/e2e-project OHMYPI_MAX_PROCESSES=3 OHMYPI_MUTATIONS=approval pnpm start",
+      "rm -rf .mowen-test/e2e && mkdir -p .mowen-test/e2e-project && MOWEN_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build && MOWEN_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production MOWEN_DATA_DIR=./.mowen-test/e2e PI_BIN=./tests/fixtures/fake-pi.mjs MOWEN_ALLOWED_ROOTS=./.mowen-test/e2e-project MOWEN_MAX_PROCESSES=3 MOWEN_MUTATIONS=approval pnpm start",
     url: "http://127.0.0.1:4310/health",
     reuseExistingServer: false,
     timeout: 120_000,

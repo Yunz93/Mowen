@@ -12,7 +12,7 @@ import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
-import type { ThinkingLevel } from "@ohmypi/protocol";
+import type { ThinkingLevel } from "@mowen/protocol";
 import { folderName, nextHint } from "../copy";
 
 export function WorkbenchLayout() {
@@ -191,7 +191,7 @@ export function WorkbenchLayout() {
             <ConversationTimeline messages={messages} tools={tools} />
           ) : (
             <div className="mx-auto flex max-w-[520px] flex-col items-center px-6 pt-24 text-center">
-              <p className="text-xl text-ink">你好，我是 ohMyPi</p>
+              <p className="text-xl text-ink">你好，我是墨问</p>
               <p className="mt-3 text-sm leading-6 text-mute">
                 在这台电脑上和 AI 聊天。它可以帮助看文件、改代码，改之前会先问你。
               </p>

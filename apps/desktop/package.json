@@ -1,8 +1,8 @@
 {
-  "name": "@ohmypi/desktop",
+  "name": "@mowen/desktop",
   "version": "0.1.2",
-  "description": "Local-first ohMyPi workbench for Windows and macOS",
-  "author": "ohMyPi",
+  "description": "Local-first 墨问 / Mowen workbench for Windows and macOS",
+  "author": "Mowen",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "pack:dir": "pnpm build && electron-builder --config electron-builder.yml --dir"
   },
   "dependencies": {
-    "@ohmypi/server": "workspace:*"
+    "@mowen/server": "workspace:*"
   },
   "devDependencies": {
     "electron": "^37.2.6",

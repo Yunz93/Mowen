@@ -14,16 +14,26 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 
 describe("portable config", () => {
   it("defaults data dir and roots to the home directory", () => {
-    const home = path.resolve(os.tmpdir(), "ohmypi-home-test");
-    expect(defaultDataDir(home)).toBe(path.join(home, ".ohmypi"));
+    const home = path.resolve(os.tmpdir(), "mowen-home-test");
+    expect(defaultDataDir(home)).toBe(path.join(home, ".mowen"));
     expect(defaultAllowedRoots(home)).toEqual([home]);
     const config = loadConfig({}, { homeDir: home });
-    expect(config.dataDir).toBe(path.join(home, ".ohmypi"));
+    expect(config.dataDir).toBe(path.join(home, ".mowen"));
     expect(config.allowedRoots).toEqual([home]);
   });
 
+  it("keeps using a legacy ~/.ohmypi data dir when it already exists", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ohmypi-"));
+    const legacy = path.join(home, ".ohmypi");
+    await mkdir(legacy);
+    expect(defaultDataDir(home)).toBe(legacy);
+    const config = loadConfig({}, { homeDir: home });
+    expect(config.dataDir).toBe(legacy);
+    await rm(home, { recursive: true, force: true });
+  });
+
   it("keeps using a legacy ~/.mypi-web data dir when it already exists", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "ohmypi-legacy-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-legacy-"));
     const legacy = path.join(home, ".mypi-web");
     await mkdir(legacy);
     expect(defaultDataDir(home)).toBe(legacy);
@@ -43,23 +53,38 @@ describe("portable config", () => {
   });
 
   it("loads .env without overriding existing env", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "ohmypi-env-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "mowen-env-"));
     const file = path.join(dir, ".env");
-    await writeFile(file, "OHMYPI_TEST_UNIQUE=from-file\nHOST=should-not-win\n");
+    await writeFile(file, "MOWEN_TEST_UNIQUE=from-file\nHOST=should-not-win\n");
     process.env.HOST = "already-set";
-    delete process.env.OHMYPI_TEST_UNIQUE;
+    delete process.env.MOWEN_TEST_UNIQUE;
     loadDotEnv(file);
-    expect(process.env.OHMYPI_TEST_UNIQUE).toBe("from-file");
+    expect(process.env.MOWEN_TEST_UNIQUE).toBe("from-file");
     expect(process.env.HOST).toBe("already-set");
-    delete process.env.OHMYPI_TEST_UNIQUE;
+    delete process.env.MOWEN_TEST_UNIQUE;
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("still reads OHMYPI_* environment variables", () => {
+    const home = path.resolve(os.tmpdir(), "mowen-legacy-env-home");
+    const config = loadConfig(
+      {
+        OHMYPI_DATA_DIR: path.join(home, "old-data"),
+        OHMYPI_ALLOWED_ROOTS: "/old-root",
+        OHMYPI_MAX_PROCESSES: "7",
+      },
+      { homeDir: home },
+    );
+    expect(config.dataDir).toBe(path.join(home, "old-data"));
+    expect(config.allowedRoots).toEqual(["/old-root"]);
+    expect(config.maxProcesses).toBe(7);
   });
 
   it("launches bundled Pi via node entry", () => {
     const entry = path.resolve(os.tmpdir(), "pi-cli.js");
     const runtime = resolvePiRuntime({
-      OHMYPI_PI_ENTRY: entry,
-      OHMYPI_NODE_BIN: process.execPath,
+      MOWEN_PI_ENTRY: entry,
+      MOWEN_NODE_BIN: process.execPath,
     });
     expect(runtime.command).toBe(process.execPath);
     expect(runtime.prefixArgs[0]).toBe(entry);

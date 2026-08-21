@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@ohmypi/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
+      "@mowen/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
     },
   },
   server: {

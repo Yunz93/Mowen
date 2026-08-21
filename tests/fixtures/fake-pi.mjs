@@ -131,7 +131,7 @@ async function runWrite(filePath, content) {
   send({ type: "tool_execution_start", toolCallId, toolName: "write", args: { path: filePath, content } });
   const requestId = `ui-${now()}`;
   const payload = {
-    kind: "ohmypi.approval",
+    kind: "mowen.approval",
     toolName: "write",
     toolCallId,
     cwd: process.cwd(),
@@ -143,7 +143,7 @@ async function runWrite(filePath, content) {
     id: requestId,
     method: "confirm",
     title: "Allow write?",
-    message: `Path:\n${filePath}\nWorking directory:\n${process.cwd()}\n${payload.risk}\n\nOHMYPI_APPROVAL_V1\n${JSON.stringify(payload)}`,
+    message: `Path:\n${filePath}\nWorking directory:\n${process.cwd()}\n${payload.risk}\n\nMOWEN_APPROVAL_V1\n${JSON.stringify(payload)}`,
   });
   const response = await waitForUiResponse(requestId);
   const allowed = Boolean(response.confirmed) && !response.cancelled;
@@ -174,20 +174,20 @@ async function runBash(command) {
   send({ type: "tool_execution_start", toolCallId, toolName: "bash", args: { command } });
   const requestId = `ui-${now()}`;
   const payload = {
-    kind: "ohmypi.approval",
+    kind: "mowen.approval",
     toolName: "bash",
     toolCallId,
     cwd: process.cwd(),
     target: command,
     rawCommand: command,
-    risk: "This command runs with your user privileges. ohMyPi does not try to guess whether Bash is safe.",
+    risk: "This command runs with your user privileges. Mowen does not try to guess whether Bash is safe.",
   };
   send({
     type: "extension_ui_request",
     id: requestId,
     method: "confirm",
     title: "Allow bash?",
-    message: `Command:\n${command}\nWorking directory:\n${process.cwd()}\n${payload.risk}\n\nOHMYPI_APPROVAL_V1\n${JSON.stringify(payload)}`,
+    message: `Command:\n${command}\nWorking directory:\n${process.cwd()}\n${payload.risk}\n\nMOWEN_APPROVAL_V1\n${JSON.stringify(payload)}`,
   });
   const response = await waitForUiResponse(requestId);
   const allowed = Boolean(response.confirmed) && !response.cancelled;

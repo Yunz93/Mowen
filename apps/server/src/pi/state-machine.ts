@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@ohmypi/protocol";
+import type { TaskStatus } from "@mowen/protocol";
 
 export type MachineEvent =
   | "activate"

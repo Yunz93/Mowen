@@ -9,7 +9,7 @@ export function NotFoundPage() {
       <p className="font-mono text-xs tracking-[0.2em] text-accent uppercase">404</p>
       <h1 className="mt-4 max-w-[12ch] text-4xl leading-none text-balance">没有这个页面</h1>
       <p className="mt-4 max-w-[40ch] text-sm leading-6 text-mute">
-        这个地址不属于 ohMyPi。返回当前对话。
+        这个地址不属于墨问。返回当前对话。
       </p>
       <Link to="/" className="pressable btn btn-primary mt-8 w-fit">
         返回对话

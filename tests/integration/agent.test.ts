@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { serverFrameSchema } from "@ohmypi/protocol";
+import { serverFrameSchema } from "@mowen/protocol";
 import { createApp } from "../../apps/server/src/index.ts";
 
 const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
@@ -83,7 +83,7 @@ describe("integration fake-pi", () => {
   let ctx: Awaited<ReturnType<typeof listen>>;
 
   beforeAll(async () => {
-    root.current = await mkdtemp(path.join(os.tmpdir(), "ohmypi-int-"));
+    root.current = await mkdtemp(path.join(os.tmpdir(), "mowen-int-"));
     const project = path.join(root.current, "project");
     await mkdir(project);
     await writeFile(path.join(project, "README.md"), "hello");
@@ -92,10 +92,10 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      OHMYPI_DATA_DIR: path.join(root.current, "data"),
-      OHMYPI_ALLOWED_ROOTS: root.current,
-      OHMYPI_MAX_PROCESSES: "3",
-      OHMYPI_MUTATIONS: "approval",
+      MOWEN_DATA_DIR: path.join(root.current, "data"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "3",
+      MOWEN_MUTATIONS: "approval",
     });
   });
 
@@ -276,11 +276,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      OHMYPI_DATA_DIR: path.join(root.current, "data-timeout"),
-      OHMYPI_ALLOWED_ROOTS: root.current,
-      OHMYPI_MAX_PROCESSES: "3",
-      OHMYPI_MUTATIONS: "approval",
-      OHMYPI_APPROVAL_TIMEOUT_MS: "200",
+      MOWEN_DATA_DIR: path.join(root.current, "data-timeout"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "3",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_APPROVAL_TIMEOUT_MS: "200",
     });
     try {
       const project = path.join(root.current, "project");

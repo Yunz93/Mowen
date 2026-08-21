@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createApp } from "@ohmypi/server";
+import { createApp } from "@mowen/server";
 import { applyDesktopEnv, preloadPath, resolvePiEntry } from "./paths.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -51,10 +51,10 @@ function installMenu(): void {
       submenu: [
         {
           label: "再次打开设置",
-          click: () => mainWindow?.webContents.send("ohmypi:open-setup"),
+          click: () => mainWindow?.webContents.send("mowen:open-setup"),
         },
         {
-          label: "在 GitHub 查看 ohMyPi",
+          label: "在 GitHub 查看墨问",
           click: () => void shell.openExternal("https://github.com/Yunz93/ohMyPi"),
         },
       ],
@@ -68,9 +68,9 @@ async function startBackend(): Promise<number> {
   applyDesktopEnv();
   const piEntry = resolvePiEntry();
   if (piEntry) {
-    console.log(`[ohmypi-desktop] bundled Pi: ${piEntry}`);
+    console.log(`[mowen-desktop] bundled Pi: ${piEntry}`);
   } else {
-    console.warn("[ohmypi-desktop] bundled Pi not found; falling back to PATH");
+    console.warn("[mowen-desktop] bundled Pi not found; falling back to PATH");
   }
 
   const { app: server, config } = await createApp(process.env);
@@ -99,7 +99,7 @@ async function createMainWindow(port: number): Promise<void> {
     height: 840,
     minWidth: 800,
     minHeight: 600,
-    title: "ohMyPi",
+    title: "墨问",
     backgroundColor: "#1c1a16",
     show: false,
     autoHideMenuBar: process.platform === "win32",
@@ -122,14 +122,14 @@ async function createMainWindow(port: number): Promise<void> {
   });
 
   const packaged = app.isPackaged;
-  const url = packaged || process.env.OHMYPI_DESKTOP_USE_SERVER === "1"
+  const url = packaged || process.env.MOWEN_DESKTOP_USE_SERVER === "1" || process.env.OHMYPI_DESKTOP_USE_SERVER === "1"
     ? `http://127.0.0.1:${port}`
-    : process.env.OHMYPI_RENDERER_URL ?? "http://127.0.0.1:5173";
+    : process.env.MOWEN_RENDERER_URL ?? process.env.OHMYPI_RENDERER_URL ?? "http://127.0.0.1:5173";
   await loadWithRetry(mainWindow, url);
 }
 
 function registerIpc(): void {
-  ipcMain.handle("ohmypi:pick-folder", async (_event, defaultPath?: string) => {
+  ipcMain.handle("mowen:pick-folder", async (_event, defaultPath?: string) => {
     const options: Electron.OpenDialogOptions = {
       title: "选择文件夹",
       defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
@@ -161,7 +161,7 @@ app.on("before-quit", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     void boot().catch((error) => {
-      dialog.showErrorBox("ohMyPi 启动失败", error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox("墨问启动失败", error instanceof Error ? error.message : String(error));
       app.quit();
     });
   }
@@ -169,7 +169,7 @@ app.on("activate", () => {
 
 app.whenReady().then(() => {
   void boot().catch((error) => {
-    dialog.showErrorBox("ohMyPi 启动失败", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox("墨问启动失败", error instanceof Error ? error.message : String(error));
     app.quit();
   });
 });
