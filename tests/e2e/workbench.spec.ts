@@ -11,9 +11,8 @@ test.beforeAll(() => {
 
 test("workbench core loop", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("还没有对话")).toBeVisible();
 
-  await page.getByRole("button", { name: "开始对话" }).click();
+  await page.getByRole("button", { name: "新对话" }).click();
   await page.getByRole("button", { name: "输入路径" }).click();
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill("E2E task");
@@ -36,14 +35,14 @@ test("workbench core loop", async ({ page }) => {
   await page.getByLabel("输入消息").fill("WRITE:denied.txt:secret");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("heading", { name: "允许修改文件吗？" })).toBeVisible();
-  await page.getByRole("button", { name: "拒绝" }).click();
+  await page.getByRole("button", { name: "拒绝", exact: true }).click();
   expect(existsSync(path.join(project, "denied.txt"))).toBe(false);
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
   await page.getByLabel("输入消息").fill("BASH:echo hi");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("heading", { name: "允许运行这条命令吗？" })).toBeVisible();
-  await page.getByRole("button", { name: "拒绝" }).click();
+  await page.getByRole("button", { name: "拒绝", exact: true }).click();
 
   await page.reload();
   await expect(page.getByText("Steered: steer now").first()).toBeVisible();
@@ -88,7 +87,7 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 
 test("visual workbench at required viewports", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "开始对话" }).click();
+  await page.getByRole("button", { name: "新对话" }).click();
   await page.getByRole("button", { name: "输入路径" }).click();
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill("Visual task");
