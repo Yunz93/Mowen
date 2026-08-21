@@ -31,4 +31,14 @@ describe("install-macos.sh", () => {
     });
     expect(out).toContain("self-test passed");
   });
+
+  it("prefers zip over dmg and parses volume paths that contain spaces", () => {
+    const src = readFileSync(script, "utf8");
+    const zipIndex = src.indexOf('"ohMyPi-mac-${arch}.zip"');
+    const dmgIndex = src.indexOf('"ohMyPi-mac-${arch}.dmg"');
+    expect(zipIndex).toBeGreaterThan(0);
+    expect(dmgIndex).toBeGreaterThan(zipIndex);
+    expect(src).toContain("parse_hdiutil_mount");
+    expect(src).not.toMatch(/awk '\/\\\/Volumes/);
+  });
 });

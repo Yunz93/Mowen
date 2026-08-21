@@ -26,6 +26,8 @@ mac:
     - zip
   hardenedRuntime: false
   gatekeeperAssess: false
+dmg:
+  title: ohMyPi
 win:
   icon: build/icon.png
   artifactName: ohMyPi-${os}-${arch}.${ext}
