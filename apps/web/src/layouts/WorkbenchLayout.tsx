@@ -192,7 +192,7 @@ export function WorkbenchLayout() {
               </p>
               <button
                 type="button"
-                className="pressable btn-primary mt-6 h-11 rounded-sm px-5 text-sm"
+                className="pressable btn btn-primary mt-6"
                 onClick={() => setCreating(true)}
               >
                 开始对话

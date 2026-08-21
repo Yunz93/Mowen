@@ -46,8 +46,9 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-canvas/70 pt-24">
-      <div className="w-full max-w-lg rounded-md bg-elevated p-2 shadow-dialog">
+    <div className="dialog-scrim items-start pt-24">
+      <button type="button" className="absolute inset-0" aria-label="关闭" onClick={onClose} />
+      <div className="dialog-panel p-2">
         <input
           autoFocus
           value={query}
@@ -56,12 +57,12 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
           aria-label="命令面板"
           className="h-10 w-full bg-transparent px-3 text-sm text-ink"
         />
-        <ul className="mt-2 max-h-72 overflow-auto">
+        <ul className="mt-1 max-h-72 overflow-auto">
           {items.map((item) => (
             <li key={item.id}>
               <button
                 type="button"
-                className="pressable flex h-10 w-full items-center px-3 text-left text-sm text-ink hover:bg-surface"
+                className="pressable hover-fill flex h-10 w-full items-center rounded-md px-3 text-left text-sm text-ink"
                 onClick={() => {
                   item.run();
                   onClose();

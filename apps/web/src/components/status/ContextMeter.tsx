@@ -9,8 +9,8 @@ type Props = {
 };
 
 function compactNumber(value: number | null | undefined): string {
-  if (value == null) return "Unknown";
-  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  if (value == null) return "—";
+  return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
 export function ContextMeter({ stats, onCompact, compact }: Props) {
@@ -38,25 +38,25 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
         onClick={() => setOpen((value) => !value)}
       >
         <Gauge size={14} />
-        <span>{compact ? (percent == null ? "--" : `${Math.round(percent)}%`) : `Context ${percent == null ? "--" : `${Math.round(percent)}%`}`}</span>
+        <span>{compact ? (percent == null ? "--" : `${Math.round(percent)}%`) : `上下文 ${percent == null ? "--" : `${Math.round(percent)}%`}`}</span>
       </button>
       {open ? (
         <div
           role="dialog"
-          aria-label="Context usage"
-          className="absolute right-0 top-12 z-40 w-[min(340px,calc(100vw-24px))] rounded-lg border border-line bg-sidebar p-4 shadow-2xl"
+          aria-label="上下文用量"
+          className="absolute right-0 top-12 z-40 w-[min(340px,calc(100vw-24px))] rounded-lg border border-line bg-elevated p-4 shadow-dialog"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-ink">Context usage</p>
+              <p className="text-sm font-medium text-ink">上下文用量</p>
               <p className="mt-1 font-mono text-[11px] text-mute tabular">
                 {compactNumber(usage?.tokens)} / {compactNumber(usage?.contextWindow)} tokens
               </p>
             </div>
             <button
               type="button"
-              className="pressable flex h-10 w-10 items-center justify-center rounded-md text-mute"
-              aria-label="Close context usage"
+              className="pressable icon-btn"
+              aria-label="关闭"
               onClick={() => setOpen(false)}
             >
               <X size={16} />
@@ -69,28 +69,28 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
             />
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-[11px] tabular">
-            <div className="rounded-md bg-elevated p-3">
-              <dt className="text-mute">Messages</dt>
-              <dd className="mt-1 text-ink">{stats?.totalMessages ?? "Unknown"}</dd>
+            <div className="rounded-md bg-canvas p-3">
+              <dt className="text-mute">消息</dt>
+              <dd className="mt-1 text-ink">{stats?.totalMessages ?? "—"}</dd>
             </div>
-            <div className="rounded-md bg-elevated p-3">
-              <dt className="text-mute">Tool calls</dt>
-              <dd className="mt-1 text-ink">{stats?.toolCalls ?? "Unknown"}</dd>
+            <div className="rounded-md bg-canvas p-3">
+              <dt className="text-mute">工具调用</dt>
+              <dd className="mt-1 text-ink">{stats?.toolCalls ?? "—"}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs leading-5 text-mute">
-            Pi reports total context usage. Per-source token categories are not available yet.
+            这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
           </p>
           {onCompact ? (
             <button
               type="button"
-              className="pressable mt-4 h-10 w-full rounded-sm btn-primary px-3 text-sm font-medium"
+              className="pressable btn btn-primary btn-block mt-4"
               onClick={() => {
                 onCompact();
                 setOpen(false);
               }}
             >
-              Compact context now
+              压缩上下文
             </button>
           ) : null}
         </div>

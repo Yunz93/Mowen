@@ -16,9 +16,10 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
   const [mode, setMode] = useState<"browse" | "type">("browse");
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-canvas/70 p-4">
+    <div className="dialog-scrim z-40">
+      <button type="button" className="absolute inset-0" aria-label="关闭" onClick={onCancel} />
       <form
-        className="w-full max-w-md rounded-md bg-elevated p-4 shadow-dialog"
+        className="dialog-panel"
         onSubmit={(event) => {
           event.preventDefault();
           if (!cwd.trim()) {
@@ -28,21 +29,21 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
           onCreate(cwd.trim(), title.trim() || undefined);
         }}
       >
-        <h2 className="text-lg text-ink">新对话</h2>
-        <p className="mt-1 text-sm text-mute">选一个这个对话可以工作的文件夹。</p>
+        <h2 className="dialog-title">新对话</h2>
+        <p className="dialog-copy">选一个这个对话可以工作的文件夹。</p>
 
         {desktop ? null : (
-          <div className="mt-4 flex gap-2">
+          <div className="seg mt-4">
             <button
               type="button"
-              className={`pressable h-10 rounded-md px-3 text-sm ${mode === "browse" ? "bg-surface text-accent" : "text-mute"}`}
+              className={`pressable btn ${mode === "browse" ? "seg-active" : "text-mute"}`}
               onClick={() => setMode("browse")}
             >
               浏览
             </button>
             <button
               type="button"
-              className={`pressable h-10 rounded-md px-3 text-sm ${mode === "type" ? "bg-surface text-accent" : "text-mute"}`}
+              className={`pressable btn ${mode === "type" ? "seg-active" : "text-mute"}`}
               onClick={() => setMode("type")}
             >
               输入路径
@@ -66,29 +67,29 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
                 setCwd(event.target.value);
                 setError("");
               }}
-              className="mt-1 h-10 w-full rounded-md bg-surface px-3 font-mono text-sm text-ink"
+              className="field mt-1 w-full font-mono text-sm"
               required
               autoFocus
             />
           </>
         )}
 
-        {error ? <p className="mt-1 text-sm text-danger">{error}</p> : null}
-        <label className="mt-3 block text-sm text-mute" htmlFor="task-title">
+        {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+        <label className="mt-4 block text-sm text-mute" htmlFor="task-title">
           标题
         </label>
         <input
           id="task-title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="mt-1 h-10 w-full rounded-md bg-surface px-3 text-sm text-ink"
+          className="field mt-1 w-full text-sm"
           placeholder="可选"
         />
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" className="pressable h-10 px-3 text-sm text-mute" onClick={onCancel}>
+        <div className="dialog-actions">
+          <button type="button" className="pressable btn btn-ghost" onClick={onCancel}>
             取消
           </button>
-          <button type="submit" className="pressable btn-primary h-10 rounded-sm px-4 text-sm">
+          <button type="submit" className="pressable btn btn-primary">
             创建对话
           </button>
         </div>

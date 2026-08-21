@@ -105,17 +105,17 @@ export function SetupWizard({ onFinished }: Props) {
 
   if (!status && !error) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
+      <div className="dialog-scrim">
         <p className="text-sm text-mute">正在检查这台电脑…</p>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/90 p-4">
-      <div className="w-full max-w-lg rounded-md bg-elevated p-5 shadow-dialog">
+    <div className="dialog-scrim">
+      <div className="dialog-panel dialog-panel-lg">
         <p className="text-xs text-mute">{isDesktopApp() ? "欢迎使用 ohMyPi" : "ohMyPi 设置"}</p>
-        <h1 className="mt-2 text-2xl text-ink">
+        <h1 className="dialog-title mt-2 text-2xl">
           {step === "welcome" && "先花半分钟准备一下"}
           {step === "pi" && (status?.piBundled ? "AI 引擎出了点问题" : "需要安装 Pi")}
           {step === "auth" && "连接一个 AI"}
@@ -134,13 +134,15 @@ export function SetupWizard({ onFinished }: Props) {
               <li>选一个工作文件夹</li>
               <li>开始聊天 — 改文件前会先问你</li>
             </ol>
-            <button
-              type="button"
-              className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
-              onClick={() => setStep(status?.piAvailable ? (status.authConfigured ? "workspace" : "auth") : "pi")}
-            >
-              继续
-            </button>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="pressable btn btn-primary"
+                onClick={() => setStep(status?.piAvailable ? (status.authConfigured ? "workspace" : "auth") : "pi")}
+              >
+                继续
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -151,15 +153,24 @@ export function SetupWizard({ onFinished }: Props) {
                 ? "内置 AI 引擎没能启动。请退出后重新打开 ohMyPi。如果还是不行，重新安装一次。"
                 : "Pi 是 ohMyPi 使用的 AI 引擎。请让帮你安装的人把它装到这台电脑上，然后点「再检查」。"}
             </p>
-            <div className="rounded-2xl border border-line bg-surface px-3 py-2 text-[12px] text-mute">
+            <div className="rounded-md border border-line bg-canvas px-3 py-2 text-[12px] text-mute">
               {status?.piAvailable
                 ? `已找到 Pi ${status.piVersion}`
                 : status?.piError ?? "还没有安装 Pi。"}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="dialog-actions">
+              {status?.piAvailable ? (
+                <button
+                  type="button"
+                  className="pressable btn btn-ghost"
+                  onClick={() => setStep(status.authConfigured ? "workspace" : "auth")}
+                >
+                  继续
+                </button>
+              ) : null}
               <button
                 type="button"
-                className="pressable btn-primary h-11 rounded-sm px-4 text-sm"
+                className="pressable btn btn-primary"
                 disabled={busy}
                 onClick={() => {
                   setBusy(true);
@@ -174,15 +185,6 @@ export function SetupWizard({ onFinished }: Props) {
               >
                 再检查
               </button>
-              {status?.piAvailable ? (
-                <button
-                  type="button"
-                  className="pressable h-11 px-4 text-sm text-mute"
-                  onClick={() => setStep(status.authConfigured ? "workspace" : "auth")}
-                >
-                  继续
-                </button>
-              ) : null}
             </div>
           </div>
         ) : null}
@@ -200,7 +202,7 @@ export function SetupWizard({ onFinished }: Props) {
             </label>
             <select
               id="provider"
-              className="field h-11 w-full rounded-sm bg-canvas px-3 text-sm text-ink"
+              className="field w-full text-sm text-ink"
               value={provider}
               onChange={(event) => setProvider(event.target.value)}
             >
@@ -217,37 +219,29 @@ export function SetupWizard({ onFinished }: Props) {
               id="api-key"
               type="password"
               autoComplete="off"
-              className="field h-11 w-full rounded-sm bg-canvas px-3 font-mono text-sm text-ink"
+              className="field w-full font-mono text-sm text-ink"
               value={apiKey}
               placeholder={status?.providers.find((item) => item.id === provider)?.hint ?? "API Key"}
               onChange={(event) => setApiKey(event.target.value)}
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="dialog-actions">
+              {status?.authConfigured ? (
+                <button type="button" className="pressable btn btn-ghost" onClick={() => setStep("workspace")}>
+                  继续
+                </button>
+              ) : (
+                <button type="button" className="pressable btn btn-ghost" onClick={() => void skipAuthForNow()}>
+                  暂时跳过
+                </button>
+              )}
               <button
                 type="button"
-                className="pressable btn-primary h-11 rounded-sm px-4 text-sm disabled:opacity-50"
+                className="pressable btn btn-primary disabled:opacity-50"
                 disabled={busy || apiKey.trim().length < 8}
                 onClick={() => void saveApiKey()}
               >
                 保存密钥
               </button>
-              {status?.authConfigured ? (
-                <button
-                  type="button"
-                  className="pressable h-11 px-4 text-sm text-mute"
-                  onClick={() => setStep("workspace")}
-                >
-                  继续
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="pressable h-11 px-4 text-sm text-mute"
-                  onClick={() => void skipAuthForNow()}
-                >
-                  暂时跳过
-                </button>
-              )}
             </div>
           </div>
         ) : null}
@@ -262,14 +256,16 @@ export function SetupWizard({ onFinished }: Props) {
               selectedPath={workspace}
               onSelect={setWorkspace}
             />
-            <button
-              type="button"
-              className="pressable btn-primary h-11 rounded-sm px-4 text-sm disabled:opacity-50"
-              disabled={busy || !workspace}
-              onClick={() => void saveWorkspace()}
-            >
-              完成设置
-            </button>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="pressable btn btn-primary disabled:opacity-50"
+                disabled={busy || !workspace}
+                onClick={() => void saveWorkspace()}
+              >
+                完成设置
+              </button>
+            </div>
           </div>
         ) : null}
 
