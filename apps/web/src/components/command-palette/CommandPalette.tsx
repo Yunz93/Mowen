@@ -21,22 +21,22 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
 
   const items = useMemo(() => {
     const commands = [
-      { id: "new", label: "New task", run: onNewTask },
-      { id: "settings", label: "Open settings", run: () => navigate("/settings") },
+      { id: "new", label: "新对话", run: onNewTask },
+      { id: "settings", label: "打开设置", run: () => navigate("/settings") },
       {
         id: "compact",
-        label: "Compact session",
+        label: "压缩上下文",
         run: () => activeTaskId && void socketClient.send("session.compact", {}, activeTaskId),
       },
       {
         id: "abort",
-        label: "Stop agent",
+        label: "停止回复",
         run: () => activeTaskId && void socketClient.send("agent.abort", {}, activeTaskId),
       },
     ];
     const taskItems = tasks.map((task) => ({
       id: task.id,
-      label: `Open ${task.title}`,
+      label: `打开 ${task.title}`,
       run: () => void socketClient.send("task.activate", {}, task.id),
     }));
     const q = query.trim().toLowerCase();
@@ -52,8 +52,8 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search tasks and commands"
-          aria-label="Command palette"
+          placeholder="搜索会话和命令"
+          aria-label="命令面板"
           className="h-10 w-full bg-transparent px-3 text-sm text-ink"
         />
         <ul className="mt-2 max-h-72 overflow-auto">

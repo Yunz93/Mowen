@@ -8,31 +8,31 @@ export const BEGINNER_PROVIDERS = [
     id: "anthropic",
     label: "Anthropic (Claude)",
     envVar: "ANTHROPIC_API_KEY",
-    hint: "Starts with sk-ant-",
+    hint: "以 sk-ant- 开头",
   },
   {
     id: "openai",
     label: "OpenAI",
     envVar: "OPENAI_API_KEY",
-    hint: "Starts with sk-",
+    hint: "以 sk- 开头",
   },
   {
     id: "google",
     label: "Google Gemini",
     envVar: "GEMINI_API_KEY",
-    hint: "Gemini API key",
+    hint: "Gemini API Key",
   },
   {
     id: "openrouter",
     label: "OpenRouter",
     envVar: "OPENROUTER_API_KEY",
-    hint: "Starts with sk-or-",
+    hint: "以 sk-or- 开头",
   },
   {
     id: "deepseek",
     label: "DeepSeek",
     envVar: "DEEPSEEK_API_KEY",
-    hint: "DeepSeek API key",
+    hint: "DeepSeek API Key",
   },
 ] as const;
 
@@ -87,10 +87,10 @@ export async function saveApiKey(
 ): Promise<void> {
   const key = apiKey.trim();
   if (!key) {
-    throw new Error("API key is required");
+    throw new Error("请填写 API Key");
   }
   if (!BEGINNER_PROVIDERS.some((provider) => provider.id === providerId)) {
-    throw new Error("Unsupported provider");
+    throw new Error("不支持这个服务商");
   }
   const authPath = piAuthPath(homeDir);
   await mkdir(path.dirname(authPath), { recursive: true });

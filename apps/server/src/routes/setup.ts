@@ -88,7 +88,7 @@ export function registerSetupRoutes(
   app.post("/api/setup/api-key", async (request, reply) => {
     const parsed = apiKeyBodySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "Choose a provider and paste a valid API key." });
+      return reply.code(400).send({ error: "请选择服务商并粘贴有效的 API Key。" });
     }
     try {
       await saveApiKey(parsed.data.provider as BeginnerProviderId, parsed.data.apiKey, options.getConfig().homeDir);
@@ -103,7 +103,7 @@ export function registerSetupRoutes(
   app.post("/api/setup/workspace", async (request, reply) => {
     const parsed = workspaceBodySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "Choose a folder to work in." });
+      return reply.code(400).send({ error: "请选择一个工作文件夹。" });
     }
     const config = options.getConfig();
     const workspace = expandHome(parsed.data.path, config.homeDir);

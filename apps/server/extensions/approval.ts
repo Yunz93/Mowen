@@ -102,8 +102,8 @@ export default function (pi: ExtensionAPI) {
 
     const risk =
       toolName === "bash"
-        ? "This command runs with your user privileges. ohMyPi does not try to guess whether Bash is safe."
-        : "This writes to the project filesystem. Review the path before allowing.";
+        ? "这条命令会用你的账号权限运行。ohMyPi 不会替你判断它是否安全。"
+        : "这次会改项目里的文件。确认路径没问题再允许。";
 
     const payload = {
       kind: "ohmypi.approval",

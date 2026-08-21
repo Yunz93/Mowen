@@ -32,17 +32,17 @@ export async function listFolders(
   try {
     resolved = await realpath(target);
   } catch {
-    throw new Error(`Folder does not exist: ${target}`);
+    throw new Error(`文件夹不存在：${target}`);
   }
 
   const allowed = roots.some((root) => isInsideRoot(resolved, root));
   if (!allowed) {
-    throw new Error("Folder is outside the allowed browse area");
+    throw new Error("这个文件夹不在可浏览范围内");
   }
 
   const stats = await stat(resolved);
   if (!stats.isDirectory()) {
-    throw new Error("Path is not a folder");
+    throw new Error("这不是文件夹");
   }
 
   const dirents = await readdir(resolved, { withFileTypes: true });

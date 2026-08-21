@@ -52,7 +52,7 @@ function parseApprovalMessage(
         toolName: title.replace(/^Allow\s+/, "").replace(/\?$/, ""),
         cwd: "",
         target: message ?? "",
-        risk: "This action requires approval.",
+        risk: "这次操作需要你确认。",
         expiresAt: new Date(Date.now() + timeoutMs).toISOString(),
       };
     }
@@ -80,7 +80,7 @@ function parseApprovalMessage(
       cwd: parsed.cwd ?? "",
       target: parsed.target ?? "",
       rawCommand: parsed.rawCommand,
-      risk: parsed.risk ?? "This action requires approval.",
+      risk: parsed.risk ?? "这次操作需要你确认。",
       expiresAt: new Date(Date.now() + timeoutMs).toISOString(),
     };
   } catch {
