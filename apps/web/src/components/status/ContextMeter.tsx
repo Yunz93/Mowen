@@ -36,6 +36,7 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
       <button
         type="button"
         className={`pressable flex h-10 items-center gap-2 rounded-md bg-elevated px-3 font-mono text-[11px] tabular ${tone}`}
+        aria-label="上下文用量"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((value) => !value)}
@@ -86,14 +87,24 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
               这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
             </p>
             {onRuntimeSet ? (
-              <label className="mt-3 flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={runtime?.autoCompaction !== false}
-                  onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
-                />
-                接近上限时自动压缩
-              </label>
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={runtime?.autoCompaction !== false}
+                    onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
+                  />
+                  接近上限时自动压缩
+                </label>
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={runtime?.autoRetry !== false}
+                    onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
+                  />
+                  出错时自动重试
+                </label>
+              </div>
             ) : null}
             {onCompact ? (
               <label className="mt-3 block text-sm text-mute" htmlFor="compact-instructions">

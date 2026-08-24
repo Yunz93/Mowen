@@ -80,37 +80,39 @@ export function InspectorPanel({
 
   return (
     <aside
-      className={`flex h-full w-[360px] max-w-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "absolute inset-y-0 right-0 z-30 shadow-dialog" : ""}`}
+      className={`flex h-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "w-full shadow-dialog" : "w-[360px]"}`}
     >
-      <div className="flex h-[52px] items-center gap-1 border-b border-line px-2">
-        {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={`pressable h-10 rounded-sm px-2 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
-            onClick={() => {
-              setTab(item);
-              if (item === "files") onLoadTree();
-              if (item === "git") onLoadGit();
-              if (item === "branch") onLoadBranch?.();
-              if (item === "skills") onLoadResources?.();
-            }}
-          >
-            {item === "changes"
-              ? "改动"
-              : item === "files"
-                ? "文件"
-                : item === "git"
-                  ? "Git"
-                  : item === "activity"
-                    ? "动态"
-                    : item === "branch"
-                      ? "分支"
-                      : "技能"}
-          </button>
-        ))}
+      <div className="flex items-start gap-1 border-b border-line px-2 py-1">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`pressable h-10 rounded-sm px-2 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
+              onClick={() => {
+                setTab(item);
+                if (item === "files") onLoadTree();
+                if (item === "git") onLoadGit();
+                if (item === "branch") onLoadBranch?.();
+                if (item === "skills") onLoadResources?.();
+              }}
+            >
+              {item === "changes"
+                ? "改动"
+                : item === "files"
+                  ? "文件"
+                  : item === "git"
+                    ? "Git"
+                    : item === "activity"
+                      ? "动态"
+                      : item === "branch"
+                        ? "分支"
+                        : "技能"}
+            </button>
+          ))}
+        </div>
         {drawer ? (
-          <button type="button" className="pressable ml-auto h-10 px-3 text-sm text-mute" onClick={onClose}>
+          <button type="button" className="pressable h-10 shrink-0 px-3 text-sm text-mute" onClick={onClose}>
             关闭
           </button>
         ) : null}

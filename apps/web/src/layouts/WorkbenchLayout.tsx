@@ -54,6 +54,7 @@ export function WorkbenchLayout() {
   const [imageIds, setImageIds] = useState<string[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const preferred = workspaceRoot ?? allowedRoots[0];
@@ -223,9 +224,13 @@ export function WorkbenchLayout() {
             {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
           </div>
         ) : null}
-        {authHint || serverError || requestError ? (
+        {authHint || serverError || requestError || notice ? (
           <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
-            {authHint ? "还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。" : (serverError ?? requestError)}
+            {notice
+              ? notice
+              : authHint
+                ? "还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。"
+                : (serverError ?? requestError)}
           </div>
         ) : null}
         {otherApproval ? (
@@ -355,7 +360,7 @@ export function WorkbenchLayout() {
             aria-label="关闭详情"
             onClick={() => setInspectorOpen(false)}
           />
-          <div className="absolute inset-y-0 right-0 z-40">
+          <div className="absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">
             <InspectorPanel
               drawer
               tools={tools}
@@ -381,7 +386,15 @@ export function WorkbenchLayout() {
               onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
               onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
               onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
-              onExport={() => task && void socketClient.send("session.export", {}, task.id)}
+              onExport={() => {
+                if (!task) return;
+                void socketClient
+                  .send<{ path: string }>("session.export", {}, task.id)
+                  .then((result) => setNotice(`已导出到 ${result.path}`))
+                  .catch((error: unknown) =>
+                    setNotice(error instanceof Error ? error.message : "导出失败"),
+                  );
+              }}
               onCompact={(customInstructions) =>
                 task && void socketClient.send("session.compact", { customInstructions }, task.id)
               }
