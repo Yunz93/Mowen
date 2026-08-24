@@ -32,15 +32,15 @@ function NativeFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
 
   return (
     <div className="rounded-[10px] bg-fill p-3">
-      <p className="text-sm text-mute">文件夹</p>
-      <p className="mt-1 break-all font-mono text-[12px] text-ink">{current || "还没选择文件夹"}</p>
-      <button
-        type="button"
-        className="pressable btn btn-secondary mt-3"
-        onClick={() => void choose()}
-      >
-        选择文件夹…
-      </button>
+      <p className="text-[12px] text-mute">文件夹</p>
+      <div className="mt-1.5 flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink" title={current || undefined}>
+          {current || "还没选择文件夹"}
+        </p>
+        <button type="button" className="pressable btn btn-secondary shrink-0" onClick={() => void choose()}>
+          选择文件夹…
+        </button>
+      </div>
     </div>
   );
 }
