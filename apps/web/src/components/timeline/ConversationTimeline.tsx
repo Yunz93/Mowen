@@ -133,7 +133,7 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
       {messages.length > 0 && onClone ? (
         <div className="flex justify-end">
           <button type="button" className="pressable h-8 text-xs text-mute" onClick={onClone}>
-            复制为新会话
+            复制对话
           </button>
         </div>
       ) : null}

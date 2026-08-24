@@ -47,7 +47,7 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
       },
       {
         id: "clone",
-        label: "复制为新会话",
+        label: "复制对话",
         run: () => activeTaskId && void socketClient.send("session.clone", {}, activeTaskId),
       },
     ];
