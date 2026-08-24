@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import type { SessionStats } from "@mowen/protocol";
+import type { RuntimeState, SessionStats } from "@mowen/protocol";
 import { Gauge, X } from "lucide-react";
 
 type Props = {
   stats: SessionStats | null;
-  onCompact?: () => void;
+  runtime?: RuntimeState | null;
+  onCompact?: (customInstructions?: string) => void;
+  onRuntimeSet?: (payload: { autoCompaction?: boolean; autoRetry?: boolean }) => void;
   compact?: boolean;
 };
 
@@ -13,8 +15,9 @@ function compactNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-export function ContextMeter({ stats, onCompact, compact }: Props) {
+export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact }: Props) {
   const [open, setOpen] = useState(false);
+  const [instructions, setInstructions] = useState("");
   const usage = stats?.contextUsage;
   const percent = usage?.percent == null ? null : Math.max(0, Math.min(100, usage.percent));
   const tone = percent == null ? "text-mute" : percent >= 85 ? "text-danger" : percent >= 70 ? "text-warn" : "text-accent";
@@ -33,6 +36,7 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
       <button
         type="button"
         className={`pressable flex h-10 items-center gap-2 rounded-md bg-elevated px-3 font-mono text-[11px] tabular ${tone}`}
+        aria-label="上下文用量"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((value) => !value)}
@@ -82,6 +86,38 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
             <p className="mt-3 text-xs leading-5 text-mute">
               这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
             </p>
+            {onRuntimeSet ? (
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={runtime?.autoCompaction !== false}
+                    onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
+                  />
+                  接近上限时自动压缩
+                </label>
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={runtime?.autoRetry !== false}
+                    onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
+                  />
+                  出错时自动重试
+                </label>
+              </div>
+            ) : null}
+            {onCompact ? (
+              <label className="mt-3 block text-sm text-mute" htmlFor="compact-instructions">
+                压缩时额外交代
+                <textarea
+                  id="compact-instructions"
+                  value={instructions}
+                  onChange={(event) => setInstructions(event.target.value)}
+                  className="field mt-1 min-h-16 w-full text-sm text-ink"
+                  placeholder="可选，例如：保留这次改文件的结论"
+                />
+              </label>
+            ) : null}
           </div>
           {onCompact ? (
             <div className="dialog-actions">
@@ -89,7 +125,8 @@ export function ContextMeter({ stats, onCompact, compact }: Props) {
                 type="button"
                 className="pressable btn btn-primary btn-block"
                 onClick={() => {
-                  onCompact();
+                  onCompact(instructions.trim() || undefined);
+                  setInstructions("");
                   setOpen(false);
                 }}
               >

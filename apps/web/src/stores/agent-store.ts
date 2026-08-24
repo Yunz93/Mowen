@@ -1,9 +1,14 @@
 import { create } from "zustand";
 import type {
   ApprovalRequest,
+  AuthEntry,
   ModelRef,
+  PiResources,
+  PiSessionRef,
+  RuntimeState,
   ServerEvent,
   SessionStats,
+  SessionTreeNode,
   SnapshotPayload,
   TaskRecord,
   TaskStatus,
@@ -11,6 +16,7 @@ import type {
   TimelineMessage,
   ToolExecution,
 } from "@mowen/protocol";
+import { emptyRuntime } from "@mowen/protocol";
 
 export type AgentCommand = { name: string; description?: string; source?: string };
 export type GitSnapshot = {
@@ -59,6 +65,13 @@ type AgentState = {
   commands: AgentCommand[];
   git: GitSnapshot | null;
   checkpoints: CheckpointRecord[];
+  runtime: RuntimeState;
+  resources: PiResources | null;
+  sessionTree: SessionTreeNode[];
+  sessionLeafId: string | null;
+  piSessions: PiSessionRef[];
+  authEntries: AuthEntry[];
+  trustProject: boolean;
   serverInstanceId: string | null;
   // Per-task last processed sequence, used to drop replayed events after a
   // reconnect or duplicate broadcast. Single WS channel is ordered, so keeping
@@ -76,6 +89,8 @@ type AgentState = {
     homeDir: string;
     workspaceRoot: string | null;
     allowedRoots?: string[];
+    authEntries?: AuthEntry[];
+    trustProject?: boolean;
   }) => void;
 };
 
@@ -118,6 +133,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   commands: [],
   git: null,
   checkpoints: [],
+  runtime: emptyRuntime(),
+  resources: null,
+  sessionTree: [],
+  sessionLeafId: null,
+  piSessions: [],
+  authEntries: [],
+  trustProject: false,
   serverInstanceId: null,
   lastSeen: {},
   setConnection: (connection) => set({ connection }),
@@ -136,6 +158,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       workspaceRoot: payload.workspaceRoot,
       allowedRoots: payload.allowedRoots ?? get().allowedRoots,
       authHint: !payload.authConfigured,
+      authEntries: payload.authEntries ?? get().authEntries,
+      trustProject: payload.trustProject ?? get().trustProject,
     }),
   applySnapshot: (payload, taskId) =>
     set({
@@ -163,6 +187,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       commands: payload.commands ?? [],
       git: payload.git ?? null,
       checkpoints: payload.checkpoints ?? [],
+      runtime: payload.runtime ?? emptyRuntime(),
+      resources: payload.resources ?? null,
+      sessionTree: payload.sessionTree ?? [],
+      sessionLeafId: payload.sessionLeafId ?? null,
+      piSessions: payload.piSessions ?? [],
+      authEntries: payload.authEntries ?? [],
+      trustProject: payload.trustProject ?? false,
       approval:
         payload.approval ??
         (payload.pendingApprovals ?? []).find((item) => item.taskId === (taskId ?? payload.activeTaskId)) ??
@@ -212,6 +243,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           commands: event.payload.commands ?? current.commands,
           git: event.payload.git ?? current.git,
           checkpoints: event.payload.checkpoints ?? current.checkpoints,
+          runtime: event.payload.runtime ?? current.runtime,
+          resources: event.payload.resources ?? current.resources,
+          sessionTree: event.payload.sessionTree ?? current.sessionTree,
+          sessionLeafId:
+            event.payload.sessionLeafId !== undefined ? event.payload.sessionLeafId : current.sessionLeafId,
+          piSessions: event.payload.piSessions ?? current.piSessions,
+          authEntries: event.payload.authEntries ?? current.authEntries,
+          trustProject: event.payload.trustProject ?? current.trustProject,
           approval:
             event.payload.approval ??
             (event.payload.pendingApprovals ?? current.pendingApprovals).find(
@@ -382,6 +421,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       case "checkpoints.updated":
         if (event.taskId === current.activeTaskId) {
           set({ lastSeen, checkpoints: event.payload.checkpoints });
+        } else set({ lastSeen });
+        break;
+      case "runtime.status":
+        if (!event.taskId || event.taskId === current.activeTaskId) {
+          set({ lastSeen, runtime: event.payload });
+        } else set({ lastSeen });
+        break;
+      case "session.tree":
+        if (!event.taskId || event.taskId === current.activeTaskId) {
+          set({ lastSeen, sessionTree: event.payload.nodes, sessionLeafId: event.payload.leafId });
+        } else set({ lastSeen });
+        break;
+      case "sessions.listed":
+        set({ lastSeen, piSessions: event.payload.sessions });
+        break;
+      case "resources.updated":
+        if (!event.taskId || event.taskId === current.activeTaskId) {
+          set({ lastSeen, resources: event.payload });
         } else set({ lastSeen });
         break;
       default:

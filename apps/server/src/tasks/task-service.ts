@@ -5,8 +5,11 @@ import {
   applyModePrefix,
   approvalDecision,
   effectiveApprovalPolicy,
+  emptyRuntime,
   stripModePrefix,
+  type AuthEntry,
   type ClientCommand,
+  type PiResources,
   type ServerEvent,
   type TaskRecord,
   type TimelineMessage,
@@ -21,6 +24,8 @@ import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
 import { readGitStatus } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
+import { scanPiResources } from "./pi-resources.js";
+import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
 
@@ -30,6 +35,8 @@ export type SetupHints = {
   needsSetup: boolean;
   homeDir: string;
   workspaceRoot: string | null;
+  authEntries: AuthEntry[];
+  trustProject: boolean;
 };
 
 export class TaskService {
@@ -47,7 +54,10 @@ export class TaskService {
     needsSetup: true,
     homeDir: "",
     workspaceRoot: null,
+    authEntries: [],
+    trustProject: false,
   };
+  private readonly resources = new Map<string, PiResources>();
 
   constructor(
     private config: AppConfig,
@@ -120,6 +130,20 @@ export class TaskService {
     switch (command.type) {
       case "task.create":
         return this.createTask(command.payload.cwd, command.payload.title);
+      case "session.tree":
+        return this.emitSessionTree(command.taskId);
+      case "session.branch":
+        return this.branchSession(command.taskId, command.payload.entryId, command.payload.message);
+      case "sessions.list":
+        return this.listSessions(command.payload?.cwd);
+      case "session.resume":
+        return this.resumeSession(command.payload.sessionPath, command.payload.cwd, command.payload.title);
+      case "session.export":
+        return this.exportSession(command.taskId);
+      case "resources.list":
+        return this.emitResources(command.taskId);
+      case "runtime.set":
+        return this.setRuntime(command.taskId, command.payload);
       case "task.activate":
         await this.activate(command.taskId);
         return { task: this.store.get(command.taskId) };
@@ -226,10 +250,16 @@ export class TaskService {
       status: active?.status ?? "stopped",
       pendingApprovals: this.supervisor.listApprovals(),
       commands: runtime?.commands ?? [],
+      runtime: runtime?.runtime ?? emptyRuntime(),
+      resources: activeId ? this.resources.get(activeId) : undefined,
+      sessionTree: runtime?.sessionTree ?? [],
+      sessionLeafId: runtime?.sessionLeafId ?? null,
+      authEntries: this.setupHints.authEntries,
+      trustProject: this.config.trustProject,
     };
   }
 
-  private async createTask(cwd: string, title?: string): Promise<{ task: TaskRecord }> {
+  private async createTask(cwd: string, title?: string, sessionPath?: string): Promise<{ task: TaskRecord }> {
     const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
     const now = new Date().toISOString();
     const task: TaskRecord = {
@@ -237,7 +267,7 @@ export class TaskService {
       id: randomUUID(),
       title: title?.trim() || path.basename(resolved) || "新对话",
       cwd: resolved,
-      sessionPath: null,
+      sessionPath: sessionPath ?? null,
       status: "stopped",
       model: null,
       thinkingLevel: "off",
@@ -340,7 +370,13 @@ export class TaskService {
           thinkingLevels: runtime.thinkingLevels,
         });
         this.emit(taskId, "commands.updated", { commands: runtime.commands });
+        this.emit(taskId, "runtime.status", runtime.runtime);
+        this.emit(taskId, "session.tree", {
+          nodes: runtime.sessionTree,
+          leafId: runtime.sessionLeafId,
+        });
       }
+      await this.emitResources(taskId);
       await this.refreshStats(taskId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -620,6 +656,111 @@ export class TaskService {
       await this.prompt(taskId, message, undefined, "prompt");
     }
     return { ok: true, text: result.text };
+  }
+
+  private async emitSessionTree(
+    taskId: string,
+  ): Promise<{ nodes: Awaited<ReturnType<ProcessSupervisor["refreshSessionTree"]>>["nodes"]; leafId: string | null }> {
+    this.requireTask(taskId);
+    const tree = await this.supervisor.refreshSessionTree(taskId);
+    this.emit(taskId, "session.tree", tree);
+    return tree;
+  }
+
+  private async branchSession(taskId: string, entryId: string, message?: string): Promise<{ ok: true; text?: string }> {
+    const task = this.requireTask(taskId);
+    if (isBusyStatus(task.status)) {
+      throw new Error("正在回复，先停止再从这里分叉。");
+    }
+    const result = (await this.supervisor.rpcData(taskId, { type: "fork", entryId })) as {
+      cancelled?: boolean;
+      text?: string;
+    };
+    if (result.cancelled) throw new Error("这次分叉被取消了");
+    const messages = (await this.supervisor.rpcData(taskId, { type: "get_messages" })) as { messages?: unknown[] };
+    this.supervisor.replaceMessages(taskId, piMessagesToTimeline(messages.messages ?? []));
+    await this.emitSessionTree(taskId);
+    this.emit(taskId, "snapshot", this.buildSnapshot(taskId));
+    if (message?.trim()) {
+      await this.prompt(taskId, message, undefined, "prompt");
+    }
+    return { ok: true, text: result.text };
+  }
+
+  private async listSessions(cwd?: string): Promise<{ sessions: Awaited<ReturnType<typeof listPiSessions>> }> {
+    const sessions = await listPiSessions(this.config.homeDir, cwd);
+    this.emit("", "sessions.listed", { sessions });
+    return { sessions };
+  }
+
+  private async resumeSession(
+    sessionPath: string,
+    cwd?: string,
+    title?: string,
+  ): Promise<{ task: TaskRecord }> {
+    const allowed = [
+      piSessionsRoot(this.config.homeDir),
+      path.join(this.config.dataDir, "sessions"),
+      ...this.config.allowedRoots,
+    ];
+    const resolvedSession = assertPiSessionPath(sessionPath, allowed);
+    const listed = await listPiSessions(this.config.homeDir);
+    const match = listed.find((item) => path.resolve(item.path) === resolvedSession);
+    const workspace = cwd?.trim() || match?.cwd;
+    if (!workspace) {
+      throw new Error("这个会话没有工作文件夹，请先选一个再恢复。");
+    }
+    const resolvedCwd = await assertAllowedCwd(workspace, this.config.allowedRoots);
+    return this.createTask(resolvedCwd, title || match?.name || match?.preview || "恢复的对话", resolvedSession);
+  }
+
+  private async exportSession(taskId: string): Promise<{ path: string }> {
+    this.requireTask(taskId);
+    const data = (await this.supervisor.rpcData(taskId, { type: "export_html" })) as { path?: string };
+    if (!data.path) throw new Error("导出失败");
+    return { path: data.path };
+  }
+
+  private async emitResources(taskId: string): Promise<PiResources> {
+    const task = this.requireTask(taskId);
+    const resources = await scanPiResources(task.cwd, this.config.homeDir, this.config.trustProject);
+    this.resources.set(taskId, resources);
+    this.emit(taskId, "resources.updated", resources);
+    return resources;
+  }
+
+  async refreshResources(): Promise<void> {
+    const taskId = this.activeTaskId;
+    if (!taskId || !this.store.get(taskId)) return;
+    try {
+      await this.emitResources(taskId);
+    } catch {
+      // Resources are optional for the inspector.
+    }
+  }
+
+  private async setRuntime(
+    taskId: string,
+    payload: { autoCompaction?: boolean; autoRetry?: boolean },
+  ): Promise<{ ok: true }> {
+    this.requireTask(taskId);
+    if (payload.autoCompaction != null) {
+      await this.supervisor.rpcData(taskId, {
+        type: "set_auto_compaction",
+        enabled: payload.autoCompaction,
+      });
+    }
+    if (payload.autoRetry != null) {
+      await this.supervisor.rpcData(taskId, {
+        type: "set_auto_retry",
+        enabled: payload.autoRetry,
+      });
+    }
+    this.supervisor.patchRuntime(taskId, {
+      autoCompaction: payload.autoCompaction,
+      autoRetry: payload.autoRetry,
+    });
+    return { ok: true };
   }
 
   private async cloneSession(taskId: string): Promise<{ task: TaskRecord }> {

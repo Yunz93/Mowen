@@ -4,11 +4,13 @@ import path from "node:path";
 export type UserSettings = {
   workspaceRoot: string | null;
   setupCompletedAt: string | null;
+  trustProject: boolean;
 };
 
 const EMPTY: UserSettings = {
   workspaceRoot: null,
   setupCompletedAt: null,
+  trustProject: false,
 };
 
 export class SettingsStore {
@@ -28,6 +30,7 @@ export class SettingsStore {
         workspaceRoot: typeof parsed.workspaceRoot === "string" ? parsed.workspaceRoot : null,
         setupCompletedAt:
           typeof parsed.setupCompletedAt === "string" ? parsed.setupCompletedAt : null,
+        trustProject: parsed.trustProject === true,
       };
     } catch {
       this.settings = { ...EMPTY };

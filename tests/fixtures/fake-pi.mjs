@@ -36,12 +36,29 @@ const state = {
   followUps: [],
   aborted: false,
   generationStamp: Date.now(),
+  autoCompactionEnabled: true,
+  autoRetryEnabled: true,
+  steering: [],
 };
+
+function loadSessionMessages(filePath) {
+  const raw = readFileSync(filePath, "utf8");
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) return JSON.parse(trimmed);
+  const messages = [];
+  for (const line of trimmed.split("\n")) {
+    if (!line.trim()) continue;
+    const parsed = JSON.parse(line);
+    if (parsed?.message && parsed.message.role) messages.push(parsed.message);
+    else if (parsed?.role) messages.push(parsed);
+  }
+  return messages;
+}
 
 if (sessionPath) {
   try {
-    const raw = readFileSync(sessionPath, "utf8");
-    state.messages = JSON.parse(raw);
+    state.messages = loadSessionMessages(sessionPath);
   } catch {
     state.messages = [];
   }
@@ -284,7 +301,8 @@ function handleLine(line) {
         followUpMode: "one-at-a-time",
         sessionFile: state.sessionFile,
         sessionId: state.sessionId,
-        autoCompactionEnabled: true,
+        autoCompactionEnabled: state.autoCompactionEnabled,
+        autoRetryEnabled: state.autoRetryEnabled,
         messageCount: state.messages.length,
         pendingMessageCount: state.followUps.length,
       });
@@ -312,6 +330,8 @@ function handleLine(line) {
       break;
     case "steer":
       respond(id, type, true);
+      state.steering = [parsed.message];
+      send({ type: "queue_update", steering: [...state.steering], followUp: [...state.followUps] });
       enqueuePrompt(parsed.message, "steer");
       break;
     case "follow_up":
@@ -368,6 +388,43 @@ function handleLine(line) {
       respond(id, type, true, { text: match.item.content?.[0]?.text ?? "", cancelled: false });
       break;
     }
+    case "get_tree": {
+      const tree = [];
+      let parentId = null;
+      let leafId = null;
+      for (let index = 0; index < state.messages.length; index += 1) {
+        const message = state.messages[index];
+        const nodeId = `${message.role === "user" ? "user" : "asst"}-${index}`;
+        const node = {
+          entry: { type: "message", id: nodeId, parentId, message },
+          children: [],
+        };
+        if (tree.length === 0) tree.push(node);
+        else {
+          let cursor = tree[0];
+          while (cursor.children[0]) cursor = cursor.children[0];
+          cursor.children.push(node);
+        }
+        parentId = nodeId;
+        leafId = nodeId;
+      }
+      respond(id, type, true, { tree, leafId });
+      break;
+    }
+    case "export_html": {
+      const out = sessionPath ? `${sessionPath}.html` : path.join(process.cwd(), "fake-session.html");
+      writeFileSync(out, `<html><body>${state.messages.length} messages</body></html>`);
+      respond(id, type, true, { path: out });
+      break;
+    }
+    case "set_auto_compaction":
+      state.autoCompactionEnabled = Boolean(parsed.enabled);
+      respond(id, type, true);
+      break;
+    case "set_auto_retry":
+      state.autoRetryEnabled = Boolean(parsed.enabled);
+      respond(id, type, true);
+      break;
     case "get_session_stats":
       respond(id, type, true, {
         sessionFile: state.sessionFile,

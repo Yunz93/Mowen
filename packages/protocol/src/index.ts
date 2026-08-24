@@ -49,3 +49,18 @@ export {
   stripModePrefix,
 } from "./interaction-policy.js";
 export { diffFromApproval, unifiedDiff, type DiffLine } from "./diff.js";
+export {
+  authEntrySchema,
+  piResourceFileSchema,
+  piResourcesSchema,
+  piSessionRefSchema,
+  piSkillSchema,
+  runtimeStateSchema,
+  sessionTreeNodeSchema,
+  emptyRuntime,
+  type AuthEntry,
+  type PiResources,
+  type PiSessionRef,
+  type RuntimeState,
+  type SessionTreeNode,
+} from "./pi-mvp.js";

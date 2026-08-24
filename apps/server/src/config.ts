@@ -34,6 +34,7 @@ export type AppConfig = {
   approvalExtensionPath: string;
   homeDir: string;
   piBundled: boolean;
+  trustProject: boolean;
 };
 
 export function mowenEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
@@ -115,9 +116,9 @@ export function expandHome(input: string, homeDir = os.homedir()): string {
 
 export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
-  options: { workspaceRoot?: string | null; homeDir?: string } = {},
+  options: { workspaceRoot?: string | null; homeDir?: string; trustProject?: boolean } = {},
 ): AppConfig {
-  const homeDir = options.homeDir ?? os.homedir();
+  const homeDir = options.homeDir ?? mowenEnv(env, "HOME_DIR") ?? os.homedir();
   const host = env.HOST ?? "127.0.0.1";
   const port = Number(env.PORT ?? "4310");
   const nodeEnv = env.NODE_ENV ?? "development";
@@ -169,6 +170,7 @@ export function loadConfig(
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
     homeDir,
     piBundled: mowenEnv(env, "PI_BUNDLED") === "1" || Boolean(mowenEnv(env, "PI_ENTRY")?.trim()),
+    trustProject: options.trustProject === true,
   };
 }
 

@@ -37,6 +37,26 @@ describe("event normalizer", () => {
     }
   });
 
+  it("maps compaction, retry, and queue events", () => {
+    expect(normalizePiEvent({ type: "compaction_start", reason: "threshold" })).toEqual({
+      kind: "runtime.compaction",
+      phase: "start",
+      reason: "threshold",
+    });
+    expect(normalizePiEvent({ type: "auto_retry_start", attempt: 1, maxAttempts: 3, errorMessage: "529" })).toEqual({
+      kind: "runtime.retry",
+      phase: "start",
+      attempt: 1,
+      maxAttempts: 3,
+      error: "529",
+    });
+    expect(normalizePiEvent({ type: "queue_update", steering: ["go left"], followUp: ["then summarize"] })).toEqual({
+      kind: "runtime.queue",
+      steering: ["go left"],
+      followUp: ["then summarize"],
+    });
+  });
+
   it("restores user and assistant messages from Pi history", () => {
     const messages = piMessagesToTimeline([
       { role: "user", content: [{ type: "text", text: "hello" }], timestamp: 1 },
