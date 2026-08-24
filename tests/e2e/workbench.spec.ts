@@ -69,7 +69,6 @@ test("workbench core loop", async ({ page }) => {
 
   await page.getByRole("button", { name: "选项" }).click();
   await page.getByLabel("思考深度").selectOption("high");
-  await page.getByRole("button", { name: "会话", exact: true }).click();
   await page.getByRole("button", { name: /归档 E2E task/ }).click();
 });
 
@@ -132,8 +131,8 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
 
   await page.getByRole("button", { name: "详情" }).click();
   await page.getByRole("button", { name: "技能" }).click();
-  await expect(page.getByRole("complementary").getByText(/agents ·/)).toBeVisible();
-  await expect(page.getByRole("complementary").getByText("demo")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText(/agents ·/)).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await page.getByRole("button", { name: "动态" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();

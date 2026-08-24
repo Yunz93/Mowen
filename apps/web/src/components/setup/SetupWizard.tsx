@@ -143,7 +143,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
         <div className="dialog-head">
           <div className="dialog-head-text">
             <p className="dialog-kicker">{isDesktopApp() ? "欢迎使用墨问" : "墨问设置"}</p>
-            <h1 id="setup-title" className="dialog-title text-2xl">
+            <h1 id="setup-title" className="dialog-title">
               {titles[step]}
             </h1>
           </div>

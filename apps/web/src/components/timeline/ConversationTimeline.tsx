@@ -21,7 +21,7 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
     <div className="mb-2">
       <button
         type="button"
-        className="pressable min-h-10 text-left text-[12px] text-mute"
+        className="pressable min-h-7 text-left text-[12px] text-mute"
         onClick={() => setOpen((value) => !value)}
       >
         思考中{duration ? ` · ${duration}` : ""} {open ? "收起" : "展开"}
@@ -42,14 +42,14 @@ function renderAssistant(text: string) {
       return (
         <pre
           key={index}
-          className="my-3 overflow-x-auto rounded-sm bg-canvas px-3 py-2 font-mono text-[13px] leading-6 text-ink"
+          className="my-3 overflow-x-auto rounded-[10px] bg-canvas px-3 py-2.5 font-mono text-[12.5px] leading-5 text-ink"
         >
           {body}
         </pre>
       );
     }
     return (
-      <p key={index} className="whitespace-pre-wrap text-[15px] leading-7 text-pretty text-ink">
+      <p key={index} className="whitespace-pre-wrap text-[15px] leading-[1.47] text-pretty text-ink">
         {chunk}
       </p>
     );
@@ -68,22 +68,22 @@ function UserMessage({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stripModePrefix(message.text));
   return (
-    <article className="ml-auto max-w-[85%] rounded-sm border border-line bg-elevated px-4 py-3 text-[15px] leading-7 text-ink">
+    <article className="ml-auto max-w-[78%] rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink">
       {editing ? (
         <div className="space-y-2">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            className="min-h-20 w-full resize-y bg-transparent text-[15px] leading-7 text-ink"
+            className="min-h-20 w-full resize-y bg-transparent text-[15px] leading-6 text-ink"
             aria-label="编辑消息"
           />
           <div className="flex justify-end gap-2">
-            <button type="button" className="pressable h-8 px-2 text-xs text-mute" onClick={() => setEditing(false)}>
+            <button type="button" className="pressable h-7 px-2 text-[12px] text-mute" onClick={() => setEditing(false)}>
               取消
             </button>
             <button
               type="button"
-              className="pressable h-8 px-2 text-xs text-accent"
+              className="pressable h-7 px-2 text-[12px] text-accent"
               onClick={() => {
                 onRetry?.(message.id, draft);
                 setEditing(false);
@@ -99,7 +99,7 @@ function UserMessage({
           {canRewrite && onRetry ? (
             <button
               type="button"
-              className="pressable mt-2 h-8 text-xs text-mute"
+              className="pressable mt-1.5 h-7 text-[12px] text-mute"
               onClick={() => {
                 setDraft(stripModePrefix(message.text));
                 setEditing(true);
@@ -124,15 +124,15 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
   const renderedTools = new Set<string>();
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-7 sm:px-6">
       {messages.length === 0 ? (
-        <div className="pt-16 text-center">
-          <p className="text-sm leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
+        <div className="pt-20 text-center">
+          <p className="text-[13px] leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
         </div>
       ) : null}
       {messages.length > 0 && onClone ? (
         <div className="flex justify-end">
-          <button type="button" className="pressable h-8 text-xs text-mute" onClick={onClone}>
+          <button type="button" className="pressable h-7 text-[12px] text-mute" onClick={onClone}>
             复制对话
           </button>
         </div>

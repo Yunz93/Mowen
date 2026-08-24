@@ -5,6 +5,7 @@ import { socketClient } from "../transport/socket-client";
 import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
 import { useAgentStore } from "../stores/agent-store";
 import { applyTheme, readTheme } from "../lib/theme";
+import { getDesktop } from "../desktop-bridge";
 
 export function App() {
   const needsSetup = useAgentStore((state) => state.needsSetup);
@@ -13,6 +14,13 @@ export function App() {
 
   useLayoutEffect(() => {
     applyTheme(readTheme());
+    const desktop = getDesktop();
+    document.documentElement.classList.toggle("desktop", Boolean(desktop));
+    if (desktop) {
+      document.documentElement.dataset.platform = desktop.platform;
+    } else {
+      delete document.documentElement.dataset.platform;
+    }
   }, []);
 
   useEffect(() => {

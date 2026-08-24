@@ -35,7 +35,7 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
     <div className="relative">
       <button
         type="button"
-        className={`pressable flex h-10 items-center gap-2 rounded-md bg-elevated px-3 font-mono text-[11px] tabular ${tone}`}
+        className={`pressable flex h-7 items-center gap-1.5 rounded-md px-2 font-mono text-[11px] tabular ${tone}`}
         aria-label="上下文用量"
         aria-expanded={open}
         aria-haspopup="dialog"

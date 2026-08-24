@@ -80,15 +80,16 @@ export function InspectorPanel({
 
   return (
     <aside
-      className={`flex h-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "w-full shadow-dialog" : "w-[360px]"}`}
+      className={`material-sidebar flex h-full shrink-0 flex-col border-l border-line ${drawer ? "w-full shadow-dialog" : "w-[360px]"}`}
+      aria-label="详情"
     >
-      <div className="flex items-start gap-1 border-b border-line px-2 py-1">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-0.5">
           {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
             <button
               key={item}
               type="button"
-              className={`pressable h-10 rounded-sm px-2 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
+              className={`pressable h-7 rounded-md px-2 text-[12px] ${tab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
               onClick={() => {
                 setTab(item);
                 if (item === "files") onLoadTree();
@@ -112,7 +113,7 @@ export function InspectorPanel({
           ))}
         </div>
         {drawer ? (
-          <button type="button" className="pressable h-10 shrink-0 px-3 text-sm text-mute" onClick={onClose}>
+          <button type="button" className="pressable h-7 shrink-0 px-2 text-[12px] text-mute" onClick={onClose}>
             关闭
           </button>
         ) : null}
@@ -126,12 +127,12 @@ export function InspectorPanel({
               </p>
             ) : null}
             {onCompact ? (
-              <button type="button" className="pressable mb-3 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={() => onCompact()}>
+              <button type="button" className="pressable mb-3 h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink" onClick={() => onCompact()}>
                 压缩上下文
               </button>
             ) : null}
             {onExport ? (
-              <button type="button" className="pressable mb-3 ml-2 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={onExport}>
+              <button type="button" className="pressable mb-3 ml-2 h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink" onClick={onExport}>
                 导出 HTML
               </button>
             ) : null}
@@ -172,7 +173,7 @@ export function InspectorPanel({
                       </span>
                       <button
                         type="button"
-                        className="pressable h-10 shrink-0 rounded-sm border border-line px-2 text-xs text-ink"
+                        className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                         onClick={() => onRestore(item.id)}
                       >
                         还原
@@ -192,7 +193,7 @@ export function InspectorPanel({
                   {entry.kind === "file" ? (
                     <button
                       type="button"
-                      className="pressable block h-10 w-full truncate px-1 text-left text-ink"
+                      className="pressable block h-8 w-full truncate px-1 text-left text-ink"
                       onClick={() => onReadFile(entry.path)}
                     >
                       {entry.path}
@@ -247,7 +248,7 @@ export function InspectorPanel({
                 <li key={node.id}>
                   <button
                     type="button"
-                    className={`pressable flex min-h-10 w-full items-start gap-2 rounded-sm px-2 py-1 text-left ${node.id === sessionLeafId ? "bg-fill" : "hover-fill"}`}
+                    className={`pressable flex min-h-8 w-full items-start gap-2 rounded-md px-2 py-1 text-left ${node.id === sessionLeafId ? "bg-fill" : "hover-fill"}`}
                     disabled={node.role !== "user" || !onBranch}
                     onClick={() => onBranch?.(node.id)}
                   >

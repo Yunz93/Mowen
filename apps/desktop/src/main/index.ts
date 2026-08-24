@@ -100,9 +100,15 @@ async function createMainWindow(port: number): Promise<void> {
     minWidth: 800,
     minHeight: 600,
     title: "墨问",
-    backgroundColor: "#1c1a16",
+    backgroundColor: "#f5f5f7",
     show: false,
     autoHideMenuBar: process.platform === "win32",
+    ...(process.platform === "darwin"
+      ? {
+          titleBarStyle: "hiddenInset" as const,
+          trafficLightPosition: { x: 16, y: 18 },
+        }
+      : {}),
     webPreferences: {
       preload: preloadPath(here),
       contextIsolation: true,

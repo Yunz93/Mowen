@@ -47,7 +47,7 @@ export function folderName(cwd: string): string {
 }
 
 export function nextHint(status: string, hasTask: boolean): string {
-  if (!hasTask) return "点左上角「会话」开始聊天";
+  if (!hasTask) return "从左侧选择会话，或点 + 开始聊天";
   if (status === "waiting_approval") return "请确认是否允许这次操作";
   if (status === "running") return "正在处理，可以直接停止";
   if (status === "error") return "出了点问题，发一条新消息再试试";
