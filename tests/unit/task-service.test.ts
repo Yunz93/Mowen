@@ -24,6 +24,8 @@ function task(id: string, cwd: string): TaskRecord {
     archivedAt: null,
     unreadCount: 0,
     errorMessage: null,
+    mode: "agent",
+    approvalPolicy: "ask",
   };
 }
 

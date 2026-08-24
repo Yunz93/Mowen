@@ -2,33 +2,38 @@ import { useState } from "react";
 import type { SessionStats, ToolExecution } from "@mowen/protocol";
 import hljs from "highlight.js";
 import { ToolExecutionRow } from "../timeline/ToolExecutionRow";
+import { DiffView } from "../diff/DiffView";
 
-type Tab = "changes" | "files" | "activity";
+type Tab = "changes" | "files" | "activity" | "git";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
+type GitSnapshot = {
+  branch: string | null;
+  dirty: boolean;
+  entries: Array<{ path: string; status: string }>;
+};
+type CheckpointRecord = {
+  id: string;
+  path: string;
+  createdAt: string;
+  toolName?: string;
+};
 
 type Props = {
   tools: ToolExecution[];
   stats: SessionStats | null;
   files: FileEntry[];
   preview: { path: string; content: string; truncated: boolean; language?: string } | null;
+  git: GitSnapshot | null;
+  checkpoints: CheckpointRecord[];
   onReadFile: (path: string) => void;
   onLoadTree: () => void;
+  onLoadGit: () => void;
+  onRestore: (checkpointId: string) => void;
   onCompact?: () => void;
   drawer?: boolean;
   onClose?: () => void;
 };
-
-function changeText(tool: ToolExecution): string {
-  const args = tool.args as Record<string, unknown> | undefined;
-  if (args && typeof args.oldText === "string" && typeof args.newText === "string") {
-    return `- ${args.oldText}\n+ ${args.newText}`;
-  }
-  if (args && typeof args.content === "string") {
-    return args.content;
-  }
-  return tool.resultText ?? "还没有差异。";
-}
 
 function highlight(content: string, language?: string): string {
   if (language && hljs.getLanguage(language)) {
@@ -42,8 +47,12 @@ export function InspectorPanel({
   stats,
   files,
   preview,
+  git,
+  checkpoints,
   onReadFile,
   onLoadTree,
+  onLoadGit,
+  onRestore,
   onCompact,
   drawer,
   onClose,
@@ -60,7 +69,7 @@ export function InspectorPanel({
       className={`flex h-full w-[360px] max-w-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "absolute inset-y-0 right-0 z-30 shadow-dialog" : ""}`}
     >
       <div className="flex h-[52px] items-center gap-1 border-b border-line px-2">
-        {(["changes", "files", "activity"] as const).map((item) => (
+        {(["changes", "files", "git", "activity"] as const).map((item) => (
           <button
             key={item}
             type="button"
@@ -68,9 +77,10 @@ export function InspectorPanel({
             onClick={() => {
               setTab(item);
               if (item === "files") onLoadTree();
+              if (item === "git") onLoadGit();
             }}
           >
-            {item === "changes" ? "改动" : item === "files" ? "文件" : "动态"}
+            {item === "changes" ? "改动" : item === "files" ? "文件" : item === "git" ? "Git" : "动态"}
           </button>
         ))}
         {drawer ? (
@@ -99,16 +109,46 @@ export function InspectorPanel({
           </div>
         ) : null}
         {tab === "changes" ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {changed.length === 0 ? <p className="text-sm text-mute">这次对话还没有改文件。</p> : null}
-            {changed.map((tool) => (
-              <div key={tool.toolCallId}>
-                <p className="font-mono text-xs text-accent">{tool.target}</p>
-                <pre className="mt-1 overflow-auto whitespace-pre-wrap rounded-md bg-canvas p-2 font-mono text-[11px] text-mute">
-                  {changeText(tool)}
-                </pre>
+            {changed.map((tool) => {
+              const args = tool.args as Record<string, unknown> | undefined;
+              return (
+                <div key={tool.toolCallId}>
+                  <p className="font-mono text-xs text-accent">{tool.target}</p>
+                  <div className="mt-1">
+                    <DiffView
+                      oldText={typeof args?.oldText === "string" ? args.oldText : undefined}
+                      newText={typeof args?.newText === "string" ? args.newText : undefined}
+                      content={typeof args?.content === "string" ? args.content : undefined}
+                      fallback={tool.resultText ?? "还没有差异。"}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {checkpoints.length > 0 ? (
+              <div className="border-t border-line pt-3">
+                <p className="mb-2 text-sm text-ink">检查点</p>
+                <ul className="space-y-2">
+                  {checkpoints.map((item) => (
+                    <li key={item.id} className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 font-mono text-[11px] text-mute">
+                        {item.path}
+                        <span className="block">{new Date(item.createdAt).toLocaleTimeString()}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="pressable h-10 shrink-0 rounded-sm border border-line px-2 text-xs text-ink"
+                        onClick={() => onRestore(item.id)}
+                      >
+                        还原
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ))}
+            ) : null}
           </div>
         ) : null}
         {tab === "files" ? (
@@ -139,6 +179,29 @@ export function InspectorPanel({
               />
             ) : (
               <p className="text-sm text-mute">点一个文件预览。这里只能看，不能直接编辑。</p>
+            )}
+          </div>
+        ) : null}
+        {tab === "git" ? (
+          <div className="space-y-3">
+            {git ? (
+              <>
+                <p className="text-sm text-ink">
+                  {git.branch ?? "（无分支）"}
+                  <span className="ml-2 text-mute">{git.dirty ? "有未提交改动" : "工作区干净"}</span>
+                </p>
+                {git.entries.length === 0 ? <p className="text-sm text-mute">没有改动。</p> : null}
+                <ul className="space-y-1 font-mono text-xs">
+                  {git.entries.map((entry) => (
+                    <li key={entry.path} className="flex gap-2">
+                      <span className="w-8 text-mute">{entry.status}</span>
+                      <span className="min-w-0 truncate text-ink">{entry.path}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
             )}
           </div>
         ) : null}

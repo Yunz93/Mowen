@@ -12,6 +12,20 @@ import type {
   ToolExecution,
 } from "@mowen/protocol";
 
+export type AgentCommand = { name: string; description?: string; source?: string };
+export type GitSnapshot = {
+  branch: string | null;
+  dirty: boolean;
+  entries: Array<{ path: string; status: string }>;
+};
+export type CheckpointRecord = {
+  id: string;
+  taskId: string;
+  path: string;
+  createdAt: string;
+  toolName?: string;
+};
+
 export type ConnectionStatus = "connecting" | "open" | "closed";
 
 type AgentState = {
@@ -41,6 +55,10 @@ type AgentState = {
   workspaceRoot: string | null;
   fileEntries: Array<{ path: string; name: string; kind: "file" | "dir" }>;
   filePreview: { path: string; content: string; truncated: boolean; language?: string } | null;
+  pendingApprovals: ApprovalRequest[];
+  commands: AgentCommand[];
+  git: GitSnapshot | null;
+  checkpoints: CheckpointRecord[];
   serverInstanceId: string | null;
   // Per-task last processed sequence, used to drop replayed events after a
   // reconnect or duplicate broadcast. Single WS channel is ordered, so keeping
@@ -96,10 +114,18 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   workspaceRoot: null,
   fileEntries: [],
   filePreview: null,
+  pendingApprovals: [],
+  commands: [],
+  git: null,
+  checkpoints: [],
   serverInstanceId: null,
   lastSeen: {},
   setConnection: (connection) => set({ connection }),
-  setActiveTask: (activeTaskId) => set({ activeTaskId }),
+  setActiveTask: (activeTaskId) =>
+    set({
+      activeTaskId,
+      approval: get().pendingApprovals.find((item) => item.taskId === activeTaskId) ?? null,
+    }),
   clearRequestError: () => set({ requestError: null, serverError: null }),
   setSetupState: (payload) =>
     set({
@@ -117,7 +143,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       activeTaskId: taskId ?? payload.activeTaskId,
       messages: payload.messages,
       tools: payload.tools,
-      approval: payload.approval,
       models: payload.models,
       thinkingLevels: payload.thinkingLevels,
       stats: payload.stats,
@@ -134,6 +159,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       homeDir: payload.homeDir ?? get().homeDir,
       workspaceRoot: payload.workspaceRoot ?? get().workspaceRoot,
       authHint: payload.authConfigured === false ? true : get().authHint,
+      pendingApprovals: payload.pendingApprovals ?? [],
+      commands: payload.commands ?? [],
+      git: payload.git ?? null,
+      checkpoints: payload.checkpoints ?? [],
+      approval:
+        payload.approval ??
+        (payload.pendingApprovals ?? []).find((item) => item.taskId === (taskId ?? payload.activeTaskId)) ??
+        null,
     }),
   applyEvent: (event) => {
     let current = get();
@@ -155,7 +188,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           activeTaskId: event.payload.activeTaskId ?? current.activeTaskId,
           messages: event.payload.messages,
           tools: event.payload.tools,
-          approval: event.payload.approval,
           models: event.payload.models,
           thinkingLevels: event.payload.thinkingLevels,
           stats: event.payload.stats,
@@ -176,6 +208,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
               : current.workspaceRoot,
           authHint:
             event.payload.authConfigured === false ? true : current.authHint && event.payload.authConfigured !== true,
+          pendingApprovals: event.payload.pendingApprovals ?? current.pendingApprovals,
+          commands: event.payload.commands ?? current.commands,
+          git: event.payload.git ?? current.git,
+          checkpoints: event.payload.checkpoints ?? current.checkpoints,
+          approval:
+            event.payload.approval ??
+            (event.payload.pendingApprovals ?? current.pendingApprovals).find(
+              (item) => item.taskId === (event.payload.activeTaskId ?? current.activeTaskId),
+            ) ??
+            null,
         });
         break;
       case "task.created":
@@ -258,20 +300,35 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           ],
         });
         break;
-      case "approval.requested":
-        if (event.taskId === current.activeTaskId) {
-          set({ lastSeen, approval: event.payload.approval });
-        } else {
-          set({ lastSeen });
-        }
-        break;
-      case "approval.resolved":
+      case "approval.requested": {
+        const pendingApprovals = [
+          ...current.pendingApprovals.filter((item) => item.requestId !== event.payload.approval.requestId),
+          event.payload.approval,
+        ];
         set({
           lastSeen,
+          pendingApprovals,
           approval:
-            current.approval?.requestId === event.payload.requestId ? null : current.approval,
+            event.payload.approval.taskId === current.activeTaskId
+              ? event.payload.approval
+              : current.approval,
         });
         break;
+      }
+      case "approval.resolved": {
+        const pendingApprovals = current.pendingApprovals.filter(
+          (item) => item.requestId !== event.payload.requestId,
+        );
+        set({
+          lastSeen,
+          pendingApprovals,
+          approval:
+            current.approval?.requestId === event.payload.requestId
+              ? (pendingApprovals.find((item) => item.taskId === current.activeTaskId) ?? null)
+              : current.approval,
+        });
+        break;
+      }
       case "session.stats":
         if (event.taskId === current.activeTaskId) {
           set({ lastSeen, stats: event.payload.stats });
@@ -313,6 +370,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           models: event.payload.models,
           thinkingLevels: event.payload.thinkingLevels,
         });
+        break;
+      case "commands.updated":
+        set({ lastSeen, commands: event.payload.commands });
+        break;
+      case "git.status":
+        if (event.taskId === current.activeTaskId) {
+          set({ lastSeen, git: event.payload });
+        } else set({ lastSeen });
+        break;
+      case "checkpoints.updated":
+        if (event.taskId === current.activeTaskId) {
+          set({ lastSeen, checkpoints: event.payload.checkpoints });
+        } else set({ lastSeen });
         break;
       default:
         set({ lastSeen });

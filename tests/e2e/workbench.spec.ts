@@ -49,7 +49,7 @@ test("workbench core loop", async ({ page }) => {
 
   await page.getByRole("button", { name: "选项" }).click();
   await page.getByLabel("思考深度").selectOption("high");
-  await page.getByRole("button", { name: "会话" }).click();
+  await page.getByRole("button", { name: "会话", exact: true }).click();
   await page.getByRole("button", { name: /归档 E2E task/ }).click();
 });
 

@@ -217,14 +217,16 @@ async function handlePrompt(message, mode) {
   }
 
   try {
-    if (message.startsWith("WRITE:")) {
-      const rest = message.slice("WRITE:".length);
+    const writeAt = message.indexOf("WRITE:");
+    const bashAt = message.indexOf("BASH:");
+    if (writeAt >= 0) {
+      const rest = message.slice(writeAt + "WRITE:".length);
       const split = rest.indexOf(":");
       const filePath = rest.slice(0, split);
       const content = rest.slice(split + 1);
       await runWrite(filePath, content);
-    } else if (message.startsWith("BASH:")) {
-      await runBash(message.slice("BASH:".length));
+    } else if (bashAt >= 0) {
+      await runBash(message.slice(bashAt + "BASH:".length));
     } else {
       const prefix = mode === "steer" ? "Steered: " : mode === "follow_up" ? "Follow-up: " : "Echo: ";
       await streamText(`${prefix}${message}`);
@@ -329,6 +331,43 @@ function handleLine(line) {
     case "compact":
       respond(id, type, true, { summary: "compacted", tokensBefore: 100, estimatedTokensAfter: 40 });
       break;
+    case "get_commands":
+      respond(id, type, true, {
+        commands: [
+          { name: "skill:review", description: "Review the current change", source: "skill" },
+        ],
+      });
+      break;
+    case "get_fork_messages":
+      respond(id, type, true, {
+        messages: state.messages
+          .filter((item) => item.role === "user")
+          .map((item, index) => ({
+            entryId: `user-${index}`,
+            text: Array.isArray(item.content)
+              ? item.content.map((block) => block.text ?? "").join("")
+              : String(item.content ?? ""),
+          })),
+      });
+      break;
+    case "fork": {
+      const messages = state.messages
+        .filter((item) => item.role === "user")
+        .map((item, index) => ({
+          entryId: `user-${index}`,
+          item,
+        }));
+      const match = messages.find((item) => item.entryId === parsed.entryId);
+      if (!match) {
+        respond(id, type, false, undefined, "Unknown fork entry");
+        break;
+      }
+      const cut = state.messages.indexOf(match.item);
+      state.messages = cut >= 0 ? state.messages.slice(0, cut + 1) : state.messages;
+      persist();
+      respond(id, type, true, { text: match.item.content?.[0]?.text ?? "", cancelled: false });
+      break;
+    }
     case "get_session_stats":
       respond(id, type, true, {
         sessionFile: state.sessionFile,

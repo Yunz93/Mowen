@@ -45,6 +45,11 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
         label: "停止回复",
         run: () => activeTaskId && void socketClient.send("agent.abort", {}, activeTaskId),
       },
+      {
+        id: "clone",
+        label: "复制对话",
+        run: () => activeTaskId && void socketClient.send("session.clone", {}, activeTaskId),
+      },
     ];
     const taskItems = tasks.map((task) => ({
       id: task.id,

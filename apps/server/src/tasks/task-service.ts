@@ -1,21 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import type {
-  ClientCommand,
-  ServerEvent,
-  TaskRecord,
-  TimelineMessage,
+import {
+  applyModePrefix,
+  approvalDecision,
+  effectiveApprovalPolicy,
+  stripModePrefix,
+  type ClientCommand,
+  type ServerEvent,
+  type TaskRecord,
+  type TimelineMessage,
 } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
+import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
+import { assertAllowedCwd } from "../security/path-policy.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
+import { CheckpointStore } from "./checkpoints.js";
+import { previewProjectFile, listProjectFiles } from "./file-browser.js";
+import { readGitStatus } from "./git-status.js";
+import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
-
-const IGNORED_DIR_NAMES = new Set(["node_modules", ".git", "dist", ".mowen-test"]);
 
 export type SetupHints = {
   authConfigured: boolean;
@@ -32,6 +39,8 @@ export class TaskService {
   private readonly booting = new Map<string, Promise<void>>();
   private activeTaskId: string | null = null;
   private readonly uploads = new UploadStore();
+  private readonly remembered: RememberedApprovals;
+  private readonly checkpoints: CheckpointStore;
   private setupHints: SetupHints = {
     authConfigured: false,
     configuredProviders: [],
@@ -62,8 +71,14 @@ export class TaskService {
       },
     );
     this.events = new EventDispatcher((taskId) => this.supervisor.nextSequence(taskId));
+    this.remembered = new RememberedApprovals(config.dataDir);
+    this.checkpoints = new CheckpointStore(config.dataDir);
+    void this.remembered.load();
     this.supervisor.onEvent((event) => {
       this.events.dispatch(event);
+      if (event.type === "approval.requested") {
+        void this.applyStoredPolicy(event.taskId, event.payload.approval);
+      }
       if (event.type === "approval.resolved") {
         const task = this.store.get(event.taskId);
         if (task?.status === "waiting_approval") {
@@ -91,9 +106,6 @@ export class TaskService {
 
   removeSocket(socket: SocketLike): void {
     this.events.removeSocket(socket);
-    if (this.events.connectionCount === 0) {
-      this.supervisor.denyAllApprovals("Browser disconnected");
-    }
   }
 
   listTasks(): TaskRecord[] {
@@ -138,11 +150,27 @@ export class TaskService {
         });
         await this.refreshTaskModel(command.taskId);
         return { ok: true };
-      case "approval.respond": {
-        const ok = this.supervisor.respondApproval(command.payload.requestId, command.payload.allow);
-        if (!ok) throw new Error("这条确认已经失效");
-        return { ok: true };
-      }
+      case "approval.respond":
+        return this.respondApproval(
+          command.taskId,
+          command.payload.requestId,
+          command.payload.allow,
+          command.payload.remember,
+        );
+      case "task.policy.set":
+        return this.setPolicy(command.taskId, command.payload.mode, command.payload.approvalPolicy);
+      case "session.fork":
+        return this.forkSession(command.taskId, command.payload.messageId, command.payload.message);
+      case "session.clone":
+        return this.cloneSession(command.taskId);
+      case "git.status":
+        return this.emitGitStatus(command.taskId);
+      case "checkpoint.list":
+        return this.emitCheckpoints(command.taskId);
+      case "checkpoint.restore":
+        return this.restoreCheckpoint(command.taskId, command.payload.checkpointId);
+      case "commands.list":
+        return this.emitCommands(command.taskId);
       case "session.compact":
         await this.supervisor.rpcData(command.taskId, {
           type: "compact",
@@ -196,6 +224,8 @@ export class TaskService {
       homeDir: this.setupHints.homeDir || this.config.homeDir,
       workspaceRoot: this.setupHints.workspaceRoot,
       status: active?.status ?? "stopped",
+      pendingApprovals: this.supervisor.listApprovals(),
+      commands: runtime?.commands ?? [],
     };
   }
 
@@ -217,6 +247,8 @@ export class TaskService {
       archivedAt: null,
       unreadCount: 0,
       errorMessage: null,
+      mode: "agent",
+      approvalPolicy: "ask",
     };
     await this.store.upsert(task);
     this.activeTaskId = task.id;
@@ -307,6 +339,7 @@ export class TaskService {
           models: runtime.models,
           thinkingLevels: runtime.thinkingLevels,
         });
+        this.emit(taskId, "commands.updated", { commands: runtime.commands });
       }
       await this.refreshStats(taskId);
     } catch (error) {
@@ -353,7 +386,10 @@ export class TaskService {
       mimeType: item.mimeType,
     }));
 
-    const payload: Record<string, unknown> & { type: string } = { type: rpcMode, message };
+    const payload: Record<string, unknown> & { type: string } = {
+      type: rpcMode,
+      message: applyModePrefix(latest.mode ?? "agent", message),
+    };
     if (images.length > 0) payload.images = images;
 
     try {
@@ -436,40 +472,189 @@ export class TaskService {
 
   private async fileTree(taskId: string): Promise<{ entries: Array<{ path: string; name: string; kind: "file" | "dir" }> }> {
     const task = this.requireTask(taskId);
-    const entries: Array<{ path: string; name: string; kind: "file" | "dir" }> = [];
-    const walk = async (dir: string, depth: number): Promise<void> => {
-      if (depth > 6 || entries.length > 400) return;
-      const names = await readdir(dir);
-      for (const name of names) {
-        if (name.startsWith(".") || IGNORED_DIR_NAMES.has(name)) continue;
-        const full = path.join(dir, name);
-        const info = await stat(full);
-        const rel = path.relative(task.cwd, full);
-        if (info.isDirectory()) {
-          entries.push({ path: rel, name, kind: "dir" });
-          await walk(full, depth + 1);
-        } else {
-          entries.push({ path: rel, name, kind: "file" });
-        }
-      }
-    };
-    await walk(task.cwd, 0);
+    const entries = await listProjectFiles(task.cwd);
     this.emit(taskId, "files.tree", { entries });
     return { entries };
   }
 
   private async filePreview(taskId: string, relativePath: string): Promise<void> {
     const task = this.requireTask(taskId);
-    const resolved = await resolveAllowedPath(relativePath, task.cwd, this.config.allowedRoots);
-    const buf = await readFile(resolved);
-    const truncated = buf.byteLength > 200_000;
-    const content = buf.subarray(0, 200_000).toString("utf8");
-    this.emit(taskId, "files.preview", {
-      path: relativePath,
-      content,
-      truncated,
-      language: path.extname(relativePath).slice(1),
+    const preview = await previewProjectFile(relativePath, task.cwd, this.config.allowedRoots);
+    this.emit(taskId, "files.preview", preview);
+  }
+
+  private async setPolicy(
+    taskId: string,
+    mode: TaskRecord["mode"],
+    approvalPolicy: TaskRecord["approvalPolicy"],
+  ): Promise<{ task: TaskRecord }> {
+    const task = this.requireTask(taskId);
+    const next = await this.store.upsert({
+      ...task,
+      mode,
+      approvalPolicy,
+      updatedAt: new Date().toISOString(),
     });
+    this.emit(taskId, "task.updated", { task: next });
+    return { task: next };
+  }
+
+  private async respondApproval(
+    taskId: string,
+    requestId: string,
+    allow: boolean,
+    remember?: boolean,
+  ): Promise<{ ok: true }> {
+    const pending = this.supervisor.getApproval(requestId);
+    if (allow && pending) {
+      await this.checkpointMutation(taskId, pending);
+      if (remember) await this.remembered.remember(pending);
+    }
+    const ok = this.supervisor.respondApproval(requestId, allow);
+    if (!ok) throw new Error("这条确认已经失效");
+    return { ok: true };
+  }
+
+  private async applyStoredPolicy(taskId: string, approval: import("@mowen/protocol").ApprovalRequest): Promise<void> {
+    const task = this.store.get(taskId);
+    if (!task) return;
+    const policy = effectiveApprovalPolicy(task.mode ?? "agent", task.approvalPolicy ?? "ask");
+    let decision = approvalDecision(policy, approval);
+    if (decision === null && this.remembered.match(approval)) decision = true;
+    if (decision === null) return;
+    if (decision) await this.checkpointMutation(taskId, approval);
+    this.supervisor.respondApproval(approval.requestId, decision);
+  }
+
+  private async checkpointMutation(
+    taskId: string,
+    approval: import("@mowen/protocol").ApprovalRequest,
+  ): Promise<void> {
+    if (approval.toolName !== "write" && approval.toolName !== "edit") return;
+    const task = this.store.get(taskId);
+    if (!task) return;
+    await this.checkpoints.save(taskId, task.cwd, approval.target, approval.toolName);
+    await this.emitCheckpoints(taskId);
+  }
+
+  private async emitCheckpoints(taskId: string): Promise<{ checkpoints: Awaited<ReturnType<CheckpointStore["list"]>> }> {
+    const checkpoints = await this.checkpoints.list(taskId);
+    this.emit(taskId, "checkpoints.updated", { checkpoints });
+    return { checkpoints };
+  }
+
+  private async restoreCheckpoint(taskId: string, checkpointId: string): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    await this.checkpoints.restore(taskId, checkpointId, task.cwd);
+    await this.emitCheckpoints(taskId);
+    await this.emitGitStatus(taskId);
+    return { ok: true };
+  }
+
+  private async emitGitStatus(taskId: string): Promise<{ git: Awaited<ReturnType<typeof readGitStatus>> }> {
+    const task = this.requireTask(taskId);
+    const git = await readGitStatus(task.cwd);
+    if (git) this.emit(taskId, "git.status", git);
+    return { git };
+  }
+
+  private async emitCommands(taskId: string): Promise<{ commands: Array<{ name: string; description?: string; source?: string }> }> {
+    const commands = await this.refreshCommands(taskId);
+    this.emit(taskId, "commands.updated", { commands });
+    return { commands };
+  }
+
+  private async refreshCommands(
+    taskId: string,
+  ): Promise<Array<{ name: string; description?: string; source?: string }>> {
+    if (!this.supervisor.has(taskId)) return [];
+    try {
+      const data = (await this.supervisor.rpcData(taskId, { type: "get_commands" })) as {
+        commands?: Array<{ name?: string; description?: string; source?: string }>;
+      };
+      const commands = (data.commands ?? [])
+        .filter((item) => item.name)
+        .map((item) => ({
+          name: String(item.name),
+          description: item.description,
+          source: item.source,
+        }));
+      this.supervisor.setCommands(taskId, commands);
+      return commands;
+    } catch {
+      return this.supervisor.snapshot(taskId)?.commands ?? [];
+    }
+  }
+
+  private async forkSession(
+    taskId: string,
+    messageId: string,
+    message?: string,
+  ): Promise<{ ok: true; text?: string }> {
+    const task = this.requireTask(taskId);
+    const runtime = this.supervisor.snapshot(taskId);
+    const selected = runtime?.messages.find((item) => item.id === messageId);
+    if (!selected || selected.role !== "user") {
+      throw new Error("只能从你自己的消息重新来过");
+    }
+    if (isBusyStatus(task.status)) {
+      throw new Error("正在回复，先停止再重试。");
+    }
+    const forks = (await this.supervisor.rpcData(taskId, { type: "get_fork_messages" })) as {
+      messages?: Array<{ entryId?: string; text?: string }>;
+    };
+    const wanted = stripModePrefix(selected.text).trim();
+    const match = (forks.messages ?? []).find((item) => stripModePrefix(item.text ?? "").trim() === wanted);
+    if (!match?.entryId) {
+      throw new Error("Pi 里找不到这条消息，没法从这里分叉。");
+    }
+    const result = (await this.supervisor.rpcData(taskId, { type: "fork", entryId: match.entryId })) as {
+      cancelled?: boolean;
+      text?: string;
+    };
+    if (result.cancelled) throw new Error("这次分叉被取消了");
+    const messages = (await this.supervisor.rpcData(taskId, { type: "get_messages" })) as { messages?: unknown[] };
+    this.supervisor.replaceMessages(taskId, piMessagesToTimeline(messages.messages ?? []));
+    this.emit(taskId, "snapshot", this.buildSnapshot(taskId));
+    if (message?.trim()) {
+      await this.prompt(taskId, message, undefined, "prompt");
+    }
+    return { ok: true, text: result.text };
+  }
+
+  private async cloneSession(taskId: string): Promise<{ task: TaskRecord }> {
+    const task = this.requireTask(taskId);
+    const now = new Date().toISOString();
+    const nextId = randomUUID();
+    let sessionPath: string | null = null;
+    if (task.sessionPath) {
+      const sessionDir = path.join(this.config.dataDir, "sessions", nextId);
+      await mkdir(sessionDir, { recursive: true });
+      sessionPath = path.join(sessionDir, path.basename(task.sessionPath));
+      await copyFile(task.sessionPath, sessionPath);
+    }
+    const cloned: TaskRecord = {
+      ...task,
+      id: nextId,
+      title: `${task.title}（副本）`,
+      sessionPath,
+      status: "stopped",
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+      archivedAt: null,
+      unreadCount: 0,
+      errorMessage: null,
+    };
+    await this.store.upsert(cloned);
+    this.activeTaskId = cloned.id;
+    this.emit(cloned.id, "task.created", { task: cloned });
+    try {
+      await this.activate(cloned.id);
+    } catch {
+      // Keep the cloned task even if Pi is unavailable.
+    }
+    return { task: this.store.get(cloned.id) ?? cloned };
   }
 
   private async handleUnexpectedExit(taskId: string, generation: number, error: string): Promise<void> {

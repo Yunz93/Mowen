@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { thinkingLevelSchema } from "./task-schema.js";
+import { approvalPolicySchema, interactionModeSchema, thinkingLevelSchema } from "./task-schema.js";
 
 const commandBase = {
   id: z.string().min(1),
@@ -88,7 +88,56 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     payload: z.object({
       requestId: z.string().min(1),
       allow: z.boolean(),
+      remember: z.boolean().optional(),
     }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("task.policy.set"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      mode: interactionModeSchema,
+      approvalPolicy: approvalPolicySchema,
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.fork"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      messageId: z.string().min(1),
+      message: z.string().min(1).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.clone"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("git.status"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("checkpoint.list"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("checkpoint.restore"),
+    taskId: z.string().min(1),
+    payload: z.object({ checkpointId: z.string().min(1) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("commands.list"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
   }),
   z.object({
     ...commandBase,

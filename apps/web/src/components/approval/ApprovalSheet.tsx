@@ -1,9 +1,11 @@
+import { useState } from "react";
 import type { ApprovalRequest } from "@mowen/protocol";
 import { toolNameLabel } from "../../copy";
+import { DiffView } from "../diff/DiffView";
 
 type Props = {
   approval: ApprovalRequest;
-  onRespond: (allow: boolean) => void;
+  onRespond: (allow: boolean, remember: boolean) => void;
 };
 
 function heading(toolName: string): string {
@@ -13,8 +15,10 @@ function heading(toolName: string): string {
 }
 
 export function ApprovalSheet({ approval, onRespond }: Props) {
+  const [remember, setRemember] = useState(false);
   const remaining = Math.max(0, Date.parse(approval.expiresAt) - Date.now());
   const seconds = Math.ceil(remaining / 1000);
+  const hasDiff = Boolean(approval.oldText || approval.newText || approval.content);
 
   return (
     <div
@@ -44,13 +48,27 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
             </dd>
           </div>
         </dl>
+        {hasDiff ? (
+          <div className="mt-3">
+            <p className="mb-1 text-[12px] text-mute">将要写入的内容</p>
+            <DiffView oldText={approval.oldText} newText={approval.newText} content={approval.content} />
+          </div>
+        ) : null}
+        <label className="mt-3 flex items-center gap-2 text-[12px] text-ink">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+          />
+          记住这次（同样的路径或命令不再问）
+        </label>
         <p className="mt-3 text-[12px] text-mute">{seconds} 秒后自动拒绝</p>
       </div>
       <div className="dialog-actions dialog-actions-split">
-        <button type="button" className="pressable btn btn-danger" onClick={() => onRespond(false)}>
+        <button type="button" className="pressable btn btn-danger" onClick={() => onRespond(false, false)}>
           拒绝
         </button>
-        <button type="button" className="pressable btn btn-primary" onClick={() => onRespond(true)}>
+        <button type="button" className="pressable btn btn-primary" onClick={() => onRespond(true, remember)}>
           允许这次
         </button>
       </div>
