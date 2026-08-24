@@ -8,7 +8,6 @@ import {
   hasAnyAuth,
   inspectModelsFile,
   listAuthEntries,
-  listConfiguredProviders,
   saveApiKey,
   type BeginnerProviderId,
 } from "../setup/auth-status.js";
