@@ -15,7 +15,9 @@ export {
 } from "./server-events.js";
 export {
   TASK_SCHEMA_VERSION,
+  approvalPolicySchema,
   approvalRequestSchema,
+  interactionModeSchema,
   modelRefSchema,
   sessionStatsSchema,
   taskRecordSchema,
@@ -24,7 +26,9 @@ export {
   timelineMessageSchema,
   toolExecutionSchema,
   toolExecutionStatusSchema,
+  type ApprovalPolicy,
   type ApprovalRequest,
+  type InteractionMode,
   type ModelRef,
   type SessionStats,
   type TaskRecord,
@@ -34,3 +38,14 @@ export {
   type ToolExecution,
   type ToolExecutionStatus,
 } from "./task-schema.js";
+export {
+  MODE_PREFIX,
+  applyModePrefix,
+  approvalDecision,
+  approvalPolicies,
+  effectiveApprovalPolicy,
+  interactionModes,
+  rememberKey,
+  stripModePrefix,
+} from "./interaction-policy.js";
+export { diffFromApproval, unifiedDiff, type DiffLine } from "./diff.js";

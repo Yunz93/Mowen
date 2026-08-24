@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FolderOpen, MessageSquare, PanelRight, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
@@ -8,11 +8,13 @@ import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { PiStatusRing } from "../components/status/PiStatusRing";
 import { ThemeToggle } from "../components/status/ThemeToggle";
+import { ContextMeter } from "../components/status/ContextMeter";
+import { RunStatusBar } from "../components/status/RunStatusBar";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
-import type { ThinkingLevel } from "@mowen/protocol";
+import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
 import { folderName, nextHint } from "../copy";
 
 export function WorkbenchLayout() {
@@ -21,11 +23,15 @@ export function WorkbenchLayout() {
   const messages = useAgentStore((state) => state.messages);
   const tools = useAgentStore((state) => state.tools);
   const approval = useAgentStore((state) => state.approval);
+  const pendingApprovals = useAgentStore((state) => state.pendingApprovals);
   const models = useAgentStore((state) => state.models);
   const thinkingLevels = useAgentStore((state) => state.thinkingLevels);
   const stats = useAgentStore((state) => state.stats);
   const files = useAgentStore((state) => state.fileEntries);
   const preview = useAgentStore((state) => state.filePreview);
+  const commands = useAgentStore((state) => state.commands);
+  const git = useAgentStore((state) => state.git);
+  const checkpoints = useAgentStore((state) => state.checkpoints);
   const piError = useAgentStore((state) => state.piError);
   const piAvailable = useAgentStore((state) => state.piAvailable);
   const authHint = useAgentStore((state) => state.authHint);
@@ -54,6 +60,7 @@ export function WorkbenchLayout() {
     [tasks, activeTaskId],
   );
   const status = task?.status ?? "stopped";
+  const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -124,6 +131,12 @@ export function WorkbenchLayout() {
     setImageIds((current) => [...current, ...ids]);
   }
 
+  const requestFiles = useCallback(() => {
+    if (task) void socketClient.send("files.tree", {}, task.id);
+  }, [task]);
+
+  const hasChanges = tools.some((tool) => tool.toolName === "write" || tool.toolName === "edit");
+
   return (
     <div className="relative flex h-dvh bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
@@ -154,6 +167,13 @@ export function WorkbenchLayout() {
               {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
           </div>
+          <div className="hidden sm:block">
+            <ContextMeter
+              stats={stats}
+              compact
+              onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+            />
+          </div>
           <ThemeToggle />
           <button
             type="button"
@@ -171,6 +191,7 @@ export function WorkbenchLayout() {
             <Settings size={16} />
           </Link>
         </header>
+        <RunStatusBar status={status} tools={tools} hasChanges={hasChanges} />
         {!piAvailable ? (
           <div className="border-b border-danger/40 bg-elevated px-4 py-2 text-sm text-danger">
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
@@ -186,9 +207,29 @@ export function WorkbenchLayout() {
             {authHint ? "还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。" : (serverError ?? requestError)}
           </div>
         ) : null}
+        {otherApproval ? (
+          <div className="border-b border-warn/40 bg-elevated px-4 py-2 text-sm text-ink">
+            另一个会话在等待确认。
+            <button
+              type="button"
+              className="pressable ml-3 text-accent"
+              onClick={() => void selectTask(otherApproval.taskId)}
+            >
+              去处理
+            </button>
+          </div>
+        ) : null}
         <main id="main-content" className="min-h-0 min-w-[0] flex-1 overflow-y-auto">
           {task ? (
-            <ConversationTimeline messages={messages} tools={tools} />
+            <ConversationTimeline
+              messages={messages}
+              tools={tools}
+              canRewrite={status === "idle" || status === "stopped"}
+              onRetry={(messageId, text) =>
+                void socketClient.send("session.fork", { messageId, message: text }, task.id)
+              }
+              onClone={() => void socketClient.send("session.clone", {}, task.id)}
+            />
           ) : (
             <div className="mx-auto flex max-w-[520px] flex-col items-center px-6 pt-24 text-center">
               <p className="text-xl text-ink">你好，我是墨问</p>
@@ -209,10 +250,10 @@ export function WorkbenchLayout() {
           <div className="mx-auto w-full max-w-[720px] px-4">
             <ApprovalSheet
               approval={approval}
-              onRespond={(allow) =>
+              onRespond={(allow, remember) =>
                 void socketClient.send(
                   "approval.respond",
-                  { requestId: approval.requestId, allow },
+                  { requestId: approval.requestId, allow, remember },
                   approval.taskId,
                 )
               }
@@ -226,6 +267,10 @@ export function WorkbenchLayout() {
           thinkingLevels={thinkingLevels}
           modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}
           thinkingLevel={task?.thinkingLevel ?? "off"}
+          mode={task?.mode ?? "agent"}
+          approvalPolicy={task?.approvalPolicy ?? "ask"}
+          files={files}
+          commands={commands}
           hasTurns={messages.some((item) => item.role === "user")}
           value={draft}
           onChange={setDraft}
@@ -246,7 +291,11 @@ export function WorkbenchLayout() {
           onThinking={(level: ThinkingLevel) =>
             task && void socketClient.send("thinking.set", { level }, task.id)
           }
+          onPolicy={(nextMode: InteractionMode, nextPolicy: ApprovalPolicy) =>
+            task && void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
+          }
           onImages={(files) => void uploadImages(files)}
+          onNeedFiles={requestFiles}
           imageCount={imageIds.length}
         />
       </div>
@@ -292,9 +341,19 @@ export function WorkbenchLayout() {
               stats={stats}
               files={files}
               preview={preview}
+              git={git}
+              checkpoints={checkpoints}
               onClose={() => setInspectorOpen(false)}
               onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
               onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
+              onLoadGit={() => {
+                if (!task) return;
+                void socketClient.send("git.status", {}, task.id);
+                void socketClient.send("checkpoint.list", {}, task.id);
+              }}
+              onRestore={(checkpointId) =>
+                task && void socketClient.send("checkpoint.restore", { checkpointId }, task.id)
+              }
               onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
             />
           </div>

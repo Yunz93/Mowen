@@ -81,9 +81,7 @@ export default function (pi: ExtensionAPI) {
         ? String(input.command ?? "")
         : String(input.path ?? "");
 
-    if (!NEED_APPROVAL.has(toolName)) {
-      return { block: true, reason: `Unrecognized tool blocked: ${toolName}` };
-    }
+    const mutating = NEED_APPROVAL.has(toolName);
 
     if (toolName === "write" || toolName === "edit") {
       const blocked = assertWritable(target, cwd, roots);
@@ -103,7 +101,9 @@ export default function (pi: ExtensionAPI) {
     const risk =
       toolName === "bash"
         ? "这条命令会用你的账号权限运行。墨问不会替你判断它是否安全。"
-        : "这次会改项目里的文件。确认路径没问题再允许。";
+        : mutating
+          ? "这次会改项目里的文件。确认路径没问题再允许。"
+          : "这个操作需要你确认后才会继续。";
 
     const payload = {
       kind: "mowen.approval",

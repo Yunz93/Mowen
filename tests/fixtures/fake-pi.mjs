@@ -329,6 +329,43 @@ function handleLine(line) {
     case "compact":
       respond(id, type, true, { summary: "compacted", tokensBefore: 100, estimatedTokensAfter: 40 });
       break;
+    case "get_commands":
+      respond(id, type, true, {
+        commands: [
+          { name: "skill:review", description: "Review the current change", source: "skill" },
+        ],
+      });
+      break;
+    case "get_fork_messages":
+      respond(id, type, true, {
+        messages: state.messages
+          .filter((item) => item.role === "user")
+          .map((item, index) => ({
+            entryId: `user-${index}`,
+            text: Array.isArray(item.content)
+              ? item.content.map((block) => block.text ?? "").join("")
+              : String(item.content ?? ""),
+          })),
+      });
+      break;
+    case "fork": {
+      const messages = state.messages
+        .filter((item) => item.role === "user")
+        .map((item, index) => ({
+          entryId: `user-${index}`,
+          item,
+        }));
+      const match = messages.find((item) => item.entryId === parsed.entryId);
+      if (!match) {
+        respond(id, type, false, undefined, "Unknown fork entry");
+        break;
+      }
+      const cut = state.messages.indexOf(match.item);
+      state.messages = cut >= 0 ? state.messages.slice(0, cut + 1) : state.messages;
+      persist();
+      respond(id, type, true, { text: match.item.content?.[0]?.text ?? "", cancelled: false });
+      break;
+    }
     case "get_session_stats":
       respond(id, type, true, {
         sessionFile: state.sessionFile,

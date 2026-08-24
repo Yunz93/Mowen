@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ApprovalRequest } from "@mowen/protocol";
-import { approvalDecision, effectiveApprovalPolicy } from "../../apps/web/src/lib/interaction-policy";
+import {
+  applyModePrefix,
+  approvalDecision,
+  effectiveApprovalPolicy,
+  stripModePrefix,
+} from "../../packages/protocol/src/interaction-policy.ts";
 
 const approval: ApprovalRequest = {
   requestId: "request-1",
@@ -23,5 +28,12 @@ describe("interaction policy", () => {
     expect(effectiveApprovalPolicy("ask", "workspace")).toBe("read_only");
     expect(effectiveApprovalPolicy("agent", "workspace")).toBe("workspace");
     expect(approvalDecision("read_only", approval)).toBe(false);
+  });
+
+  it("adds and strips mode prefixes", () => {
+    const prefixed = applyModePrefix("plan", "implement login");
+    expect(prefixed.startsWith("【规划模式】")).toBe(true);
+    expect(stripModePrefix(prefixed)).toBe("implement login");
+    expect(applyModePrefix("agent", "implement login")).toBe("implement login");
   });
 });

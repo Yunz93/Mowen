@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import type { TimelineMessage, ToolExecution } from "@mowen/protocol";
+import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 
 type Props = {
   messages: TimelineMessage[];
   tools: ToolExecution[];
+  canRewrite?: boolean;
+  onRetry?: (messageId: string, text: string) => void;
+  onClone?: () => void;
 };
 
 function ThinkingBlock({ message }: { message: TimelineMessage }) {
@@ -53,7 +56,65 @@ function renderAssistant(text: string) {
   });
 }
 
-export function ConversationTimeline({ messages, tools }: Props) {
+function UserMessage({
+  message,
+  canRewrite,
+  onRetry,
+}: {
+  message: TimelineMessage;
+  canRewrite?: boolean;
+  onRetry?: (messageId: string, text: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(stripModePrefix(message.text));
+  return (
+    <article className="ml-auto max-w-[85%] rounded-sm border border-line bg-elevated px-4 py-3 text-[15px] leading-7 text-ink">
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="min-h-20 w-full resize-y bg-transparent text-[15px] leading-7 text-ink"
+            aria-label="编辑消息"
+          />
+          <div className="flex justify-end gap-2">
+            <button type="button" className="pressable h-8 px-2 text-xs text-mute" onClick={() => setEditing(false)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="pressable h-8 px-2 text-xs text-accent"
+              onClick={() => {
+                onRetry?.(message.id, draft);
+                setEditing(false);
+              }}
+            >
+              从这里重来
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="whitespace-pre-wrap">{stripModePrefix(message.text)}</p>
+          {canRewrite && onRetry ? (
+            <button
+              type="button"
+              className="pressable mt-2 h-8 text-xs text-mute"
+              onClick={() => {
+                setDraft(stripModePrefix(message.text));
+                setEditing(true);
+              }}
+            >
+              编辑并重试
+            </button>
+          ) : null}
+        </>
+      )}
+    </article>
+  );
+}
+
+export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onClone }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -69,15 +130,17 @@ export function ConversationTimeline({ messages, tools }: Props) {
           <p className="text-sm leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
         </div>
       ) : null}
+      {messages.length > 0 && onClone ? (
+        <div className="flex justify-end">
+          <button type="button" className="pressable h-8 text-xs text-mute" onClick={onClone}>
+            复制为新会话
+          </button>
+        </div>
+      ) : null}
       {messages.map((message) => {
         if (message.role === "user") {
           return (
-            <article
-              key={message.id}
-              className="ml-auto max-w-[85%] rounded-sm border border-line bg-elevated px-4 py-3 text-[15px] leading-7 text-ink"
-            >
-              {message.text}
-            </article>
+            <UserMessage key={message.id} message={message} canRewrite={canRewrite} onRetry={onRetry} />
           );
         }
         if (message.role === "toolResult") {

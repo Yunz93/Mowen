@@ -257,6 +257,63 @@ describe("integration fake-pi", () => {
     sock.ws.close();
   }, 15_000);
 
+  it("auto-allows workspace file edits and can fork a user turn", async () => {
+    const project = path.join(root.current, "project");
+    const sock = await openSocket(ctx.base);
+    await sock.waitFor("snapshot");
+    sock.send({
+      id: "c-policy",
+      type: "task.create",
+      payload: { cwd: project, title: "Policy" },
+    });
+    const created = await sock.waitFor("request.succeeded");
+    const taskId = created?.payload?.data?.task?.id as string;
+
+    sock.send({
+      id: "set-policy",
+      type: "task.policy.set",
+      taskId,
+      payload: { mode: "agent", approvalPolicy: "workspace" },
+    });
+    await sock.waitForRequest("set-policy");
+    sock.send({ id: "auto-write", type: "prompt.send", taskId, payload: { message: "WRITE:auto.txt:hello" } });
+    const completed = await sock.waitFor("tool.completed", 8000);
+    expect(completed.payload?.tool?.isError).toBeFalsy();
+    const written = await import("node:fs/promises").then((fs) => fs.readFile(path.join(project, "auto.txt"), "utf8"));
+    expect(written).toBe("hello");
+
+    sock.send({
+      id: "set-ask",
+      type: "task.policy.set",
+      taskId,
+      payload: { mode: "ask", approvalPolicy: "ask" },
+    });
+    await sock.waitForRequest("set-ask");
+    sock.send({ id: "ask-write", type: "prompt.send", taskId, payload: { message: "WRITE:blocked-ask.txt:nope" } });
+    await sock.waitFor("approval.requested");
+    await sock.waitFor("tool.completed");
+    await expect(import("node:fs/promises").then((fs) => fs.access(path.join(project, "blocked-ask.txt")))).rejects.toThrow();
+
+    sock.send({ id: "plain", type: "prompt.send", taskId, payload: { message: "fork source hello" } });
+    await sock.waitFor("message.completed");
+    sock.send({ id: "snap-fork", type: "snapshot.request", payload: { taskId } });
+    const snap = await sock.waitFor("snapshot");
+    const user = snap.payload?.messages?.find((message) => message.text.includes("fork source hello"));
+    expect(user?.text).toBeTruthy();
+    // Timeline ids are hashed on the server; pull from the live snapshot payload.
+    const snapshotData = ctx.service.buildSnapshot(taskId) as { messages: Array<{ id: string; role: string; text: string }> };
+    const userMessage = snapshotData.messages.find((message) => message.role === "user" && message.text.includes("fork source hello"));
+    expect(userMessage).toBeTruthy();
+    sock.send({
+      id: "fork",
+      type: "session.fork",
+      taskId,
+      payload: { messageId: userMessage!.id, message: "after fork" },
+    });
+    await sock.waitForRequest("fork");
+    sock.ws.close();
+  }, 20_000);
+
   it("rejects foreign origins", async () => {
     const health = await fetch(`${ctx.base}/health`);
     const cookie = health.headers.get("set-cookie")?.split(";")[0] ?? "";

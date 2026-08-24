@@ -16,6 +16,12 @@ import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
 
+export type AgentCommand = {
+  name: string;
+  description?: string;
+  source?: string;
+};
+
 export type RuntimeSnapshot = {
   messages: TimelineMessage[];
   tools: ToolExecution[];
@@ -24,6 +30,7 @@ export type RuntimeSnapshot = {
   thinkingLevels: ThinkingLevel[];
   stats: SessionStats | null;
   generation: number;
+  commands: AgentCommand[];
 };
 
 type ApprovalPending = {
@@ -101,6 +108,7 @@ export class ProcessSupervisor {
       models: ModelRef[];
       thinkingLevels: ThinkingLevel[];
       stats: SessionStats | null;
+      commands: AgentCommand[];
     }
   >();
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
@@ -133,6 +141,27 @@ export class ProcessSupervisor {
     return this.runtimes.has(taskId);
   }
 
+  listApprovals(): ApprovalRequest[] {
+    return [...this.pendingApprovals.values()].map((item) => item.payload);
+  }
+
+  getApproval(requestId: string): ApprovalRequest | null {
+    return this.pendingApprovals.get(requestId)?.payload ?? null;
+  }
+
+  replaceMessages(taskId: string, messages: TimelineMessage[]): void {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return;
+    runtime.messages = messages.map((item) => ({ ...item }));
+    runtime.liveAssistantId = null;
+  }
+
+  setCommands(taskId: string, commands: Array<{ name: string; description?: string; source?: string }>): void {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return;
+    runtime.commands = commands;
+  }
+
   snapshot(taskId: string): RuntimeSnapshot | null {
     const runtime = this.runtimes.get(taskId);
     if (!runtime) return null;
@@ -144,6 +173,7 @@ export class ProcessSupervisor {
       thinkingLevels: runtime.thinkingLevels,
       stats: runtime.stats,
       generation: runtime.generation,
+      commands: runtime.commands,
     };
   }
 
@@ -173,6 +203,7 @@ export class ProcessSupervisor {
       models: [] as ModelRef[],
       thinkingLevels: ["off"] as ThinkingLevel[],
       stats: null as SessionStats | null,
+      commands: [] as AgentCommand[],
     };
 
     const client = new RpcClient({
@@ -213,6 +244,18 @@ export class ProcessSupervisor {
     const messages = await this.rpcData(task.id, { type: "get_messages" });
     const models = await this.rpcData(task.id, { type: "get_available_models" });
     const levels = await this.rpcData(task.id, { type: "get_available_thinking_levels" });
+    try {
+      const commands = await this.rpcData(task.id, { type: "get_commands" });
+      runtime.commands = Array.isArray((commands as { commands?: unknown[] })?.commands)
+        ? ((commands as { commands: Array<Record<string, unknown>> }).commands).map((command) => ({
+            name: String(command.name ?? ""),
+            description: typeof command.description === "string" ? command.description : undefined,
+            source: typeof command.source === "string" ? command.source : undefined,
+          }))
+        : [];
+    } catch {
+      runtime.commands = [];
+    }
 
     const stateData = (state ?? {}) as Record<string, unknown>;
     const messageData = (messages ?? {}) as { messages?: unknown[] };
@@ -425,14 +468,18 @@ export class ProcessSupervisor {
           this.config.approvalTimeoutMs,
         );
         if (!approval) break;
-        runtime.approval = approval;
         const tool = [...runtime.tools.values()].find(
           (item) => item.toolCallId === approval.toolCallId || item.status === "running",
         );
         if (tool) {
           tool.status = "waiting_approval";
+          const args = tool.args && typeof tool.args === "object" ? (tool.args as Record<string, unknown>) : {};
+          if (typeof args.oldText === "string") approval.oldText = args.oldText;
+          if (typeof args.newText === "string") approval.newText = args.newText;
+          if (typeof args.content === "string") approval.content = args.content;
           this.emit(taskId, "tool.updated", { tool });
         }
+        runtime.approval = approval;
         const timer = setTimeout(() => {
           this.denyOne(approval.requestId, "Approval timed out");
         }, this.config.approvalTimeoutMs);

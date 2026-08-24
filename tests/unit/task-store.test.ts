@@ -21,6 +21,8 @@ function sample(id: string): TaskRecord {
     lastOpenedAt: now,
     archivedAt: null,
     unreadCount: 0,
+    mode: "agent",
+    approvalPolicy: "ask",
   };
 }
 

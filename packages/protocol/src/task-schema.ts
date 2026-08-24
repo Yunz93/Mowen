@@ -10,6 +10,12 @@ export const thinkingLevelSchema = z.enum([
   "max",
 ]);
 
+export const interactionModeSchema = z.enum(["ask", "plan", "agent", "review"]);
+export type InteractionMode = z.infer<typeof interactionModeSchema>;
+
+export const approvalPolicySchema = z.enum(["ask", "workspace", "read_only"]);
+export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
+
 export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>;
 
 export const taskStatusSchema = z.enum([
@@ -69,6 +75,8 @@ export const taskRecordSchema = z.object({
   archivedAt: isoTimestampSchema.nullable(),
   unreadCount: z.number().int().nonnegative(),
   errorMessage: z.string().nullable().optional(),
+  mode: interactionModeSchema.default("agent"),
+  approvalPolicy: approvalPolicySchema.default("ask"),
 });
 
 export type TaskRecord = z.infer<typeof taskRecordSchema>;
@@ -98,6 +106,9 @@ export const approvalRequestSchema = z.object({
   rawCommand: z.string().optional(),
   risk: z.string(),
   expiresAt: isoTimestampSchema,
+  oldText: z.string().optional(),
+  newText: z.string().optional(),
+  content: z.string().optional(),
 });
 
 export type ApprovalRequest = z.infer<typeof approvalRequestSchema>;

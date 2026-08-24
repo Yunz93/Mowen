@@ -32,6 +32,9 @@ export const serverEventTypeSchema = z.enum([
   "files.tree",
   "files.preview",
   "models.updated",
+  "commands.updated",
+  "git.status",
+  "checkpoints.updated",
 ]);
 
 export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
@@ -65,6 +68,40 @@ export const snapshotPayloadSchema = z.object({
   needsSetup: z.boolean().optional(),
   homeDir: z.string().optional(),
   workspaceRoot: z.string().nullable().optional(),
+  pendingApprovals: z.array(approvalRequestSchema).optional(),
+  commands: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        source: z.string().optional(),
+      }),
+    )
+    .optional(),
+  git: z
+    .object({
+      branch: z.string().nullable(),
+      dirty: z.boolean(),
+      entries: z.array(
+        z.object({
+          path: z.string(),
+          status: z.string(),
+        }),
+      ),
+    })
+    .nullable()
+    .optional(),
+  checkpoints: z
+    .array(
+      z.object({
+        id: z.string(),
+        taskId: z.string(),
+        path: z.string(),
+        createdAt: z.string(),
+        toolName: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;
@@ -206,6 +243,43 @@ export const serverEventSchema = z.discriminatedUnion("type", [
     payload: z.object({
       models: z.array(modelRefSchema),
       thinkingLevels: z.array(thinkingLevelSchema),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("commands.updated"),
+    payload: z.object({
+      commands: z.array(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          source: z.string().optional(),
+        }),
+      ),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("git.status"),
+    payload: z.object({
+      branch: z.string().nullable(),
+      dirty: z.boolean(),
+      entries: z.array(z.object({ path: z.string(), status: z.string() })),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("checkpoints.updated"),
+    payload: z.object({
+      checkpoints: z.array(
+        z.object({
+          id: z.string(),
+          taskId: z.string(),
+          path: z.string(),
+          createdAt: z.string(),
+          toolName: z.string().optional(),
+        }),
+      ),
     }),
   }),
 ]);
