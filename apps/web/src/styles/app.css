@@ -234,6 +234,21 @@ html.dark {
     color: var(--color-ink);
   }
 
+  .source-item-accessory {
+    opacity: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .source-item .source-item-accessory {
+      opacity: 0;
+    }
+
+    .source-item:hover .source-item-accessory,
+    .source-item:focus-within .source-item-accessory {
+      opacity: 1;
+    }
+  }
+
   .settings-shell {
     max-width: 640px;
     margin-inline: auto;
@@ -348,12 +363,17 @@ html.dark {
   }
 
   .field {
-    min-height: 32px;
+    min-height: 28px;
     border-radius: 8px;
     border: 0.5px solid var(--color-line);
     background: var(--color-fill);
     padding: 0 10px;
     color: var(--color-ink);
+  }
+
+  textarea.field {
+    min-height: 64px;
+    padding: 8px 10px;
   }
 
   .icon-btn {

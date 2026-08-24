@@ -87,23 +87,31 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
               这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
             </p>
             {onRuntimeSet ? (
-              <div className="mt-3 space-y-2">
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={runtime?.autoCompaction !== false}
-                    onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
-                  />
-                  接近上限时自动压缩
-                </label>
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={runtime?.autoRetry !== false}
-                    onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
-                  />
-                  出错时自动重试
-                </label>
+              <div className="settings-card mt-3">
+                <div className="settings-row items-center">
+                  <p className="text-[13px] text-ink">接近上限时自动压缩</p>
+                  <label className="mac-toggle">
+                    <input
+                      type="checkbox"
+                      checked={runtime?.autoCompaction !== false}
+                      onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
+                      aria-label="接近上限时自动压缩"
+                    />
+                    <span />
+                  </label>
+                </div>
+                <div className="settings-row items-center">
+                  <p className="text-[13px] text-ink">出错时自动重试</p>
+                  <label className="mac-toggle">
+                    <input
+                      type="checkbox"
+                      checked={runtime?.autoRetry !== false}
+                      onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
+                      aria-label="出错时自动重试"
+                    />
+                    <span />
+                  </label>
+                </div>
               </div>
             ) : null}
             {onCompact ? (

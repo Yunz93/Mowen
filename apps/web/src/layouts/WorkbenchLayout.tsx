@@ -210,17 +210,19 @@ export function WorkbenchLayout() {
               {resources.skills.length ? ` · ${resources.skills.length} 个技能` : ""}
             </p>
           ) : null}
-          <div className="app-no-drag hidden sm:block">
-            <ContextMeter
-              stats={stats}
-              runtime={runtime}
-              compact
-              onCompact={(customInstructions) =>
-                task && void socketClient.send("session.compact", { customInstructions }, task.id)
-              }
-              onRuntimeSet={(payload) => task && void socketClient.send("runtime.set", payload, task.id)}
-            />
-          </div>
+          {task ? (
+            <div className="app-no-drag hidden sm:block">
+              <ContextMeter
+                stats={stats}
+                runtime={runtime}
+                compact
+                onCompact={(customInstructions) =>
+                  void socketClient.send("session.compact", { customInstructions }, task.id)
+                }
+                onRuntimeSet={(payload) => void socketClient.send("runtime.set", payload, task.id)}
+              />
+            </div>
+          ) : null}
           <div className="app-no-drag flex items-center gap-0.5">
             <ThemeToggle />
             <button
@@ -280,7 +282,7 @@ export function WorkbenchLayout() {
               onClone={() => void socketClient.send("session.clone", {}, task.id)}
             />
           ) : (
-            <div className="mx-auto flex max-w-[420px] flex-col items-center px-6 pt-28 text-center">
+            <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
               <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是墨问</p>
               <p className="mt-3 text-[13px] leading-6 text-mute">
                 在这台电脑上和 AI 聊天。它可以帮助看文件、改代码，改之前会先问你。
@@ -309,44 +311,45 @@ export function WorkbenchLayout() {
             />
           </div>
         ) : null}
-        <PromptComposer
-          status={status}
-          disabled={!task || connection !== "open" || Boolean(approval)}
-          models={models}
-          thinkingLevels={thinkingLevels}
-          modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}
-          thinkingLevel={task?.thinkingLevel ?? "off"}
-          mode={task?.mode ?? "agent"}
-          approvalPolicy={task?.approvalPolicy ?? "ask"}
-          files={files}
-          commands={commands}
-          hasTurns={messages.some((item) => item.role === "user")}
-          value={draft}
-          onChange={setDraft}
-          onSend={() => void sendPrompt()}
-          onSteer={() => {
-            if (!task) return;
-            const text = draft;
-            const images = imageIds;
-            setDraft("");
-            setImageIds([]);
-            void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
-          }}
-          onFollowUp={() => void sendPrompt()}
-          onAbort={() => task && void socketClient.send("agent.abort", {}, task.id)}
-          onModel={(provider, modelId) =>
-            task && void socketClient.send("model.set", { provider, modelId }, task.id)
-          }
-          onThinking={(level: ThinkingLevel) =>
-            task && void socketClient.send("thinking.set", { level }, task.id)
-          }
-          onPolicy={(nextMode: InteractionMode, nextPolicy: ApprovalPolicy) =>
-            task && void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
-          }
-          onImages={(files) => void uploadImages(files)}
-          onNeedFiles={requestFiles}
-          imageCount={imageIds.length}
-        />
+        {task ? (
+          <PromptComposer
+            status={status}
+            disabled={connection !== "open" || Boolean(approval)}
+            models={models}
+            thinkingLevels={thinkingLevels}
+            modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
+            thinkingLevel={task.thinkingLevel ?? "off"}
+            mode={task.mode ?? "agent"}
+            approvalPolicy={task.approvalPolicy ?? "ask"}
+            files={files}
+            commands={commands}
+            hasTurns={messages.some((item) => item.role === "user")}
+            value={draft}
+            onChange={setDraft}
+            onSend={() => void sendPrompt()}
+            onSteer={() => {
+              const text = draft;
+              const images = imageIds;
+              setDraft("");
+              setImageIds([]);
+              void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
+            }}
+            onFollowUp={() => void sendPrompt()}
+            onAbort={() => void socketClient.send("agent.abort", {}, task.id)}
+            onModel={(provider, modelId) =>
+              void socketClient.send("model.set", { provider, modelId }, task.id)
+            }
+            onThinking={(level: ThinkingLevel) =>
+              void socketClient.send("thinking.set", { level }, task.id)
+            }
+            onPolicy={(nextMode: InteractionMode, nextPolicy: ApprovalPolicy) =>
+              void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
+            }
+            onImages={(files) => void uploadImages(files)}
+            onNeedFiles={requestFiles}
+            imageCount={imageIds.length}
+          />
+        ) : null}
       </div>
 
       {taskOpen ? (

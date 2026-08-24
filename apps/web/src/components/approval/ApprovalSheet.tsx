@@ -61,14 +61,20 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
             <DiffView oldText={approval.oldText} newText={approval.newText} content={approval.content} />
           </div>
         ) : null}
-        <label className="mt-3 flex items-center gap-2 text-[12px] text-ink">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(event) => setRemember(event.target.checked)}
-          />
-          记住这次（同样的路径或命令不再问）
-        </label>
+        <div className="settings-card mt-3">
+          <div className="settings-row items-center">
+            <p className="text-[13px] text-ink">记住这次（同样的路径或命令不再问）</p>
+            <label className="mac-toggle">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(event) => setRemember(event.target.checked)}
+                aria-label="记住这次（同样的路径或命令不再问）"
+              />
+              <span />
+            </label>
+          </div>
+        </div>
         <p className="mt-3 text-[12px] text-mute">{seconds} 秒后自动拒绝</p>
       </div>
       <div className="dialog-actions dialog-actions-split">
