@@ -7,6 +7,9 @@ type Props = {
   runtime?: RuntimeState | null;
   onCompact?: (customInstructions?: string) => void;
   onRuntimeSet?: (payload: { autoCompaction?: boolean; autoRetry?: boolean }) => void;
+  onRefresh?: () => void;
+  messageCount?: number;
+  toolCount?: number;
   compact?: boolean;
 };
 
@@ -15,12 +18,23 @@ function compactNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact }: Props) {
+export function ContextMeter({
+  stats,
+  runtime,
+  onCompact,
+  onRuntimeSet,
+  onRefresh,
+  messageCount = 0,
+  toolCount = 0,
+  compact,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [instructions, setInstructions] = useState("");
   const usage = stats?.contextUsage;
   const percent = usage?.percent == null ? null : Math.max(0, Math.min(100, usage.percent));
   const tone = percent == null ? "text-mute" : percent >= 85 ? "text-danger" : percent >= 70 ? "text-warn" : "text-accent";
+  const totalMessages = stats?.totalMessages ?? messageCount;
+  const toolCalls = stats?.toolCalls ?? toolCount;
 
   useEffect(() => {
     if (!open) return;
@@ -35,11 +49,17 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
     <div className="relative">
       <button
         type="button"
-        className={`pressable flex h-10 items-center gap-2 rounded-md bg-elevated px-3 font-mono text-[11px] tabular ${tone}`}
+        className={`pressable flex h-7 items-center gap-1.5 rounded-md px-2 font-mono text-[11px] tabular ${tone}`}
         aria-label="上下文用量"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          setOpen((value) => {
+            const next = !value;
+            if (next) onRefresh?.();
+            return next;
+          });
+        }}
       >
         <Gauge size={14} />
         <span>{compact ? (percent == null ? "--" : `${Math.round(percent)}%`) : `上下文 ${percent == null ? "--" : `${Math.round(percent)}%`}`}</span>
@@ -76,34 +96,42 @@ export function ContextMeter({ stats, runtime, onCompact, onRuntimeSet, compact 
             <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-[11px] tabular">
               <div className="rounded-md bg-canvas p-3">
                 <dt className="text-mute">消息</dt>
-                <dd className="mt-1 text-ink">{stats?.totalMessages ?? "—"}</dd>
+                <dd className="mt-1 text-ink">{totalMessages}</dd>
               </div>
               <div className="rounded-md bg-canvas p-3">
                 <dt className="text-mute">工具调用</dt>
-                <dd className="mt-1 text-ink">{stats?.toolCalls ?? "—"}</dd>
+                <dd className="mt-1 text-ink">{toolCalls}</dd>
               </div>
             </dl>
             <p className="mt-3 text-xs leading-5 text-mute">
               这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
             </p>
             {onRuntimeSet ? (
-              <div className="mt-3 space-y-2">
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={runtime?.autoCompaction !== false}
-                    onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
-                  />
-                  接近上限时自动压缩
-                </label>
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={runtime?.autoRetry !== false}
-                    onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
-                  />
-                  出错时自动重试
-                </label>
+              <div className="settings-card mt-3">
+                <div className="settings-row items-center">
+                  <p className="text-[13px] text-ink">接近上限时自动压缩</p>
+                  <label className="mac-toggle">
+                    <input
+                      type="checkbox"
+                      checked={runtime?.autoCompaction !== false}
+                      onChange={(event) => onRuntimeSet({ autoCompaction: event.target.checked })}
+                      aria-label="接近上限时自动压缩"
+                    />
+                    <span />
+                  </label>
+                </div>
+                <div className="settings-row items-center">
+                  <p className="text-[13px] text-ink">出错时自动重试</p>
+                  <label className="mac-toggle">
+                    <input
+                      type="checkbox"
+                      checked={runtime?.autoRetry !== false}
+                      onChange={(event) => onRuntimeSet({ autoRetry: event.target.checked })}
+                      aria-label="出错时自动重试"
+                    />
+                    <span />
+                  </label>
+                </div>
               </div>
             ) : null}
             {onCompact ? (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronLeft } from "lucide-react";
 import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
@@ -65,100 +66,141 @@ export function SettingsPage() {
   }
 
   return (
-    <main id="main-content" className="min-h-dvh bg-canvas px-6 py-8 text-ink">
+    <div className="flex min-h-dvh flex-col bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
         跳到正文
       </a>
-      <Link to="/" className="pressable inline-flex h-10 items-center text-sm text-accent">
-        返回对话
-      </Link>
-      <h1 className="mt-6 text-2xl">设置</h1>
-      <p className="mt-2 max-w-[65ch] text-sm leading-6 text-mute">
-        墨问只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
-      </p>
-
-      <div className="mt-8 max-w-xl">
-        <p className="text-sm text-mute">外观</p>
-        <div className="seg mt-2 w-fit min-w-[200px]">
-          {(["dark", "light"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={`pressable btn ${theme === value ? "seg-active" : "text-mute"}`}
-              aria-pressed={theme === value}
-              onClick={() => setTheme(value)}
-            >
-              {value === "dark" ? "深色" : "浅色"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <button
-          type="button"
-          className="pressable btn btn-primary"
-          onClick={() => setWizardOpen(true)}
+      <header className="titlebar app-drag traffic-inline flex items-center gap-2 border-b border-line px-3">
+        <Link
+          to="/"
+          className="pressable app-no-drag inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[13px] text-accent"
         >
-          打开设置向导
-        </button>
-      </div>
+          <ChevronLeft size={16} />
+          返回对话
+        </Link>
+        <h1 className="flex-1 text-center text-[13px] font-semibold tracking-tight">设置</h1>
+        <span className="w-[72px]" />
+      </header>
+      <main id="main-content" className="flex-1 overflow-y-auto px-5 py-8">
+        <div className="settings-shell space-y-7">
+          <p className="px-1 text-[13px] leading-6 text-mute">
+            墨问只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
+          </p>
 
-      <dl className="mt-8 max-w-xl space-y-4 text-sm">
-        <div>
-          <dt className="text-mute">AI 引擎</dt>
-          <dd>{piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好")}</dd>
+          <section>
+            <h2 className="settings-label">外观</h2>
+            <div className="settings-card">
+              <div className="settings-row items-center">
+                <p className="text-[13px] text-ink">主题</p>
+                <div className="seg w-[168px]">
+                  {(["light", "dark"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`pressable btn ${theme === value ? "seg-active" : "text-mute"}`}
+                      aria-pressed={theme === value}
+                      onClick={() => setTheme(value)}
+                    >
+                      {value === "dark" ? "深色" : "浅色"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="settings-label">账户与引擎</h2>
+            <div className="settings-card">
+              <div className="settings-row">
+                <div>
+                  <p className="text-[13px] text-ink">AI 引擎</p>
+                  <p className="mt-0.5 text-[12px] text-mute">
+                    {piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好")}
+                  </p>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div className="min-w-0">
+                  <p className="text-[13px] text-ink">本机 Pi 登录</p>
+                  <div className="mt-1 text-[12px] text-mute">
+                    {authEntries.length ? (
+                      <ul className="space-y-1">
+                        {authEntries.map((entry) => (
+                          <li key={entry.id} className="text-ink">
+                            {entry.label}
+                            <span className="ml-2 text-mute">
+                              {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : authConfigured ? (
+                      configuredProviders.length ? configuredProviders.join("、") : "已连接"
+                    ) : (
+                      "还没有登录 — 打开向导，或在终端运行 pi 后输入 /login"
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div>
+                  <p className="text-[13px] text-ink">models.json</p>
+                  <p className="mt-0.5 text-[12px] text-mute">
+                    {models.present ? `已找到${models.count ? ` · ${models.count} 个模型` : ""}` : "未找到。Pi 会用默认模型列表。"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="settings-label">项目</h2>
+            <div className="settings-card">
+              <div className="settings-row items-center">
+                <div className="min-w-0 pr-3">
+                  <p className="text-[13px] text-ink">信任当前项目</p>
+                  <p className="mt-0.5 text-[12px] leading-5 text-mute">
+                    加载这个文件夹里的项目技能和提示。下次启动对话才会生效。墨问仍不会加载项目里的 TypeScript 扩展。
+                  </p>
+                </div>
+                <label className="mac-toggle">
+                  <input
+                    type="checkbox"
+                    checked={trustProject}
+                    disabled={trustBusy}
+                    onChange={(event) => void toggleTrust(event.target.checked)}
+                    aria-label="信任当前项目"
+                  />
+                  <span />
+                </label>
+              </div>
+              <div className="settings-row">
+                <div className="min-w-0">
+                  <p className="text-[13px] text-ink">工作文件夹</p>
+                  <p className="mt-0.5 break-all font-mono text-[11px] text-mute">
+                    {workspaceRoot ?? allowedRoots[0] ?? "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div className="min-w-0">
+                  <p className="text-[13px] text-ink">数据保存在</p>
+                  <p className="mt-0.5 break-all font-mono text-[11px] text-mute">{dataDir}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <button
+            type="button"
+            className="pressable btn btn-primary"
+            onClick={() => setWizardOpen(true)}
+          >
+            打开设置向导
+          </button>
         </div>
-        <div>
-          <dt className="text-mute">本机 Pi 登录</dt>
-          <dd>
-            {authEntries.length ? (
-              <ul className="mt-1 space-y-1">
-                {authEntries.map((entry) => (
-                  <li key={entry.id}>
-                    {entry.label}
-                    <span className="ml-2 text-mute">
-                      {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : authConfigured ? (
-              configuredProviders.length ? configuredProviders.join("、") : "已连接"
-            ) : (
-              "还没有登录 — 打开向导，或在终端运行 pi 后输入 /login"
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-mute">models.json</dt>
-          <dd>{models.present ? `已找到${models.count ? ` · ${models.count} 个模型` : ""}` : "未找到。Pi 会用默认模型列表。"}</dd>
-        </div>
-        <div>
-          <dt className="text-mute">信任当前项目</dt>
-          <dd>
-            <label className="mt-1 flex items-start gap-2 text-ink">
-              <input
-                type="checkbox"
-                checked={trustProject}
-                disabled={trustBusy}
-                onChange={(event) => void toggleTrust(event.target.checked)}
-              />
-              <span>
-                加载这个文件夹里的项目技能和提示。下次启动对话才会生效。墨问仍不会加载项目里的 TypeScript 扩展。
-              </span>
-            </label>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-mute">工作文件夹</dt>
-          <dd className="break-all">{workspaceRoot ?? allowedRoots[0] ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-mute">数据保存在</dt>
-          <dd className="break-all">{dataDir}</dd>
-        </div>
-      </dl>
+      </main>
 
       {wizardOpen ? (
         <SetupWizard
@@ -179,6 +221,6 @@ export function SettingsPage() {
           }}
         />
       ) : null}
-    </main>
+    </div>
   );
 }

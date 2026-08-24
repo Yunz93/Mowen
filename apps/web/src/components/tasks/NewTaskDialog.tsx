@@ -112,7 +112,7 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
                   <li key={session.path}>
                     <button
                       type="button"
-                      className="pressable hover-fill block w-full rounded-sm px-2 py-2 text-left"
+                      className="pressable hover-fill block w-full rounded-md px-2 py-2 text-left"
                       onClick={() => onResume?.(session)}
                     >
                       <span className="block truncate text-sm text-ink">

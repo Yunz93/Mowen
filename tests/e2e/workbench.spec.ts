@@ -55,6 +55,8 @@ test("workbench core loop", async ({ page }) => {
   await page.getByLabel("输入消息").fill("WRITE:denied.txt:secret");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("heading", { name: "允许修改文件吗？" })).toBeVisible();
+  await page.getByLabel("输入消息").click({ force: true });
+  await expect(page.getByRole("button", { name: "允许这次" })).toBeVisible();
   await page.getByRole("button", { name: "拒绝", exact: true }).click();
   expect(existsSync(path.join(project, "denied.txt"))).toBe(false);
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
@@ -62,6 +64,8 @@ test("workbench core loop", async ({ page }) => {
   await page.getByLabel("输入消息").fill("BASH:echo hi");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("heading", { name: "允许运行这条命令吗？" })).toBeVisible();
+  await page.locator(".composer-well").click({ force: true, position: { x: 24, y: 16 } });
+  await expect(page.getByRole("button", { name: "拒绝", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "拒绝", exact: true }).click();
 
   await page.reload();
@@ -69,7 +73,6 @@ test("workbench core loop", async ({ page }) => {
 
   await page.getByRole("button", { name: "选项" }).click();
   await page.getByLabel("思考深度").selectOption("high");
-  await page.getByRole("button", { name: "会话", exact: true }).click();
   await page.getByRole("button", { name: /归档 E2E task/ }).click();
 });
 
@@ -132,14 +135,15 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
 
   await page.getByRole("button", { name: "详情" }).click();
   await page.getByRole("button", { name: "技能" }).click();
-  await expect(page.getByRole("complementary").getByText(/agents ·/)).toBeVisible();
-  await expect(page.getByRole("complementary").getByText("demo")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText(/agents ·/)).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await page.getByRole("button", { name: "动态" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
   await page.getByRole("button", { name: "上下文用量" }).click();
+  await expect(page.getByRole("dialog", { name: "上下文用量" }).getByText(/20 \/ .+ tokens/)).toBeVisible();
   await expect(page.getByText("接近上限时自动压缩")).toBeVisible();
   await expect(page.getByText("出错时自动重试")).toBeVisible();
   await expect(page.getByLabel("压缩时额外交代")).toBeVisible();

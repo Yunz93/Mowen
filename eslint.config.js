@@ -14,6 +14,7 @@ export default tseslint.config(
       "apps/desktop/release/**",
       "apps/desktop/vendor/**",
       "tests/fixtures/**",
+      ".mowen-test/**",
       "scripts/**/*.mjs",
       "apps/desktop/scripts/**",
       "apps/desktop/afterPack.mjs",

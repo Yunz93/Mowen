@@ -72,14 +72,14 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索会话和命令"
           aria-label="命令面板"
-          className="h-11 w-full bg-transparent px-3 text-sm text-ink placeholder:text-mute"
+          className="h-10 w-full bg-transparent px-3 text-[15px] text-ink placeholder:text-mute"
         />
         <ul className="mt-1 max-h-72 overflow-auto border-t border-line pt-1">
           {items.map((item) => (
             <li key={item.id}>
               <button
                 type="button"
-                className="pressable hover-fill flex h-10 w-full items-center rounded-md px-3 text-left text-sm text-ink"
+                className="pressable hover-fill flex h-8 w-full items-center rounded-md px-3 text-left text-[13px] text-ink"
                 onClick={() => {
                   item.run();
                   onClose();

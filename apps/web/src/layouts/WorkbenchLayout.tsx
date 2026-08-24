@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderOpen, MessageSquare, PanelRight, Settings } from "lucide-react";
+import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
 import { PromptComposer } from "../components/composer/PromptComposer";
@@ -93,6 +93,15 @@ export function WorkbenchLayout() {
           setInspectorOpen(false);
           return;
         }
+        if (approval) {
+          event.preventDefault();
+          void socketClient.send(
+            "approval.respond",
+            { requestId: approval.requestId, allow: false, remember: false },
+            approval.taskId,
+          );
+          return;
+        }
         event.preventDefault();
         if (task) void socketClient.send("agent.abort", {}, task.id);
       }
@@ -107,7 +116,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [creating, inspectorOpen, paletteOpen, task, taskOpen]);
+  }, [approval, creating, inspectorOpen, paletteOpen, task, taskOpen]);
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
@@ -128,7 +137,7 @@ export function WorkbenchLayout() {
     await socketClient.send("prompt.send", { message: text, imageIds: images }, task.id);
   };
 
-  async function uploadImages(files: FileList) {
+  async function uploadImages(files: FileList | File[]) {
     const ids: string[] = [];
     for (const file of [...files]) {
       const body = new FormData();
@@ -147,85 +156,104 @@ export function WorkbenchLayout() {
 
   const hasChanges = tools.some((tool) => tool.toolName === "write" || tool.toolName === "edit");
 
+  const sidebar = (
+    <TaskSidebar
+      tasks={tasks}
+      activeTaskId={activeTaskId}
+      query={query}
+      onQuery={setQuery}
+      onSelect={(id) => void selectTask(id)}
+      onArchive={(id) => void socketClient.send("task.archive", {}, id)}
+      onNew={() => {
+        setTaskOpen(false);
+        setCreating(true);
+      }}
+    />
+  );
+
   return (
-    <div className="relative flex h-dvh bg-canvas text-ink">
+    <div className="relative flex h-dvh overflow-hidden bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
         跳到正文
       </a>
-      <div className="flex min-w-0 flex-1 flex-col bg-canvas">
-        <header className="flex h-12 items-center gap-2 border-b border-line px-3 sm:px-4">
+      <div className="hidden md:flex">{sidebar}</div>
+      <div className="flex min-w-0 flex-1 flex-col bg-surface">
+        <header className="titlebar app-drag flex items-center gap-2 border-b border-line px-3">
           <button
             type="button"
-            className="pressable hover-fill inline-flex h-10 items-center gap-2 rounded-sm px-3 text-sm text-ink"
+            className="pressable app-no-drag hover-fill inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink md:hidden"
             onClick={() => setTaskOpen(true)}
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={14} />
             会话
           </button>
           <button
             type="button"
-            className="pressable icon-btn"
+            className="pressable app-no-drag icon-btn md:hidden"
             aria-label="新对话"
             onClick={() => setCreating(true)}
           >
-            <FolderOpen size={16} />
+            <Plus size={15} />
           </button>
-          <PiStatusRing status={status} />
+          <PiStatusRing status={status} size={18} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-ink">{task?.title ?? "还没有对话"}</p>
-            <p className="hidden truncate text-[12px] text-mute sm:block">
+            <p className="truncate text-[13px] font-medium tracking-tight text-ink">{task?.title ?? "还没有对话"}</p>
+            <p className="hidden truncate text-[11px] text-mute sm:block">
               {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
           </div>
           {resources && (resources.agentsFiles.length > 0 || resources.skills.length > 0) ? (
-            <p className="hidden truncate text-[11px] text-mute lg:block">
+            <p className="chip app-no-drag hidden max-w-[220px] truncate lg:inline-flex">
               {resources.agentsFiles.some((item) => item.kind === "agents")
                 ? "已加载 AGENTS.md"
                 : "已加载上下文文件"}
               {resources.skills.length ? ` · ${resources.skills.length} 个技能` : ""}
             </p>
           ) : null}
-          <div className="hidden sm:block">
-            <ContextMeter
-              stats={stats}
-              runtime={runtime}
-              compact
-              onCompact={(customInstructions) =>
-                task && void socketClient.send("session.compact", { customInstructions }, task.id)
-              }
-              onRuntimeSet={(payload) => task && void socketClient.send("runtime.set", payload, task.id)}
-            />
+          {task ? (
+            <div className="app-no-drag hidden sm:block">
+              <ContextMeter
+                stats={stats}
+                runtime={runtime}
+                compact
+                messageCount={messages.length}
+                toolCount={tools.length}
+                onRefresh={() => void socketClient.send("session.stats", {}, task.id)}
+                onCompact={(customInstructions) =>
+                  void socketClient.send("session.compact", { customInstructions }, task.id)
+                }
+                onRuntimeSet={(payload) => void socketClient.send("runtime.set", payload, task.id)}
+              />
+            </div>
+          ) : null}
+          <div className="app-no-drag flex items-center gap-0.5">
+            <ThemeToggle />
+            <button
+              type="button"
+              className="pressable icon-btn"
+              aria-label="详情"
+              onClick={() => setInspectorOpen(true)}
+            >
+              <PanelRight size={15} />
+            </button>
+            <Link to="/settings" aria-label="设置" className="pressable icon-btn">
+              <Settings size={15} />
+            </Link>
           </div>
-          <ThemeToggle />
-          <button
-            type="button"
-            className="pressable icon-btn"
-            aria-label="详情"
-            onClick={() => setInspectorOpen(true)}
-          >
-            <PanelRight size={16} />
-          </button>
-          <Link
-            to="/settings"
-            aria-label="设置"
-            className="pressable icon-btn"
-          >
-            <Settings size={16} />
-          </Link>
         </header>
         <RunStatusBar status={status} tools={tools} hasChanges={hasChanges} runtime={runtime} />
         {!piAvailable ? (
-          <div className="border-b border-danger/40 bg-elevated px-4 py-2 text-sm text-danger">
+          <div className="banner-note text-danger">
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
           </div>
         ) : null}
         {connection !== "open" ? (
-          <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
+          <div className="banner-note text-mute">
             {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
           </div>
         ) : null}
         {authHint || serverError || requestError || notice ? (
-          <div className="border-b border-line bg-elevated px-4 py-2 text-sm text-mute">
+          <div className="banner-note text-mute">
             {notice
               ? notice
               : authHint
@@ -234,11 +262,11 @@ export function WorkbenchLayout() {
           </div>
         ) : null}
         {otherApproval ? (
-          <div className="border-b border-warn/40 bg-elevated px-4 py-2 text-sm text-ink">
+          <div className="banner-note text-ink">
             另一个会话在等待确认。
             <button
               type="button"
-              className="pressable ml-3 text-accent"
+              className="pressable app-no-drag text-accent"
               onClick={() => void selectTask(otherApproval.taskId)}
             >
               去处理
@@ -257,14 +285,14 @@ export function WorkbenchLayout() {
               onClone={() => void socketClient.send("session.clone", {}, task.id)}
             />
           ) : (
-            <div className="mx-auto flex max-w-[520px] flex-col items-center px-6 pt-24 text-center">
-              <p className="text-xl text-ink">你好，我是墨问</p>
-              <p className="mt-3 text-sm leading-6 text-mute">
+            <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
+              <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是墨问</p>
+              <p className="mt-3 text-[13px] leading-6 text-mute">
                 在这台电脑上和 AI 聊天。它可以帮助看文件、改代码，改之前会先问你。
               </p>
               <button
                 type="button"
-                className="pressable btn btn-primary mt-6"
+                className="pressable btn btn-primary mt-7"
                 onClick={() => setCreating(true)}
               >
                 开始对话
@@ -273,7 +301,7 @@ export function WorkbenchLayout() {
           )}
         </main>
         {approval ? (
-          <div className="mx-auto w-full max-w-[720px] px-4">
+          <div className="dialog-scrim z-[60]" role="presentation">
             <ApprovalSheet
               approval={approval}
               onRespond={(allow, remember) =>
@@ -286,51 +314,52 @@ export function WorkbenchLayout() {
             />
           </div>
         ) : null}
-        <PromptComposer
-          status={status}
-          disabled={!task || connection !== "open"}
-          models={models}
-          thinkingLevels={thinkingLevels}
-          modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}
-          thinkingLevel={task?.thinkingLevel ?? "off"}
-          mode={task?.mode ?? "agent"}
-          approvalPolicy={task?.approvalPolicy ?? "ask"}
-          files={files}
-          commands={commands}
-          hasTurns={messages.some((item) => item.role === "user")}
-          value={draft}
-          onChange={setDraft}
-          onSend={() => void sendPrompt()}
-          onSteer={() => {
-            if (!task) return;
-            const text = draft;
-            const images = imageIds;
-            setDraft("");
-            setImageIds([]);
-            void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
-          }}
-          onFollowUp={() => void sendPrompt()}
-          onAbort={() => task && void socketClient.send("agent.abort", {}, task.id)}
-          onModel={(provider, modelId) =>
-            task && void socketClient.send("model.set", { provider, modelId }, task.id)
-          }
-          onThinking={(level: ThinkingLevel) =>
-            task && void socketClient.send("thinking.set", { level }, task.id)
-          }
-          onPolicy={(nextMode: InteractionMode, nextPolicy: ApprovalPolicy) =>
-            task && void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
-          }
-          onImages={(files) => void uploadImages(files)}
-          onNeedFiles={requestFiles}
-          imageCount={imageIds.length}
-        />
+        {task ? (
+          <PromptComposer
+            status={status}
+            disabled={connection !== "open" || Boolean(approval)}
+            models={models}
+            thinkingLevels={thinkingLevels}
+            modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
+            thinkingLevel={task.thinkingLevel ?? "off"}
+            mode={task.mode ?? "agent"}
+            approvalPolicy={task.approvalPolicy ?? "ask"}
+            files={files}
+            commands={commands}
+            hasTurns={messages.some((item) => item.role === "user")}
+            value={draft}
+            onChange={setDraft}
+            onSend={() => void sendPrompt()}
+            onSteer={() => {
+              const text = draft;
+              const images = imageIds;
+              setDraft("");
+              setImageIds([]);
+              void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
+            }}
+            onFollowUp={() => void sendPrompt()}
+            onAbort={() => void socketClient.send("agent.abort", {}, task.id)}
+            onModel={(provider, modelId) =>
+              void socketClient.send("model.set", { provider, modelId }, task.id)
+            }
+            onThinking={(level: ThinkingLevel) =>
+              void socketClient.send("thinking.set", { level }, task.id)
+            }
+            onPolicy={(nextMode: InteractionMode, nextPolicy: ApprovalPolicy) =>
+              void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
+            }
+            onImages={(files) => void uploadImages(files)}
+            onNeedFiles={requestFiles}
+            imageCount={imageIds.length}
+          />
+        ) : null}
       </div>
 
       {taskOpen ? (
-        <div className="fixed inset-0 z-30">
+        <div className="fixed inset-0 z-30 md:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-canvas/70"
+            className="absolute inset-0 bg-canvas/50 backdrop-blur-sm"
             aria-label="关闭会话列表"
             onClick={() => setTaskOpen(false)}
           />
@@ -356,11 +385,11 @@ export function WorkbenchLayout() {
         <div className="fixed inset-0 z-30">
           <button
             type="button"
-            className="absolute inset-0 bg-canvas/70"
+            className="absolute inset-0 bg-canvas/40 backdrop-blur-[2px]"
             aria-label="关闭详情"
             onClick={() => setInspectorOpen(false)}
           />
-          <div className="absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">
+          <div className="slide-in-right absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">
             <InspectorPanel
               drawer
               tools={tools}

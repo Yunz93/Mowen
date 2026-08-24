@@ -59,6 +59,17 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
       .catch(() => setError("连不上墨问。确认应用正在运行。"));
   }, []);
 
+  useEffect(() => {
+    if (!onCancel) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
   async function saveApiKey() {
     setBusy(true);
     setError("");
@@ -143,7 +154,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
         <div className="dialog-head">
           <div className="dialog-head-text">
             <p className="dialog-kicker">{isDesktopApp() ? "欢迎使用墨问" : "墨问设置"}</p>
-            <h1 id="setup-title" className="dialog-title text-2xl">
+            <h1 id="setup-title" className="dialog-title">
               {titles[step]}
             </h1>
           </div>

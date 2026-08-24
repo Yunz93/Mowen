@@ -49,7 +49,7 @@ export function RunStatusBar({ status, tools, hasChanges, runtime }: Props) {
     Boolean(runtime?.compacting || runtime?.retrying);
 
   return (
-    <div className="flex min-h-10 items-center gap-3 border-b border-line bg-elevated px-4 py-2 text-xs">
+    <div className="flex min-h-8 items-center gap-2.5 border-b border-line bg-surface px-4 py-1.5 text-[12px]">
       <Icon size={14} className={active ? "animate-spin text-accent motion-reduce:animate-none" : status === "waiting_approval" ? "text-warn" : "text-mute"} />
       <span className="font-medium text-ink">{current.label}</span>
       <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-mute">{current.detail}</span>

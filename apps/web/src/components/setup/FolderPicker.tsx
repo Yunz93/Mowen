@@ -31,16 +31,16 @@ function NativeFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
   }
 
   return (
-    <div className="rounded-md border border-line bg-surface p-3">
-      <p className="text-sm text-mute">文件夹</p>
-      <p className="mt-1 break-all font-mono text-[12px] text-ink">{current || "还没选择文件夹"}</p>
-      <button
-        type="button"
-        className="pressable btn btn-secondary mt-3"
-        onClick={() => void choose()}
-      >
-        选择文件夹…
-      </button>
+    <div className="rounded-[10px] bg-fill p-3">
+      <p className="text-[12px] text-mute">文件夹</p>
+      <div className="mt-1.5 flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink" title={current || undefined}>
+          {current || "还没选择文件夹"}
+        </p>
+        <button type="button" className="pressable btn btn-secondary shrink-0" onClick={() => void choose()}>
+          选择文件夹…
+        </button>
+      </div>
     </div>
   );
 }
@@ -76,11 +76,11 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
   }, [initialPath]);
 
   return (
-    <div className="rounded-md border border-line bg-surface">
-      <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+    <div className="overflow-hidden rounded-[10px] bg-fill">
+      <div className="flex items-center gap-2 border-b border-line px-2 py-1.5">
         <button
           type="button"
-          className="pressable inline-flex h-10 w-10 items-center justify-center text-mute disabled:opacity-40"
+          className="pressable inline-flex h-7 w-7 items-center justify-center rounded-md text-mute disabled:opacity-40"
           disabled={!data?.parent || loading}
           aria-label="上一级"
           onClick={() => data?.parent && void load(data.parent)}
@@ -99,8 +99,8 @@ function WebFolderPicker({ initialPath, onSelect, selectedPath }: Props) {
               <button
                 key={entry.path}
                 type="button"
-                className={`pressable flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm ${
-                  selectedPath === entry.path ? "bg-elevated text-accent" : "text-ink"
+                className={`pressable flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] ${
+                  selectedPath === entry.path ? "bg-accent-soft text-ink" : "text-ink"
                 }`}
                 onClick={() => void load(entry.path)}
               >

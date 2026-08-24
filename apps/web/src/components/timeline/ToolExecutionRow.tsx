@@ -29,10 +29,10 @@ export function ToolExecutionRow({ tool }: Props) {
       : toolNameLabel(tool.toolName);
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-elevated/80">
+    <div className="overflow-hidden rounded-[10px] bg-fill">
       <button
         type="button"
-        className="pressable flex min-h-10 w-full items-center gap-3 px-3 py-2 text-left"
+        className="pressable flex min-h-8 w-full items-center gap-2.5 px-3 py-1.5 text-left"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >

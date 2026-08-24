@@ -41,13 +41,41 @@ export function toolNameLabel(name: string): string {
   return TOOL_NAME[name] ?? name;
 }
 
+const BRANCH_ROLE: Record<string, string> = {
+  user: "你",
+  assistant: "AI",
+  toolResult: "工具",
+  system: "系统",
+  model_change: "模型",
+  thinking_level: "思考",
+  compaction: "压缩",
+};
+
+const HIDDEN_BRANCH_ROLES = new Set(["model_change", "thinking_level"]);
+
+export function branchRoleLabel(role: string): string {
+  return BRANCH_ROLE[role] ?? "其他";
+}
+
+export function isVisibleBranchNode(node: { role: string; text: string }): boolean {
+  if (HIDDEN_BRANCH_ROLES.has(node.role)) return false;
+  if (node.role === "user") return true;
+  return Boolean(node.text.trim());
+}
+
+export function visibleBranchNodes<T extends { role: string; text: string; leaf?: boolean }>(nodes: T[]): T[] {
+  const visible = nodes.filter(isVisibleBranchNode);
+  if (visible.some((node) => node.leaf) || !nodes.some((node) => node.leaf)) return visible;
+  return visible.map((node, index) => (index === visible.length - 1 ? { ...node, leaf: true } : node));
+}
+
 export function folderName(cwd: string): string {
   const parts = cwd.split(/[/\\]/).filter(Boolean);
   return parts[parts.length - 1] ?? cwd;
 }
 
 export function nextHint(status: string, hasTask: boolean): string {
-  if (!hasTask) return "点左上角「会话」开始聊天";
+  if (!hasTask) return "从左侧选择会话，或点 + 开始聊天";
   if (status === "waiting_approval") return "请确认是否允许这次操作";
   if (status === "running") return "正在处理，可以直接停止";
   if (status === "error") return "出了点问题，发一条新消息再试试";

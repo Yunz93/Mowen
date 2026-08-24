@@ -166,6 +166,12 @@ export class ProcessSupervisor {
     runtime.liveAssistantId = null;
   }
 
+  setStats(taskId: string, stats: SessionStats | null): void {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return;
+    runtime.stats = stats;
+  }
+
   setCommands(taskId: string, commands: Array<{ name: string; description?: string; source?: string }>): void {
     const runtime = this.runtimes.get(taskId);
     if (!runtime) return;

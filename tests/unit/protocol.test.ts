@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clientCommandSchema, serverFrameSchema, type ServerEvent } from "../../packages/protocol/src/index.ts";
+import {
+  clientCommandSchema,
+  normalizeSessionStats,
+  serverFrameSchema,
+  type ServerEvent,
+} from "../../packages/protocol/src/index.ts";
 import { useAgentStore } from "../../apps/web/src/stores/agent-store.ts";
 
 describe("protocol", () => {
@@ -24,6 +29,25 @@ describe("protocol", () => {
         payload: { autoCompaction: false },
       }).payload,
     ).toEqual({ autoCompaction: false });
+    expect(
+      clientCommandSchema.parse({
+        id: "3",
+        type: "session.stats",
+        taskId: "11111111-1111-4111-8111-111111111111",
+      }).type,
+    ).toBe("session.stats");
+  });
+
+  it("accepts partial Pi session stats and fills context usage", () => {
+    const stats = normalizeSessionStats(
+      { totalMessages: 4, tokens: { total: 1200 } },
+      { toolCalls: 2, contextWindow: 100_000 },
+    );
+    expect(stats.totalMessages).toBe(4);
+    expect(stats.toolCalls).toBe(2);
+    expect(stats.contextUsage?.tokens).toBe(1200);
+    expect(stats.contextUsage?.contextWindow).toBe(100_000);
+    expect(stats.contextUsage?.percent).toBe(1.2);
   });
 });
 

@@ -4,8 +4,8 @@ export const THEME_STORAGE_KEY = "mowen.theme";
 export const LEGACY_THEME_STORAGE_KEY = "ohmypi.theme";
 export const THEME_EVENT = "mowen-theme";
 
-const DARK_THEME_COLOR = "#181818";
-const LIGHT_THEME_COLOR = "#f3f3f3";
+const DARK_THEME_COLOR = "#1c1c1e";
+const LIGHT_THEME_COLOR = "#f5f5f7";
 
 export function readTheme(): Theme {
   try {
@@ -14,7 +14,14 @@ export function readTheme(): Theme {
   } catch {
     // localStorage can throw in private mode
   }
-  return "dark";
+  if (typeof window !== "undefined") {
+    try {
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+    } catch {
+      // matchMedia can be missing in tests / older webviews
+    }
+  }
+  return "light";
 }
 
 export function applyTheme(theme: Theme): void {
