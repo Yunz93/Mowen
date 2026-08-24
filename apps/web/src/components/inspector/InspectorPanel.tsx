@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { PiResources, SessionStats, SessionTreeNode, ToolExecution } from "@mowen/protocol";
 import hljs from "highlight.js";
+import { branchRoleLabel, visibleBranchNodes } from "../../copy";
 import { ToolExecutionRow } from "../timeline/ToolExecutionRow";
 import { DiffView } from "../diff/DiffView";
 
@@ -72,6 +73,7 @@ export function InspectorPanel({
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("activity");
+  const branchNodes = visibleBranchNodes(sessionTree);
   const changed = tools.filter((tool) => tool.toolName === "write" || tool.toolName === "edit");
   const sortedFiles = [...files].sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
@@ -84,12 +86,12 @@ export function InspectorPanel({
       aria-label="详情"
     >
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
             <button
               key={item}
               type="button"
-              className={`pressable h-7 rounded-md px-2 text-[12px] ${tab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
+              className={`pressable h-7 shrink-0 whitespace-nowrap rounded-md px-2 text-[12px] ${tab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
               onClick={() => {
                 setTab(item);
                 if (item === "files") onLoadTree();
@@ -167,7 +169,7 @@ export function InspectorPanel({
                 <ul className="space-y-2">
                   {checkpoints.map((item) => (
                     <li key={item.id} className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 font-mono text-[11px] text-mute">
+                      <span className="min-w-0 break-all font-mono text-[11px] text-mute">
                         {item.path}
                         <span className="block">{new Date(item.createdAt).toLocaleTimeString()}</span>
                       </span>
@@ -228,8 +230,8 @@ export function InspectorPanel({
                 <ul className="space-y-1 font-mono text-xs">
                   {git.entries.map((entry) => (
                     <li key={entry.path} className="flex gap-2">
-                      <span className="w-8 text-mute">{entry.status}</span>
-                      <span className="min-w-0 truncate text-ink">{entry.path}</span>
+                      <span className="w-8 shrink-0 text-mute">{entry.status}</span>
+                      <span className="min-w-0 break-all text-ink">{entry.path}</span>
                     </li>
                   ))}
                 </ul>
@@ -241,20 +243,24 @@ export function InspectorPanel({
         ) : null}
         {tab === "branch" ? (
           <div className="space-y-2">
-            <p className="text-sm text-mute">这是 Pi 的会话树。可以从任意一条用户消息重新分叉。</p>
-            {sessionTree.length === 0 ? <p className="text-sm text-mute">还没有分支记录。</p> : null}
+            <p className="text-sm leading-5 text-mute">这是 Pi 的会话树。可以从任意一条用户消息重新分叉。</p>
+            {branchNodes.length === 0 ? <p className="text-sm text-mute">还没有分支记录。</p> : null}
             <ul className="space-y-1">
-              {sessionTree.map((node) => (
+              {branchNodes.map((node) => (
                 <li key={node.id}>
                   <button
                     type="button"
-                    className={`pressable flex min-h-8 w-full items-start gap-2 rounded-md px-2 py-1 text-left ${node.id === sessionLeafId ? "bg-fill" : "hover-fill"}`}
+                    className={`pressable flex min-h-8 w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${node.id === sessionLeafId || node.leaf ? "bg-fill" : "hover-fill"}`}
                     disabled={node.role !== "user" || !onBranch}
                     onClick={() => onBranch?.(node.id)}
                   >
-                    <span className="w-12 shrink-0 text-[11px] text-mute">{node.role === "user" ? "你" : node.role === "assistant" ? "AI" : node.role}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink">{node.text || "（无文本）"}</span>
-                    {node.leaf ? <span className="text-[11px] text-accent">当前</span> : null}
+                    <span className="mt-0.5 shrink-0 whitespace-nowrap rounded-md bg-fill-strong px-1.5 py-0.5 text-[11px] leading-none text-mute">
+                      {branchRoleLabel(node.role)}
+                    </span>
+                    <span className="min-w-0 flex-1 break-all text-sm leading-5 text-ink line-clamp-2" title={node.text || undefined}>
+                      {node.text.trim() || "（无文本）"}
+                    </span>
+                    {node.leaf ? <span className="mt-0.5 shrink-0 text-[11px] text-accent">当前</span> : null}
                   </button>
                 </li>
               ))}
