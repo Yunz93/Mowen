@@ -15,7 +15,7 @@ type EventMsg = {
   payload?: {
     error?: string;
     requestId?: string;
-    data?: { task?: { id: string } };
+    data?: { task?: { id: string }; nodes?: Array<{ id: string; role: string }>; autoCompaction?: boolean };
     approval?: { requestId: string };
     tool?: { status?: string; isError?: boolean };
     task?: { id: string };
@@ -329,6 +329,17 @@ describe("integration fake-pi", () => {
   }, 20_000);
 
   it("lists Pi resources, session tree, resume, and runtime flags", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-mvp"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "3",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
     const project = path.join(root.current, "project");
     await writeFile(path.join(project, "AGENTS.md"), "# project agents");
     await mkdir(path.join(root.current, ".pi", "agent", "skills", "demo"), { recursive: true });
@@ -347,49 +358,66 @@ describe("integration fake-pi", () => {
       ].join("\n"),
     );
 
-    const sock = await openSocket(ctx.base);
-    await sock.waitFor("snapshot");
-    sock.send({ id: "c-mvp", type: "task.create", payload: { cwd: project, title: "MVP" } });
-    const created = await sock.waitForRequest("c-mvp");
-    const taskId = created.payload?.data?.task?.id as string;
+    try {
+      const sock = await openSocket(isolated.base);
+      await sock.waitFor("snapshot");
+      sock.send({ id: "c-mvp", type: "task.create", payload: { cwd: project, title: "MVP" } });
+      const created = await sock.waitForRequest("c-mvp");
+      const taskId = created.payload?.data?.task?.id as string;
 
-    sock.send({ id: "res", type: "resources.list", taskId, payload: {} });
-    const resources = await sock.waitFor("resources.updated");
-    expect(JSON.stringify(resources.payload)).toMatch(/AGENTS\.md/);
-    expect(JSON.stringify(resources.payload)).toMatch(/demo/);
+      sock.send({ id: "res", type: "resources.list", taskId, payload: {} });
+      const resources = await sock.waitFor("resources.updated");
+      expect(JSON.stringify(resources.payload)).toMatch(/AGENTS\.md/);
+      expect(JSON.stringify(resources.payload)).toMatch(/demo/);
 
-    sock.send({ id: "p-tree", type: "prompt.send", taskId, payload: { message: "branch source" } });
-    await sock.waitFor("message.completed");
-    sock.send({ id: "tree", type: "session.tree", taskId, payload: {} });
-    const tree = await sock.waitFor("session.tree");
-    const userNode = (tree.payload as { nodes?: Array<{ id: string; role: string }> })?.nodes?.find(
-      (node) => node.role === "user",
-    );
-    expect(userNode?.id).toBeTruthy();
-    sock.send({
-      id: "branch",
-      type: "session.branch",
-      taskId,
-      payload: { entryId: userNode!.id, message: "after branch" },
-    });
-    await sock.waitForRequest("branch");
+      const beforePrompt = sock.events.length;
+      sock.send({ id: "p-tree", type: "prompt.send", taskId, payload: { message: "branch source" } });
+      await new Promise<void>((resolve, reject) => {
+        const start = Date.now();
+        const tick = () => {
+          const match = sock.events.slice(beforePrompt).find(
+            (event) =>
+              event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+          );
+          if (match) return resolve();
+          if (Date.now() - start > 4000) return reject(new Error("tree prompt did not settle"));
+          setTimeout(tick, 25);
+        };
+        tick();
+      });
+      sock.send({ id: "tree", type: "session.tree", taskId, payload: {} });
+      const tree = await sock.waitForRequest("tree");
+      const userNode = (
+        tree.payload?.data as { nodes?: Array<{ id: string; role: string }> } | undefined
+      )?.nodes?.find((node) => node.role === "user");
+      expect(userNode?.id).toBeTruthy();
+      sock.send({
+        id: "branch",
+        type: "session.branch",
+        taskId,
+        payload: { entryId: userNode!.id, message: "after branch" },
+      });
+      await sock.waitForRequest("branch");
 
-    sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false } });
-    await sock.waitForRequest("rt");
-    const runtime = await sock.waitFor("runtime.status");
-    expect((runtime.payload as { autoCompaction?: boolean }).autoCompaction).toBe(false);
+      sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false } });
+      await sock.waitForRequest("rt");
+      const runtime = await sock.waitFor("runtime.status");
+      expect((runtime.payload as { autoCompaction?: boolean }).autoCompaction).toBe(false);
 
-    sock.send({ id: "list", type: "sessions.list", payload: {} });
-    const listed = await sock.waitFor("sessions.listed");
-    expect(JSON.stringify(listed.payload)).toMatch(/resumed hello/);
-    sock.send({
-      id: "resume",
-      type: "session.resume",
-      payload: { sessionPath, cwd: project, title: "Resumed" },
-    });
-    const resumed = await sock.waitForRequest("resume");
-    expect(resumed.type).toBe("request.succeeded");
-    sock.ws.close();
+      sock.send({ id: "list", type: "sessions.list", payload: {} });
+      const listed = await sock.waitFor("sessions.listed");
+      expect(JSON.stringify(listed.payload)).toMatch(/resumed hello/);
+      sock.send({
+        id: "resume",
+        type: "session.resume",
+        payload: { sessionPath, cwd: project, title: "Resumed" },
+      });
+      const resumed = await sock.waitForRequest("resume");
+      expect(resumed.type).toBe("request.succeeded");
+      sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
   }, 20_000);
 
   it("rejects foreign origins", async () => {
