@@ -30,6 +30,8 @@ export function App() {
               homeDir: setup.homeDir,
               workspaceRoot: setup.workspaceRoot,
               allowedRoots: setup.allowedRoots,
+              authEntries: setup.authEntries,
+              trustProject: setup.trustProject,
             });
             setShowWizard(setup.needsSetup);
           }
@@ -60,6 +62,8 @@ export function App() {
               homeDir: status.homeDir,
               workspaceRoot: status.workspaceRoot,
               allowedRoots: status.allowedRoots,
+              authEntries: status.authEntries,
+              trustProject: status.trustProject,
             });
             setShowWizard(false);
             void socketClient.send("snapshot.request");

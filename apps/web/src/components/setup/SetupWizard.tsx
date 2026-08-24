@@ -18,6 +18,10 @@ export type SetupStatus = {
   dataDir: string;
   needsSetup: boolean;
   piBundled?: boolean;
+  authEntries?: Array<{ id: string; label: string; kind: "api_key" | "oauth" | "other" }>;
+  hasModelsFile?: boolean;
+  modelCount?: number;
+  trustProject?: boolean;
 };
 
 type Props = {
@@ -41,6 +45,8 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
   const [workspace, setWorkspace] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const existingLogins = status?.authEntries ?? [];
+  const hasExistingLogin = existingLogins.length > 0 || Boolean(status?.authConfigured);
 
   useEffect(() => {
     void fetchSetup()
@@ -110,7 +116,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
 
   function goNextFromWelcome() {
     setError("");
-    setStep(status?.piAvailable ? (status.authConfigured ? "workspace" : "auth") : "pi");
+    setStep(status?.piAvailable ? "auth" : "pi");
   }
 
   const titles: Record<Step, string> = {
@@ -157,7 +163,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
                   : "墨问让 AI 帮你处理这台电脑上的文件。我们会准备三件事：Pi、AI 密钥、工作文件夹。"}
               </p>
               <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-mute">
-                <li>粘贴 API Key（只保存在这台电脑）</li>
+                <li>使用已有的 Pi 登录，或粘贴一把 API Key</li>
                 <li>选一个工作文件夹</li>
                 <li>开始聊天 — 改文件前会先问你</li>
               </ol>
@@ -180,10 +186,28 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
           {step === "auth" ? (
             <>
               <p className="text-sm leading-6 text-mute">
-                从 AI 服务商复制一把 API Key 贴过来。墨问只会保存在这台电脑上，之后也不会再显示完整密钥。
+                墨问直接读取本机的 Pi 登录（~/.pi/agent/auth.json），不会再存一份密钥。订阅登录请在终端运行
+                <code className="mx-1 font-mono text-ink">pi</code>
+                然后输入 <code className="font-mono text-ink">/login</code>，完成后点刷新。
               </p>
-              {status?.configuredProviders.length ? (
+              {existingLogins.length ? (
+                <ul className="space-y-1 text-sm text-ink">
+                  {existingLogins.map((entry) => (
+                    <li key={entry.id}>
+                      {entry.label}
+                      <span className="ml-2 text-mute">
+                        {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : status?.configuredProviders.length ? (
                 <p className="text-sm text-success">已经连上：{status.configuredProviders.join("、")}</p>
+              ) : (
+                <p className="text-sm text-mute">还没有发现本机登录。可以粘贴 API Key，或先去 Pi 里 /login。</p>
+              )}
+              {status?.hasModelsFile ? (
+                <p className="text-sm text-mute">已找到 models.json{status.modelCount ? ` · ${status.modelCount} 个模型` : ""}</p>
               ) : null}
               <div>
                 <label className="block text-sm text-mute" htmlFor="provider">
@@ -251,7 +275,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
                 <button
                   type="button"
                   className="pressable btn btn-primary"
-                  onClick={() => setStep(status.authConfigured ? "workspace" : "auth")}
+                  onClick={() => setStep("auth")}
                 >
                   继续
                 </button>
@@ -265,7 +289,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
                     void fetchSetup()
                       .then((next) => {
                         setStatus(next);
-                        if (next.piAvailable) setStep(next.authConfigured ? "workspace" : "auth");
+                        if (next.piAvailable) setStep("auth");
                       })
                       .catch(() => setError("检查 Pi 失败。"))
                       .finally(() => setBusy(false));
@@ -279,8 +303,24 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
 
           {step === "auth" ? (
             <>
+              <button
+                type="button"
+                className="pressable btn btn-ghost"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void fetchSetup()
+                    .then((next) => {
+                      setStatus(next);
+                    })
+                    .catch(() => setError("刷新登录状态失败。"))
+                    .finally(() => setBusy(false));
+                }}
+              >
+                刷新
+              </button>
               <button type="button" className="pressable btn btn-ghost" onClick={() => setStep("workspace")}>
-                {status?.authConfigured ? "继续" : "暂时跳过"}
+                {hasExistingLogin ? "使用已有登录" : "暂时跳过"}
               </button>
               <button
                 type="button"

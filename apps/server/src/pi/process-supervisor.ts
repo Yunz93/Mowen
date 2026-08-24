@@ -4,17 +4,21 @@ import path from "node:path";
 import type {
   ApprovalRequest,
   ModelRef,
+  RuntimeState,
   ServerEvent,
   SessionStats,
+  SessionTreeNode,
   TaskRecord,
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
 } from "@mowen/protocol";
+import { emptyRuntime } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
+import { flattenSessionTree } from "../tasks/session-tree.js";
 
 export type AgentCommand = {
   name: string;
@@ -31,6 +35,9 @@ export type RuntimeSnapshot = {
   stats: SessionStats | null;
   generation: number;
   commands: AgentCommand[];
+  runtime: RuntimeState;
+  sessionTree: SessionTreeNode[];
+  sessionLeafId: string | null;
 };
 
 type ApprovalPending = {
@@ -109,6 +116,9 @@ export class ProcessSupervisor {
       thinkingLevels: ThinkingLevel[];
       stats: SessionStats | null;
       commands: AgentCommand[];
+      runtime: RuntimeState;
+      sessionTree: SessionTreeNode[];
+      sessionLeafId: string | null;
     }
   >();
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
@@ -174,6 +184,9 @@ export class ProcessSupervisor {
       stats: runtime.stats,
       generation: runtime.generation,
       commands: runtime.commands,
+      runtime: { ...runtime.runtime, steering: [...runtime.runtime.steering], followUp: [...runtime.runtime.followUp] },
+      sessionTree: runtime.sessionTree.map((item) => ({ ...item })),
+      sessionLeafId: runtime.sessionLeafId,
     };
   }
 
@@ -187,6 +200,7 @@ export class ProcessSupervisor {
     const sessionDir = path.join(this.config.dataDir, "sessions", task.id);
     await mkdir(sessionDir, { recursive: true });
     const args = ["--mode", "rpc", "--no-extensions", "--extension", this.config.approvalExtensionPath];
+    args.push(this.config.trustProject ? "--approve" : "--no-approve");
     if (task.sessionPath) {
       args.push("--session", task.sessionPath);
     } else {
@@ -204,6 +218,9 @@ export class ProcessSupervisor {
       thinkingLevels: ["off"] as ThinkingLevel[],
       stats: null as SessionStats | null,
       commands: [] as AgentCommand[],
+      runtime: emptyRuntime(),
+      sessionTree: [] as SessionTreeNode[],
+      sessionLeafId: null as string | null,
     };
 
     const client = new RpcClient({
@@ -275,6 +292,14 @@ export class ProcessSupervisor {
         )
       : ["off"];
     if (runtime.thinkingLevels.length === 0) runtime.thinkingLevels = ["off"];
+
+    runtime.runtime = {
+      ...emptyRuntime(),
+      compacting: Boolean(stateData.isCompacting),
+      autoCompaction: stateData.autoCompactionEnabled !== false,
+      autoRetry: typeof stateData.autoRetryEnabled === "boolean" ? stateData.autoRetryEnabled : true,
+    };
+    await this.refreshSessionTree(task.id);
 
     const modelObj = stateData.model as Record<string, unknown> | null | undefined;
     const model =
@@ -497,8 +522,60 @@ export class ProcessSupervisor {
       case "extension_error":
         this.emit(taskId, "server.error", { code: "extension", message: normalized.error });
         break;
+      case "runtime.compaction":
+        runtime.runtime = {
+          ...runtime.runtime,
+          compacting: normalized.phase === "start",
+          compactionReason: normalized.phase === "start" ? normalized.reason : undefined,
+        };
+        this.emit(taskId, "runtime.status", runtime.runtime);
+        break;
+      case "runtime.retry":
+        runtime.runtime = {
+          ...runtime.runtime,
+          retrying: normalized.phase === "start",
+          retryAttempt: normalized.attempt,
+          retryMax: normalized.maxAttempts,
+          retryError: normalized.error,
+        };
+        this.emit(taskId, "runtime.status", runtime.runtime);
+        break;
+      case "runtime.queue":
+        runtime.runtime = {
+          ...runtime.runtime,
+          steering: normalized.steering,
+          followUp: normalized.followUp,
+        };
+        this.emit(taskId, "runtime.status", runtime.runtime);
+        break;
       default:
         break;
+    }
+  }
+
+  patchRuntime(taskId: string, patch: Partial<RuntimeState>): RuntimeState | null {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return null;
+    runtime.runtime = { ...runtime.runtime, ...patch };
+    this.emit(taskId, "runtime.status", runtime.runtime);
+    return runtime.runtime;
+  }
+
+  async refreshSessionTree(taskId: string): Promise<{ nodes: SessionTreeNode[]; leafId: string | null }> {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return { nodes: [], leafId: null };
+    try {
+      const data = (await this.rpcData(taskId, { type: "get_tree" })) as {
+        tree?: unknown;
+        leafId?: string | null;
+      };
+      const leafId = typeof data.leafId === "string" ? data.leafId : null;
+      const nodes = flattenSessionTree(data.tree, leafId);
+      runtime.sessionTree = nodes;
+      runtime.sessionLeafId = leafId;
+      return { nodes, leafId };
+    } catch {
+      return { nodes: runtime.sessionTree, leafId: runtime.sessionLeafId };
     }
   }
 

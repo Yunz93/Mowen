@@ -1,5 +1,12 @@
 import { z } from "zod";
 import {
+  authEntrySchema,
+  piResourcesSchema,
+  piSessionRefSchema,
+  runtimeStateSchema,
+  sessionTreeNodeSchema,
+} from "./pi-mvp.js";
+import {
   approvalRequestSchema,
   modelRefSchema,
   sessionStatsSchema,
@@ -35,6 +42,10 @@ export const serverEventTypeSchema = z.enum([
   "commands.updated",
   "git.status",
   "checkpoints.updated",
+  "runtime.status",
+  "session.tree",
+  "sessions.listed",
+  "resources.updated",
 ]);
 
 export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
@@ -102,6 +113,13 @@ export const snapshotPayloadSchema = z.object({
       }),
     )
     .optional(),
+  runtime: runtimeStateSchema.optional(),
+  resources: piResourcesSchema.optional(),
+  sessionTree: z.array(sessionTreeNodeSchema).optional(),
+  sessionLeafId: z.string().nullable().optional(),
+  piSessions: z.array(piSessionRefSchema).optional(),
+  authEntries: z.array(authEntrySchema).optional(),
+  trustProject: z.boolean().optional(),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;
@@ -281,6 +299,29 @@ export const serverEventSchema = z.discriminatedUnion("type", [
         }),
       ),
     }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("runtime.status"),
+    payload: runtimeStateSchema,
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("session.tree"),
+    payload: z.object({
+      nodes: z.array(sessionTreeNodeSchema),
+      leafId: z.string().nullable(),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("sessions.listed"),
+    payload: z.object({ sessions: z.array(piSessionRefSchema) }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("resources.updated"),
+    payload: piResourcesSchema,
   }),
 ]);
 

@@ -27,6 +27,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
   let config = loadConfig(env, {
     workspaceRoot: settings.get().workspaceRoot,
     homeDir: provisional.homeDir,
+    trustProject: settings.get().trustProject,
   });
   await mkdir(config.dataDir, { recursive: true });
 
@@ -48,6 +49,8 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
       needsSetup: setup.needsSetup,
       homeDir: setup.homeDir,
       workspaceRoot: setup.workspaceRoot,
+      authEntries: setup.authEntries,
+      trustProject: setup.trustProject,
     });
     return setup;
   };
@@ -83,7 +86,14 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     settings,
     getPi: () => ({ version, error }),
     onSetupChanged: () => {
-      void refreshSetupHints();
+      const nextTrust = settings.get().trustProject;
+      if (config.trustProject !== nextTrust) {
+        config = { ...config, trustProject: nextTrust };
+        service.updateConfig(config);
+      }
+      void refreshSetupHints().then(() => {
+        void service.refreshResources();
+      });
     },
   });
 

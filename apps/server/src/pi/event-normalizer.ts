@@ -12,6 +12,15 @@ export type NormalizedPiEvent =
   | { kind: "tool.completed"; tool: Partial<ToolExecution> & { toolCallId: string } }
   | { kind: "approval.ui"; requestId: string; method: string; title?: string; message?: string }
   | { kind: "extension_error"; error: string }
+  | { kind: "runtime.compaction"; phase: "start" | "end"; reason?: string }
+  | {
+      kind: "runtime.retry";
+      phase: "start" | "end";
+      attempt?: number;
+      maxAttempts?: number;
+      error?: string;
+    }
+  | { kind: "runtime.queue"; steering: string[]; followUp: string[] }
   | { kind: "ignored" };
 
 function nowIso(timestamp?: number): string {
@@ -191,6 +200,39 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
       };
     case "extension_error":
       return { kind: "extension_error", error: String(event.error ?? "Extension error") };
+    case "compaction_start":
+      return {
+        kind: "runtime.compaction",
+        phase: "start",
+        reason: typeof event.reason === "string" ? event.reason : undefined,
+      };
+    case "compaction_end":
+      return {
+        kind: "runtime.compaction",
+        phase: "end",
+        reason: typeof event.reason === "string" ? event.reason : undefined,
+      };
+    case "auto_retry_start":
+      return {
+        kind: "runtime.retry",
+        phase: "start",
+        attempt: typeof event.attempt === "number" ? event.attempt : undefined,
+        maxAttempts: typeof event.maxAttempts === "number" ? event.maxAttempts : undefined,
+        error: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
+      };
+    case "auto_retry_end":
+      return {
+        kind: "runtime.retry",
+        phase: "end",
+        attempt: typeof event.attempt === "number" ? event.attempt : undefined,
+        error: typeof event.finalError === "string" ? event.finalError : undefined,
+      };
+    case "queue_update":
+      return {
+        kind: "runtime.queue",
+        steering: Array.isArray(event.steering) ? event.steering.map((item) => String(item)) : [],
+        followUp: Array.isArray(event.followUp) ? event.followUp.map((item) => String(item)) : [],
+      };
     default:
       return { kind: "ignored" };
   }

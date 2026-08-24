@@ -32,6 +32,11 @@ export function WorkbenchLayout() {
   const commands = useAgentStore((state) => state.commands);
   const git = useAgentStore((state) => state.git);
   const checkpoints = useAgentStore((state) => state.checkpoints);
+  const runtime = useAgentStore((state) => state.runtime);
+  const resources = useAgentStore((state) => state.resources);
+  const sessionTree = useAgentStore((state) => state.sessionTree);
+  const sessionLeafId = useAgentStore((state) => state.sessionLeafId);
+  const piSessions = useAgentStore((state) => state.piSessions);
   const piError = useAgentStore((state) => state.piError);
   const piAvailable = useAgentStore((state) => state.piAvailable);
   const authHint = useAgentStore((state) => state.authHint);
@@ -54,6 +59,10 @@ export function WorkbenchLayout() {
     const preferred = workspaceRoot ?? allowedRoots[0];
     if (preferred && !cwd) setCwd(preferred);
   }, [allowedRoots, workspaceRoot, cwd]);
+
+  useEffect(() => {
+    if (creating) void socketClient.send("sessions.list", {});
+  }, [creating]);
 
   const task = useMemo(
     () => tasks.find((item) => item.id === activeTaskId),
@@ -167,11 +176,23 @@ export function WorkbenchLayout() {
               {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
           </div>
+          {resources && (resources.agentsFiles.length > 0 || resources.skills.length > 0) ? (
+            <p className="hidden truncate text-[11px] text-mute lg:block">
+              {resources.agentsFiles.some((item) => item.kind === "agents")
+                ? "已加载 AGENTS.md"
+                : "已加载上下文文件"}
+              {resources.skills.length ? ` · ${resources.skills.length} 个技能` : ""}
+            </p>
+          ) : null}
           <div className="hidden sm:block">
             <ContextMeter
               stats={stats}
+              runtime={runtime}
               compact
-              onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+              onCompact={(customInstructions) =>
+                task && void socketClient.send("session.compact", { customInstructions }, task.id)
+              }
+              onRuntimeSet={(payload) => task && void socketClient.send("runtime.set", payload, task.id)}
             />
           </div>
           <ThemeToggle />
@@ -191,7 +212,7 @@ export function WorkbenchLayout() {
             <Settings size={16} />
           </Link>
         </header>
-        <RunStatusBar status={status} tools={tools} hasChanges={hasChanges} />
+        <RunStatusBar status={status} tools={tools} hasChanges={hasChanges} runtime={runtime} />
         {!piAvailable ? (
           <div className="border-b border-danger/40 bg-elevated px-4 py-2 text-sm text-danger">
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
@@ -343,6 +364,9 @@ export function WorkbenchLayout() {
               preview={preview}
               git={git}
               checkpoints={checkpoints}
+              sessionTree={sessionTree}
+              sessionLeafId={sessionLeafId}
+              resources={resources}
               onClose={() => setInspectorOpen(false)}
               onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
               onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
@@ -354,7 +378,13 @@ export function WorkbenchLayout() {
               onRestore={(checkpointId) =>
                 task && void socketClient.send("checkpoint.restore", { checkpointId }, task.id)
               }
-              onCompact={() => task && void socketClient.send("session.compact", {}, task.id)}
+              onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
+              onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
+              onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
+              onExport={() => task && void socketClient.send("session.export", {}, task.id)}
+              onCompact={(customInstructions) =>
+                task && void socketClient.send("session.compact", { customInstructions }, task.id)
+              }
             />
           </div>
         </div>
@@ -366,11 +396,20 @@ export function WorkbenchLayout() {
       {creating ? (
         <NewTaskDialog
           defaultCwd={cwd || workspaceRoot || allowedRoots[0] || ""}
+          sessions={piSessions}
           onCancel={() => setCreating(false)}
           onCreate={(directory, title) => {
             setCwd(directory);
             setCreating(false);
             void socketClient.send("task.create", { cwd: directory, title });
+          }}
+          onResume={(session) => {
+            setCreating(false);
+            void socketClient.send("session.resume", {
+              sessionPath: session.path,
+              cwd: session.cwd ?? (cwd || workspaceRoot || allowedRoots[0]),
+              title: session.name || session.preview,
+            });
           }}
         />
       ) : null}

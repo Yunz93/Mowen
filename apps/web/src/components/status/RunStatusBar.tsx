@@ -1,14 +1,28 @@
-import type { TaskStatus, ToolExecution } from "@mowen/protocol";
+import type { RuntimeState, TaskStatus, ToolExecution } from "@mowen/protocol";
 import { AlertTriangle, CheckCircle2, Clock3, LoaderCircle, ShieldAlert } from "lucide-react";
 
 type Props = {
   status: TaskStatus;
   tools: ToolExecution[];
   hasChanges: boolean;
+  runtime?: RuntimeState | null;
 };
 
-function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean) {
+function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean, runtime?: RuntimeState | null) {
   const current = [...tools].reverse().find((tool) => tool.status === "running" || tool.status === "waiting_approval");
+  if (runtime?.compacting) {
+    return { label: "正在压缩上下文", detail: runtime.compactionReason ?? "把旧内容收成摘要", icon: LoaderCircle };
+  }
+  if (runtime?.retrying) {
+    const attempt = runtime.retryAttempt != null ? `第 ${runtime.retryAttempt} 次` : "自动重试";
+    return { label: "正在重试", detail: runtime.retryError ?? attempt, icon: LoaderCircle };
+  }
+  if ((runtime?.steering.length ?? 0) > 0) {
+    return { label: "已排队补充", detail: runtime?.steering[0] ?? "下一条会马上送出", icon: Clock3 };
+  }
+  if ((runtime?.followUp.length ?? 0) > 0) {
+    return { label: "下一条已排队", detail: runtime?.followUp[0] ?? "回复结束后发送", icon: Clock3 };
+  }
   if (status === "waiting_approval") return { label: "等待确认", detail: current?.toolName ?? "请查看这次操作", icon: ShieldAlert };
   if (status === "queued") return { label: "排队中", detail: "正在等待空闲的 AI 进程", icon: Clock3 };
   if (status === "booting") return { label: "正在启动", detail: "正在准备 AI 引擎", icon: LoaderCircle };
@@ -24,11 +38,15 @@ function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean) 
   return null;
 }
 
-export function RunStatusBar({ status, tools, hasChanges }: Props) {
-  const current = stage(status, tools, hasChanges);
+export function RunStatusBar({ status, tools, hasChanges, runtime }: Props) {
+  const current = stage(status, tools, hasChanges, runtime);
   if (!current) return null;
   const Icon = current.icon;
-  const active = status === "running" || status === "booting" || status === "aborting";
+  const active =
+    status === "running" ||
+    status === "booting" ||
+    status === "aborting" ||
+    Boolean(runtime?.compacting || runtime?.retrying);
 
   return (
     <div className="flex min-h-10 items-center gap-3 border-b border-line bg-elevated px-4 py-2 text-xs">

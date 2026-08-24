@@ -1,15 +1,18 @@
 import { useState } from "react";
+import type { PiSessionRef } from "@mowen/protocol";
 import { X } from "lucide-react";
 import { FolderPicker } from "../setup/FolderPicker";
 import { isDesktopApp } from "../../desktop-bridge";
 
 type Props = {
   defaultCwd: string;
+  sessions?: PiSessionRef[];
   onCancel: () => void;
   onCreate: (cwd: string, title?: string) => void;
+  onResume?: (session: PiSessionRef) => void;
 };
 
-export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
+export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, onResume }: Props) {
   const desktop = isDesktopApp();
   const [cwd, setCwd] = useState(defaultCwd);
   const [title, setTitle] = useState("");
@@ -100,6 +103,30 @@ export function NewTaskDialog({ defaultCwd, onCancel, onCreate }: Props) {
               placeholder="可选"
             />
           </div>
+
+          {sessions.length > 0 ? (
+            <div>
+              <p className="text-sm text-mute">继续本机上的 Pi 会话</p>
+              <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
+                {sessions.slice(0, 12).map((session) => (
+                  <li key={session.path}>
+                    <button
+                      type="button"
+                      className="pressable hover-fill block w-full rounded-sm px-2 py-2 text-left"
+                      onClick={() => onResume?.(session)}
+                    >
+                      <span className="block truncate text-sm text-ink">
+                        {session.name || session.preview || "未命名会话"}
+                      </span>
+                      <span className="block truncate font-mono text-[11px] text-mute">
+                        {session.cwd ?? session.path}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="dialog-actions">

@@ -96,6 +96,7 @@ describe("integration fake-pi", () => {
       MOWEN_ALLOWED_ROOTS: root.current,
       MOWEN_MAX_PROCESSES: "3",
       MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
     });
   });
 
@@ -324,6 +325,70 @@ describe("integration fake-pi", () => {
       payload: { messageId: userMessage!.id, message: "after fork" },
     });
     await sock.waitForRequest("fork");
+    sock.ws.close();
+  }, 20_000);
+
+  it("lists Pi resources, session tree, resume, and runtime flags", async () => {
+    const project = path.join(root.current, "project");
+    await writeFile(path.join(project, "AGENTS.md"), "# project agents");
+    await mkdir(path.join(root.current, ".pi", "agent", "skills", "demo"), { recursive: true });
+    await writeFile(path.join(root.current, ".pi", "agent", "skills", "demo", "SKILL.md"), "# demo");
+    const sessionDir = path.join(root.current, ".pi", "agent", "sessions", "project");
+    await mkdir(sessionDir, { recursive: true });
+    const sessionPath = path.join(sessionDir, "resume.jsonl");
+    await writeFile(
+      sessionPath,
+      [
+        JSON.stringify({ type: "session", id: "resume-1", cwd: project }),
+        JSON.stringify({
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "resumed hello" }] },
+        }),
+      ].join("\n"),
+    );
+
+    const sock = await openSocket(ctx.base);
+    await sock.waitFor("snapshot");
+    sock.send({ id: "c-mvp", type: "task.create", payload: { cwd: project, title: "MVP" } });
+    const created = await sock.waitForRequest("c-mvp");
+    const taskId = created.payload?.data?.task?.id as string;
+
+    sock.send({ id: "res", type: "resources.list", taskId, payload: {} });
+    const resources = await sock.waitFor("resources.updated");
+    expect(JSON.stringify(resources.payload)).toMatch(/AGENTS\.md/);
+    expect(JSON.stringify(resources.payload)).toMatch(/demo/);
+
+    sock.send({ id: "p-tree", type: "prompt.send", taskId, payload: { message: "branch source" } });
+    await sock.waitFor("message.completed");
+    sock.send({ id: "tree", type: "session.tree", taskId, payload: {} });
+    const tree = await sock.waitFor("session.tree");
+    const userNode = (tree.payload as { nodes?: Array<{ id: string; role: string }> })?.nodes?.find(
+      (node) => node.role === "user",
+    );
+    expect(userNode?.id).toBeTruthy();
+    sock.send({
+      id: "branch",
+      type: "session.branch",
+      taskId,
+      payload: { entryId: userNode!.id, message: "after branch" },
+    });
+    await sock.waitForRequest("branch");
+
+    sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false } });
+    await sock.waitForRequest("rt");
+    const runtime = await sock.waitFor("runtime.status");
+    expect((runtime.payload as { autoCompaction?: boolean }).autoCompaction).toBe(false);
+
+    sock.send({ id: "list", type: "sessions.list", payload: {} });
+    const listed = await sock.waitFor("sessions.listed");
+    expect(JSON.stringify(listed.payload)).toMatch(/resumed hello/);
+    sock.send({
+      id: "resume",
+      type: "session.resume",
+      payload: { sessionPath, cwd: project, title: "Resumed" },
+    });
+    const resumed = await sock.waitForRequest("resume");
+    expect(resumed.type).toBe("request.succeeded");
     sock.ws.close();
   }, 20_000);
 

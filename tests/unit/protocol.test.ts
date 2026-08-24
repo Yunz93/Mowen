@@ -7,6 +7,24 @@ describe("protocol", () => {
     const result = clientCommandSchema.safeParse({ type: "prompt.send", payload: { message: "hi" } });
     expect(result.success).toBe(false);
   });
+
+  it("accepts pi mvp session and runtime commands", () => {
+    expect(
+      clientCommandSchema.parse({
+        id: "1",
+        type: "session.resume",
+        payload: { sessionPath: "/tmp/session.jsonl" },
+      }).type,
+    ).toBe("session.resume");
+    expect(
+      clientCommandSchema.parse({
+        id: "2",
+        type: "runtime.set",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { autoCompaction: false },
+      }).payload,
+    ).toEqual({ autoCompaction: false });
+  });
 });
 
 describe("event sequence dedup", () => {

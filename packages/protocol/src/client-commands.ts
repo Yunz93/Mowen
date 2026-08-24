@@ -167,6 +167,53 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     type: z.literal("task.search"),
     payload: z.object({ query: z.string() }),
   }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.tree"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.branch"),
+    taskId: z.string().min(1),
+    payload: z.object({ entryId: z.string().min(1), message: z.string().optional() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("sessions.list"),
+    payload: z.object({ cwd: z.string().optional() }).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.resume"),
+    payload: z.object({
+      sessionPath: z.string().min(1),
+      cwd: z.string().min(1).optional(),
+      title: z.string().min(1).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("session.export"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.list"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("runtime.set"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      autoCompaction: z.boolean().optional(),
+      autoRetry: z.boolean().optional(),
+    }),
+  }),
 ]);
 
 export type ClientCommand = z.infer<typeof clientCommandSchema>;

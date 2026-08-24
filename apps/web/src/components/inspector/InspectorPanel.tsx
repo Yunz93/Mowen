@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { SessionStats, ToolExecution } from "@mowen/protocol";
+import type { PiResources, SessionStats, SessionTreeNode, ToolExecution } from "@mowen/protocol";
 import hljs from "highlight.js";
 import { ToolExecutionRow } from "../timeline/ToolExecutionRow";
 import { DiffView } from "../diff/DiffView";
 
-type Tab = "changes" | "files" | "activity" | "git";
+type Tab = "changes" | "files" | "activity" | "git" | "branch" | "skills";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type GitSnapshot = {
@@ -26,11 +26,18 @@ type Props = {
   preview: { path: string; content: string; truncated: boolean; language?: string } | null;
   git: GitSnapshot | null;
   checkpoints: CheckpointRecord[];
+  sessionTree?: SessionTreeNode[];
+  sessionLeafId?: string | null;
+  resources?: PiResources | null;
   onReadFile: (path: string) => void;
   onLoadTree: () => void;
   onLoadGit: () => void;
   onRestore: (checkpointId: string) => void;
-  onCompact?: () => void;
+  onLoadBranch?: () => void;
+  onBranch?: (entryId: string) => void;
+  onLoadResources?: () => void;
+  onExport?: () => void;
+  onCompact?: (customInstructions?: string) => void;
   drawer?: boolean;
   onClose?: () => void;
 };
@@ -49,10 +56,17 @@ export function InspectorPanel({
   preview,
   git,
   checkpoints,
+  sessionTree = [],
+  sessionLeafId = null,
+  resources = null,
   onReadFile,
   onLoadTree,
   onLoadGit,
   onRestore,
+  onLoadBranch,
+  onBranch,
+  onLoadResources,
+  onExport,
   onCompact,
   drawer,
   onClose,
@@ -69,18 +83,30 @@ export function InspectorPanel({
       className={`flex h-full w-[360px] max-w-full shrink-0 flex-col border-l border-line bg-sidebar ${drawer ? "absolute inset-y-0 right-0 z-30 shadow-dialog" : ""}`}
     >
       <div className="flex h-[52px] items-center gap-1 border-b border-line px-2">
-        {(["changes", "files", "git", "activity"] as const).map((item) => (
+        {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
           <button
             key={item}
             type="button"
-            className={`pressable h-10 rounded-sm px-3 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
+            className={`pressable h-10 rounded-sm px-2 text-sm ${tab === item ? "bg-fill text-ink" : "hover-fill text-mute"}`}
             onClick={() => {
               setTab(item);
               if (item === "files") onLoadTree();
               if (item === "git") onLoadGit();
+              if (item === "branch") onLoadBranch?.();
+              if (item === "skills") onLoadResources?.();
             }}
           >
-            {item === "changes" ? "改动" : item === "files" ? "文件" : item === "git" ? "Git" : "动态"}
+            {item === "changes"
+              ? "改动"
+              : item === "files"
+                ? "文件"
+                : item === "git"
+                  ? "Git"
+                  : item === "activity"
+                    ? "动态"
+                    : item === "branch"
+                      ? "分支"
+                      : "技能"}
           </button>
         ))}
         {drawer ? (
@@ -98,8 +124,13 @@ export function InspectorPanel({
               </p>
             ) : null}
             {onCompact ? (
-              <button type="button" className="pressable mb-3 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={onCompact}>
+              <button type="button" className="pressable mb-3 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={() => onCompact()}>
                 压缩上下文
+              </button>
+            ) : null}
+            {onExport ? (
+              <button type="button" className="pressable mb-3 ml-2 h-10 rounded-sm border border-line bg-elevated px-3 text-sm text-ink" onClick={onExport}>
+                导出 HTML
               </button>
             ) : null}
             {tools.length === 0 ? <p className="text-sm text-mute">还没有操作记录。</p> : null}
@@ -203,6 +234,73 @@ export function InspectorPanel({
             ) : (
               <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
             )}
+          </div>
+        ) : null}
+        {tab === "branch" ? (
+          <div className="space-y-2">
+            <p className="text-sm text-mute">这是 Pi 的会话树。可以从任意一条用户消息重新分叉。</p>
+            {sessionTree.length === 0 ? <p className="text-sm text-mute">还没有分支记录。</p> : null}
+            <ul className="space-y-1">
+              {sessionTree.map((node) => (
+                <li key={node.id}>
+                  <button
+                    type="button"
+                    className={`pressable flex min-h-10 w-full items-start gap-2 rounded-sm px-2 py-1 text-left ${node.id === sessionLeafId ? "bg-fill" : "hover-fill"}`}
+                    disabled={node.role !== "user" || !onBranch}
+                    onClick={() => onBranch?.(node.id)}
+                  >
+                    <span className="w-12 shrink-0 text-[11px] text-mute">{node.role === "user" ? "你" : node.role === "assistant" ? "AI" : node.role}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink">{node.text || "（无文本）"}</span>
+                    {node.leaf ? <span className="text-[11px] text-accent">当前</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {tab === "skills" ? (
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-sm text-ink">上下文文件</p>
+              {resources?.agentsFiles.length ? (
+                <ul className="space-y-1 font-mono text-[11px] text-mute">
+                  {resources.agentsFiles.map((file) => (
+                    <li key={file.path} className="break-all">
+                      {file.kind} · {file.path}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-mute">没有找到 AGENTS.md 或同类文件。</p>
+              )}
+            </div>
+            <div>
+              <p className="mb-2 text-sm text-ink">技能</p>
+              {resources?.skills.length ? (
+                <ul className="space-y-1 text-sm text-ink">
+                  {resources.skills.map((skill) => (
+                    <li key={skill.path}>
+                      {skill.name}
+                      <span className="ml-2 text-[11px] text-mute">{skill.scope === "user" ? "用户" : "项目"}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-mute">
+                  {resources?.trustProject ? "这个项目还没有技能。" : "未信任项目，只显示用户技能。"}
+                </p>
+              )}
+            </div>
+            {resources?.templates.length ? (
+              <div>
+                <p className="mb-2 text-sm text-ink">提示模板</p>
+                <ul className="space-y-1 text-sm text-ink">
+                  {resources.templates.map((item) => (
+                    <li key={item.path}>{item.name}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

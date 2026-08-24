@@ -6,10 +6,13 @@ import { assertAllowedCwd } from "../security/path-policy.js";
 import {
   BEGINNER_PROVIDERS,
   hasAnyAuth,
+  inspectModelsFile,
+  listAuthEntries,
   listConfiguredProviders,
   saveApiKey,
   type BeginnerProviderId,
 } from "../setup/auth-status.js";
+import type { AuthEntry } from "@mowen/protocol";
 import { listFolders } from "../setup/folder-browser.js";
 import type { SettingsStore } from "../setup/settings-store.js";
 
@@ -37,6 +40,10 @@ export type SetupStatus = {
   dataDir: string;
   needsSetup: boolean;
   piBundled: boolean;
+  authEntries: AuthEntry[];
+  hasModelsFile: boolean;
+  modelCount: number;
+  trustProject: boolean;
 };
 
 export async function buildSetupStatus(
@@ -45,8 +52,10 @@ export async function buildSetupStatus(
   pi: { version: string | null; error: string | null },
 ): Promise<SetupStatus> {
   const userSettings = settings.get();
-  const configuredProviders = await listConfiguredProviders(config.homeDir);
+  const authEntries = await listAuthEntries(config.homeDir);
+  const configuredProviders = authEntries.map((entry) => entry.id);
   const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir));
+  const models = await inspectModelsFile(config.homeDir);
   const piAvailable = Boolean(pi.version) && !pi.error;
   const e2e = process.env.MOWEN_E2E === "1" || process.env.OHMYPI_E2E === "1" || process.env.MOWEN_SKIP_SETUP === "1" || process.env.OHMYPI_SKIP_SETUP === "1";
   const setupCompleted = e2e || Boolean(userSettings.setupCompletedAt);
@@ -68,6 +77,10 @@ export async function buildSetupStatus(
     dataDir: config.dataDir,
     needsSetup,
     piBundled: config.piBundled,
+    authEntries,
+    hasModelsFile: models.present,
+    modelCount: models.count,
+    trustProject: userSettings.trustProject,
   };
 }
 
@@ -120,6 +133,16 @@ export function registerSetupRoutes(
     });
     const nextRoots = [workspace, ...config.allowedRoots.filter((root) => root !== workspace)];
     options.setAllowedRoots(nextRoots);
+    options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/trust", async (request, reply) => {
+    const parsed = z.object({ trust: z.boolean() }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "请选择是否信任这个项目。" });
+    }
+    await options.settings.save({ trustProject: parsed.data.trust });
     options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });

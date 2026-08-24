@@ -75,9 +75,16 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
         try {
           const data = await service.handleCommand(command);
           service.emit(taskId, "request.succeeded", { requestId: command.id, data });
-          if (command.type === "snapshot.request" || command.type === "task.activate" || command.type === "task.create") {
+          if (
+            command.type === "snapshot.request" ||
+            command.type === "task.activate" ||
+            command.type === "task.create" ||
+            command.type === "session.resume"
+          ) {
             service.emit(taskId || ((data as { task?: { id: string } }).task?.id ?? ""), "snapshot", service.buildSnapshot(
-              command.type === "task.create" ? (data as { task: { id: string } }).task.id : command.taskId ?? null,
+              command.type === "task.create" || command.type === "session.resume"
+                ? (data as { task: { id: string } }).task.id
+                : command.taskId ?? null,
             ));
           }
         } catch (error) {
