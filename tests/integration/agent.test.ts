@@ -281,6 +281,18 @@ describe("integration fake-pi", () => {
     expect(completed.payload?.tool?.isError).toBeFalsy();
     const written = await import("node:fs/promises").then((fs) => fs.readFile(path.join(project, "auto.txt"), "utf8"));
     expect(written).toBe("hello");
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find(
+          (event) => event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+        );
+        if (match) return resolve();
+        if (Date.now() - start > 4000) return reject(new Error("auto-write did not settle"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
 
     sock.send({
       id: "set-ask",
@@ -293,6 +305,7 @@ describe("integration fake-pi", () => {
     await sock.waitFor("approval.requested");
     await sock.waitFor("tool.completed");
     await expect(import("node:fs/promises").then((fs) => fs.access(path.join(project, "blocked-ask.txt")))).rejects.toThrow();
+    await new Promise((r) => setTimeout(r, 400));
 
     sock.send({ id: "plain", type: "prompt.send", taskId, payload: { message: "fork source hello" } });
     await sock.waitFor("message.completed");

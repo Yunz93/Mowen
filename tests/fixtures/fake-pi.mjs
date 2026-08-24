@@ -217,14 +217,16 @@ async function handlePrompt(message, mode) {
   }
 
   try {
-    if (message.startsWith("WRITE:")) {
-      const rest = message.slice("WRITE:".length);
+    const writeAt = message.indexOf("WRITE:");
+    const bashAt = message.indexOf("BASH:");
+    if (writeAt >= 0) {
+      const rest = message.slice(writeAt + "WRITE:".length);
       const split = rest.indexOf(":");
       const filePath = rest.slice(0, split);
       const content = rest.slice(split + 1);
       await runWrite(filePath, content);
-    } else if (message.startsWith("BASH:")) {
-      await runBash(message.slice("BASH:".length));
+    } else if (bashAt >= 0) {
+      await runBash(message.slice(bashAt + "BASH:".length));
     } else {
       const prefix = mode === "steer" ? "Steered: " : mode === "follow_up" ? "Follow-up: " : "Echo: ";
       await streamText(`${prefix}${message}`);
