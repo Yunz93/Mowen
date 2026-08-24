@@ -113,34 +113,70 @@ export const approvalRequestSchema = z.object({
 
 export type ApprovalRequest = z.infer<typeof approvalRequestSchema>;
 
-export const sessionStatsSchema = z.object({
-  sessionFile: z.string().optional(),
-  sessionId: z.string().optional(),
-  userMessages: z.number().optional(),
-  assistantMessages: z.number().optional(),
-  toolCalls: z.number().optional(),
-  toolResults: z.number().optional(),
-  totalMessages: z.number().optional(),
-  tokens: z
-    .object({
-      input: z.number(),
-      output: z.number(),
-      cacheRead: z.number(),
-      cacheWrite: z.number(),
-      total: z.number(),
-    })
-    .optional(),
-  cost: z.number().optional(),
-  contextUsage: z
-    .object({
-      tokens: z.number().nullable().optional(),
-      contextWindow: z.number().optional(),
-      percent: z.number().nullable().optional(),
-    })
-    .optional(),
-});
+const finiteNumber = z.number().finite();
+const optionalFinite = finiteNumber.optional();
+const nullableFinite = finiteNumber.nullable().optional();
+
+export const sessionStatsSchema = z
+  .object({
+    sessionFile: z.string().optional(),
+    sessionId: z.string().optional(),
+    userMessages: optionalFinite,
+    assistantMessages: optionalFinite,
+    toolCalls: optionalFinite,
+    toolResults: optionalFinite,
+    totalMessages: optionalFinite,
+    tokens: z
+      .object({
+        input: optionalFinite,
+        output: optionalFinite,
+        cacheRead: optionalFinite,
+        cacheWrite: optionalFinite,
+        total: optionalFinite,
+      })
+      .passthrough()
+      .optional(),
+    cost: optionalFinite,
+    contextUsage: z
+      .object({
+        tokens: nullableFinite,
+        contextWindow: optionalFinite,
+        percent: nullableFinite,
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 export type SessionStats = z.infer<typeof sessionStatsSchema>;
+
+export type SessionStatsFallback = {
+  totalMessages?: number;
+  toolCalls?: number;
+  contextWindow?: number;
+};
+
+export function normalizeSessionStats(raw: unknown, fallback: SessionStatsFallback = {}): SessionStats {
+  const parsed = sessionStatsSchema.safeParse(raw && typeof raw === "object" ? raw : {});
+  const stats: SessionStats = parsed.success ? parsed.data : {};
+  const tokensTotal = stats.tokens?.total;
+  const window = stats.contextUsage?.contextWindow ?? fallback.contextWindow;
+  let contextUsage = stats.contextUsage;
+  if (!contextUsage && (tokensTotal != null || window != null)) {
+    const tokens = tokensTotal ?? null;
+    contextUsage = {
+      tokens,
+      contextWindow: window,
+      percent: tokens != null && window ? Math.min(100, (tokens / window) * 100) : null,
+    };
+  }
+  return {
+    ...stats,
+    totalMessages: stats.totalMessages ?? fallback.totalMessages,
+    toolCalls: stats.toolCalls ?? fallback.toolCalls,
+    contextUsage,
+  };
+}
 
 export const timelineMessageSchema = z.object({
   id: z.string(),

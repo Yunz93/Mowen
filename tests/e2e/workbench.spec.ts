@@ -143,6 +143,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
   await page.getByRole("button", { name: "上下文用量" }).click();
+  await expect(page.getByRole("dialog", { name: "上下文用量" }).getByText(/20 \/ .+ tokens/)).toBeVisible();
   await expect(page.getByText("接近上限时自动压缩")).toBeVisible();
   await expect(page.getByText("出错时自动重试")).toBeVisible();
   await expect(page.getByLabel("压缩时额外交代")).toBeVisible();

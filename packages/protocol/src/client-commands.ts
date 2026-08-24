@@ -147,6 +147,12 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("session.stats"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("snapshot.request"),
     payload: z.object({ taskId: z.string().optional() }).optional(),
   }),

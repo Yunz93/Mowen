@@ -6,6 +6,7 @@ import {
   approvalDecision,
   effectiveApprovalPolicy,
   emptyRuntime,
+  normalizeSessionStats,
   stripModePrefix,
   type AuthEntry,
   type ClientCommand,
@@ -202,6 +203,9 @@ export class TaskService {
         });
         await this.refreshStats(command.taskId);
         return { ok: true };
+      case "session.stats":
+        await this.refreshStats(command.taskId);
+        return { ok: true };
       case "snapshot.request":
         return this.buildSnapshot(command.payload?.taskId ?? this.activeTaskId);
       case "files.tree":
@@ -330,7 +334,10 @@ export class TaskService {
       lastOpenedAt: new Date().toISOString(),
       unreadCount: 0,
     });
-    if (this.supervisor.has(taskId)) return;
+    if (this.supervisor.has(taskId)) {
+      void this.refreshStats(taskId);
+      return;
+    }
     const pendingBoot = this.booting.get(taskId);
     if (pendingBoot) return pendingBoot;
     const pendingOnly = [...this.booting.keys()].filter((id) => !this.supervisor.has(id)).length;
@@ -498,12 +505,20 @@ export class TaskService {
   }
 
   private async refreshStats(taskId: string): Promise<void> {
+    const runtime = this.supervisor.snapshot(taskId);
+    let raw: unknown = null;
     try {
-      const stats = await this.supervisor.rpcData(taskId, { type: "get_session_stats" });
-      this.emit(taskId, "session.stats", { stats });
+      raw = await this.supervisor.rpcData(taskId, { type: "get_session_stats" });
     } catch {
-      // Stats are optional.
+      // Stats RPC is optional on older Pi builds.
     }
+    const stats = normalizeSessionStats(raw, {
+      totalMessages: runtime?.messages.length,
+      toolCalls: runtime?.tools.length,
+      contextWindow: runtime?.models.find((model) => model.contextWindow)?.contextWindow,
+    });
+    this.supervisor.setStats(taskId, stats);
+    this.emit(taskId, "session.stats", { stats });
   }
 
   private async fileTree(taskId: string): Promise<{ entries: Array<{ path: string; name: string; kind: "file" | "dir" }> }> {
@@ -856,8 +871,8 @@ export class TaskService {
     });
     this.emit(taskId, "agent.status", { status: next.status, errorMessage: next.errorMessage ?? null });
     this.emit(taskId, "task.updated", { task: next });
-    if (status === "error" || status === "stopped" || status === "idle") {
-      // idle after boot should not drain; only when a process slot is released
+    if (event === "agent_settled") {
+      void this.refreshStats(taskId);
     }
     return next;
   }

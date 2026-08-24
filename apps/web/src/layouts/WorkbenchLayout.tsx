@@ -216,6 +216,9 @@ export function WorkbenchLayout() {
                 stats={stats}
                 runtime={runtime}
                 compact
+                messageCount={messages.length}
+                toolCount={tools.length}
+                onRefresh={() => void socketClient.send("session.stats", {}, task.id)}
                 onCompact={(customInstructions) =>
                   void socketClient.send("session.compact", { customInstructions }, task.id)
                 }
