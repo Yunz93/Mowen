@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
 import { approvalPolicies, interactionModes } from "@mowen/protocol";
 import { ArrowUp, ImagePlus, Square } from "lucide-react";
+import { filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type CommandItem = { name: string; description?: string; source?: string };
@@ -27,7 +28,7 @@ type Props = {
   onModel: (provider: string, modelId: string) => void;
   onThinking: (level: ThinkingLevel) => void;
   onPolicy: (mode: InteractionMode, approvalPolicy: ApprovalPolicy) => void;
-  onImages: (files: FileList) => void;
+  onImages: (files: FileList | File[]) => void;
   onNeedFiles: () => void;
   imageCount: number;
 };
@@ -82,6 +83,7 @@ export function PromptComposer({
   imageCount,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const composingRef = useRef(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [caret, setCaret] = useState(0);
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
@@ -136,10 +138,16 @@ export function PromptComposer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey && !mention && !slash) {
-      event.preventDefault();
-      submit();
-    }
+    if (!shouldSubmitOnEnter(event, composingRef.current) || mention || slash) return;
+    event.preventDefault();
+    submit();
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = filesFromClipboard(event.clipboardData);
+    if (images.length === 0) return;
+    event.preventDefault();
+    onImages(images);
   };
 
   return (
@@ -154,6 +162,15 @@ export function PromptComposer({
           }}
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          onCompositionStart={() => {
+            composingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            window.setTimeout(() => {
+              composingRef.current = false;
+            }, 0);
+          }}
           placeholder={running ? "正在处理。可以直接发送补充，或点停止。" : "有什么想做的，直接说。用 @ 点文件，用 / 找技能"}
           aria-label="输入消息"
           disabled={disabled}

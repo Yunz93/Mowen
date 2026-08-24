@@ -93,6 +93,15 @@ export function WorkbenchLayout() {
           setInspectorOpen(false);
           return;
         }
+        if (approval) {
+          event.preventDefault();
+          void socketClient.send(
+            "approval.respond",
+            { requestId: approval.requestId, allow: false, remember: false },
+            approval.taskId,
+          );
+          return;
+        }
         event.preventDefault();
         if (task) void socketClient.send("agent.abort", {}, task.id);
       }
@@ -107,7 +116,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [creating, inspectorOpen, paletteOpen, task, taskOpen]);
+  }, [approval, creating, inspectorOpen, paletteOpen, task, taskOpen]);
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
@@ -128,7 +137,7 @@ export function WorkbenchLayout() {
     await socketClient.send("prompt.send", { message: text, imageIds: images }, task.id);
   };
 
-  async function uploadImages(files: FileList) {
+  async function uploadImages(files: FileList | File[]) {
     const ids: string[] = [];
     for (const file of [...files]) {
       const body = new FormData();
@@ -287,7 +296,7 @@ export function WorkbenchLayout() {
           )}
         </main>
         {approval ? (
-          <div className="mx-auto w-full max-w-[720px] px-4">
+          <div className="dialog-scrim z-[60]" role="presentation">
             <ApprovalSheet
               approval={approval}
               onRespond={(allow, remember) =>
@@ -302,7 +311,7 @@ export function WorkbenchLayout() {
         ) : null}
         <PromptComposer
           status={status}
-          disabled={!task || connection !== "open"}
+          disabled={!task || connection !== "open" || Boolean(approval)}
           models={models}
           thinkingLevels={thinkingLevels}
           modelId={task?.model ? `${task.model.provider}/${task.model.id}` : null}

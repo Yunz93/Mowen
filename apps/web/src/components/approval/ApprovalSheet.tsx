@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@mowen/protocol";
 import { toolNameLabel } from "../../copy";
 import { DiffView } from "../diff/DiffView";
@@ -16,16 +16,23 @@ function heading(toolName: string): string {
 
 export function ApprovalSheet({ approval, onRespond }: Props) {
   const [remember, setRemember] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const remaining = Math.max(0, Date.parse(approval.expiresAt) - Date.now());
   const seconds = Math.ceil(remaining / 1000);
   const hasDiff = Boolean(approval.oldText || approval.newText || approval.content);
 
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, [approval.requestId]);
+
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="approval-title"
-      className="dialog-panel mb-3 max-w-none shadow-dialog"
+      tabIndex={-1}
+      className="dialog-panel dialog-panel-lg outline-none"
     >
       <div className="dialog-head">
         <div className="dialog-head-text">
