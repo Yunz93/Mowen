@@ -17,7 +17,7 @@ import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
 import { stripModePrefix } from "@mowen/protocol";
-import { folderName, nextHint } from "../copy";
+import { headerSubtitle } from "../copy";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
@@ -350,7 +350,7 @@ export function WorkbenchLayout() {
               </p>
             )}
             <p className="hidden truncate text-[11px] text-mute sm:block">
-              {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
+              {headerSubtitle(task?.cwd, Boolean(task), status)}
             </p>
           </div>
           {resources && (resources.agentsFiles.length > 0 || resources.skills.length > 0) ? (
