@@ -125,7 +125,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await page.getByLabel("API Key").fill("sk-ant-e2e-updated-key-123456");
   await page.getByRole("button", { name: "保存密钥" }).click();
   await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
-  await expect(page.getByText("Anthropic (Claude)")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: "Anthropic (Claude)" })).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();
