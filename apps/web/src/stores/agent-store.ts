@@ -34,6 +34,47 @@ export type CheckpointRecord = {
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
 
+const WORKBENCH_CACHE_KEY = "mowen.workbench";
+
+type WorkbenchCache = {
+  tasks: TaskRecord[];
+  activeTaskId: string | null;
+  messages: TimelineMessage[];
+  tools: ToolExecution[];
+};
+
+function readWorkbenchCache(): Partial<WorkbenchCache> {
+  if (typeof sessionStorage === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(WORKBENCH_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Partial<WorkbenchCache>;
+    return {
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : undefined,
+      activeTaskId: typeof parsed.activeTaskId === "string" || parsed.activeTaskId === null ? parsed.activeTaskId : undefined,
+      messages: Array.isArray(parsed.messages) ? parsed.messages : undefined,
+      tools: Array.isArray(parsed.tools) ? parsed.tools : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function persistWorkbenchCache(state: { tasks: TaskRecord[]; activeTaskId: string | null; messages: TimelineMessage[]; tools: ToolExecution[] }): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    const payload: WorkbenchCache = {
+      tasks: state.tasks,
+      activeTaskId: state.activeTaskId,
+      messages: state.messages,
+      tools: state.tools,
+    };
+    sessionStorage.setItem(WORKBENCH_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Quota or private-mode failures should not break the live session.
+  }
+}
+
 type AgentState = {
   connection: ConnectionStatus;
   tasks: TaskRecord[];
@@ -102,12 +143,14 @@ function upsertTask(tasks: TaskRecord[], task: TaskRecord): TaskRecord[] {
   return next;
 }
 
-export const useAgentStore = create<AgentState>((set, get) => ({
+export const useAgentStore = create<AgentState>((set, get) => {
+  const cached = readWorkbenchCache();
+  return {
   connection: "connecting",
-  tasks: [],
-  activeTaskId: null,
-  messages: [],
-  tools: [],
+  tasks: cached.tasks ?? [],
+  activeTaskId: cached.activeTaskId ?? null,
+  messages: cached.messages ?? [],
+  tools: cached.tools ?? [],
   approval: null,
   models: [],
   thinkingLevels: ["off"],
@@ -445,7 +488,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set({ lastSeen });
     }
   },
-}));
+  };
+});
+
+if (typeof sessionStorage !== "undefined") {
+  let persistTimer: ReturnType<typeof setTimeout> | null = null;
+  useAgentStore.subscribe((state) => {
+    if (persistTimer) return;
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      persistWorkbenchCache(state);
+    }, 200);
+  });
+}
 
 export function activeTask(): TaskRecord | undefined {
   const { tasks, activeTaskId } = useAgentStore.getState();

@@ -126,6 +126,28 @@ async function createMainWindow(port: number): Promise<void> {
     void shell.openExternal(url);
     return { action: "deny" };
   });
+  let rendererReady = false;
+  mainWindow.webContents.on("did-finish-load", () => {
+    rendererReady = true;
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!rendererReady) return;
+    const current = mainWindow?.webContents.getURL() ?? "";
+    if (url === current) return;
+    event.preventDefault();
+    try {
+      const next = new URL(url);
+      if (
+        (next.protocol === "http:" || next.protocol === "https:") &&
+        next.hostname !== "127.0.0.1" &&
+        next.hostname !== "localhost"
+      ) {
+        void shell.openExternal(url);
+      }
+    } catch {
+      // Ignore malformed navigation targets; stay on the current page.
+    }
+  });
 
   const packaged = app.isPackaged;
   const url = packaged || process.env.MOWEN_DESKTOP_USE_SERVER === "1" || process.env.OHMYPI_DESKTOP_USE_SERVER === "1"

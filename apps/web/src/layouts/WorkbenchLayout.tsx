@@ -273,7 +273,7 @@ export function WorkbenchLayout() {
             </button>
           </div>
         ) : null}
-        <main id="main-content" className="min-h-0 min-w-[0] flex-1 overflow-y-auto">
+        <main id="main-content" className="min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain">
           {task ? (
             <ConversationTimeline
               messages={messages}

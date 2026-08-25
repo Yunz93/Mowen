@@ -171,3 +171,44 @@ test("visual workbench at required viewports", async ({ page }) => {
     expect(overflow).toBe(false);
   }
 });
+
+async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
+  await page.goto("/");
+  await page.getByRole("button", { name: "新对话" }).click();
+  await page.getByRole("button", { name: "输入路径" }).click();
+  await page.getByLabel("工作文件夹").fill(project);
+  await page.getByLabel("标题").fill(title);
+  await page.getByRole("button", { name: "创建对话" }).click();
+  await expect(page.getByRole("banner").getByText(title)).toBeVisible();
+}
+
+test("reload during a run keeps the agent going", async ({ page }) => {
+  await createTask(page, "Reload task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly ${"word ".repeat(80)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await page.reload();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("please stream this slowly").first()).toBeVisible();
+});
+
+test("scrolling up during stream is not yanked back down", async ({ page }) => {
+  await createTask(page, "Scroll task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.locator("#main-content").evaluate((el) => {
+    (el as HTMLElement).style.maxHeight = "160px";
+  });
+  await page.getByLabel("输入消息").fill(`please stream this slowly ${"word ".repeat(40)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  const main = page.locator("#main-content");
+  await expect.poll(async () => main.evaluate((el) => el.scrollHeight > el.clientHeight + 20)).toBe(true);
+  await main.evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page.waitForTimeout(700);
+  expect(await main.evaluate((el) => el.scrollTop)).toBeLessThan(80);
+});
