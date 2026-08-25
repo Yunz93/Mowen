@@ -108,8 +108,7 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
   const userCountRef = useRef(0);
 
   useLayoutEffect(() => {
-    const root = rootRef.current;
-    const scroller = findScrollParent(root);
+    const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
     if (!scroller) return;
 
     const syncPin = () => {
@@ -117,23 +116,24 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
     };
     const onWheel = (event: WheelEvent) => {
       if (event.deltaY < 0) pinnedRef.current = false;
-      else if (isNearBottom(scroller)) pinnedRef.current = true;
+      else syncPin();
     };
     scroller.addEventListener("scroll", syncPin, { passive: true });
-    scroller.addEventListener("wheel", onWheel, { passive: true });
+    scroller.addEventListener("wheel", onWheel, { passive: true, capture: true });
     return () => {
       scroller.removeEventListener("scroll", syncPin);
-      scroller.removeEventListener("wheel", onWheel);
+      scroller.removeEventListener("wheel", onWheel, true);
     };
   }, []);
 
   useLayoutEffect(() => {
+    const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
+    if (!scroller) return;
     const userCount = messages.reduce((count, message) => count + (message.role === "user" ? 1 : 0), 0);
     if (userCount > userCountRef.current) pinnedRef.current = true;
+    else if (!isNearBottom(scroller)) pinnedRef.current = false;
     userCountRef.current = userCount;
-
-    const scroller = findScrollParent(rootRef.current);
-    if (!scroller || !pinnedRef.current) return;
+    if (!pinnedRef.current) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [messages, tools]);
 
