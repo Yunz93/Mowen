@@ -121,6 +121,14 @@ describe("integration fake-pi", () => {
     const created = await sock.waitFor("request.succeeded");
     const taskId = created?.payload?.data?.task?.id as string;
 
+    sock.send({
+      id: "ask-policy",
+      type: "task.policy.set",
+      taskId,
+      payload: { mode: "agent", approvalPolicy: "ask" },
+    });
+    await sock.waitForRequest("ask-policy");
+
     sock.send({ id: "p1", type: "prompt.send", taskId, payload: { message: "hello world" } });
     await sock.waitFor("message.delta");
     sock.send({ id: "s1", type: "prompt.steer", taskId, payload: { message: "turn left" } });
@@ -452,6 +460,13 @@ describe("integration fake-pi", () => {
       sock.send({ id: "c", type: "task.create", payload: { cwd: project, title: "Timeout" } });
       const created = await sock.waitFor("request.succeeded");
       const taskId = created?.payload?.data?.task?.id as string;
+      sock.send({
+        id: "ask-policy",
+        type: "task.policy.set",
+        taskId,
+        payload: { mode: "agent", approvalPolicy: "ask" },
+      });
+      await sock.waitForRequest("ask-policy");
       sock.send({ id: "w", type: "prompt.send", taskId, payload: { message: "WRITE:late.txt:nope" } });
       await sock.waitFor("approval.requested");
       const resolved = await sock.waitFor("approval.resolved", 4000);

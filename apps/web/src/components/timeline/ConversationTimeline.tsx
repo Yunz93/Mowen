@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState, isValidElement } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import hljs from "highlight.js";
+import { useLayoutEffect, useRef, useState, memo } from "react";
 import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
+import { AssistantMarkdown } from "./AssistantMarkdown";
+import { findScrollParent, isNearBottom } from "../../lib/stick-to-bottom";
 
 type Props = {
   messages: TimelineMessage[];
@@ -33,56 +31,6 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
       {open ? (
         <pre className="fade-in mt-1 whitespace-pre-wrap text-xs leading-6 text-mute">{message.thinking}</pre>
       ) : null}
-    </div>
-  );
-}
-
-function highlightCode(content: string, language?: string): string {
-  if (language && hljs.getLanguage(language)) {
-    return hljs.highlight(content, { language }).value;
-  }
-  return hljs.highlightAuto(content).value;
-}
-
-function renderAssistant(text: string) {
-  return (
-    <div className="markdown">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        components={{
-          pre({ children }) {
-            let language = "";
-            let code = "";
-            if (isValidElement(children)) {
-              const props = children.props as { className?: string; children?: unknown };
-              language = /language-([\w-]+)/.exec(props.className ?? "")?.[1] ?? "";
-              code = String(props.children ?? "").replace(/\n$/, "");
-            }
-            const html = highlightCode(code, language);
-            return (
-              <pre className="markdown-pre">
-                {language ? <div className="markdown-pre-lang">{language}</div> : null}
-                <code dangerouslySetInnerHTML={{ __html: html }} />
-              </pre>
-            );
-          },
-          code({ children }) {
-            return <code className="markdown-inline">{children}</code>;
-          },
-          a({ href, children }) {
-            return (
-              <a href={href} target="_blank" rel="noreferrer noopener">
-                {children}
-              </a>
-            );
-          },
-          input({ checked }) {
-            return <input type="checkbox" checked={checked ?? false} disabled readOnly />;
-          },
-        }}
-      >
-        {text}
-      </ReactMarkdown>
     </div>
   );
 }
@@ -145,17 +93,55 @@ function UserMessage({
   );
 }
 
+const AssistantMessage = memo(function AssistantMessage({ message }: { message: TimelineMessage }) {
+  return (
+    <article className="mr-auto max-w-[90%]">
+      <ThinkingBlock message={message} />
+      <AssistantMarkdown text={message.text} streaming={message.streaming} />
+    </article>
+  );
+});
+
 export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onClone }: Props) {
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const userCountRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
+    if (!scroller) return;
+
+    const syncPin = () => {
+      pinnedRef.current = isNearBottom(scroller);
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) pinnedRef.current = false;
+      else syncPin();
+    };
+    scroller.addEventListener("scroll", syncPin, { passive: true });
+    scroller.addEventListener("wheel", onWheel, { passive: true, capture: true });
+    return () => {
+      scroller.removeEventListener("scroll", syncPin);
+      scroller.removeEventListener("wheel", onWheel, true);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
+    if (!scroller) return;
+    const userCount = messages.reduce((count, message) => count + (message.role === "user" ? 1 : 0), 0);
+    if (userCount > userCountRef.current) pinnedRef.current = true;
+    else if (!isNearBottom(scroller)) pinnedRef.current = false;
+    userCountRef.current = userCount;
+    if (!pinnedRef.current) return;
+    scroller.scrollTop = scroller.scrollHeight;
   }, [messages, tools]);
 
   const toolById = new Map(tools.map((tool) => [tool.toolCallId, tool]));
   const renderedTools = new Set<string>();
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-7 sm:px-6">
+    <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-7 sm:px-6">
       {messages.length === 0 ? (
         <div className="pt-20 text-center">
           <p className="text-[13px] leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
@@ -185,19 +171,13 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
         if (message.role === "assistant" && !message.text && !message.thinking) {
           return null;
         }
-        return (
-          <article key={message.id} className="mr-auto max-w-[90%]">
-            <ThinkingBlock message={message} />
-            {message.text ? renderAssistant(message.text) : null}
-          </article>
-        );
+        return <AssistantMessage key={message.id} message={message} />;
       })}
       {tools
         .filter((tool) => !renderedTools.has(tool.toolCallId))
         .map((tool) => (
           <ToolExecutionRow key={tool.toolCallId} tool={tool} />
         ))}
-      <div ref={endRef} />
     </div>
   );
 }

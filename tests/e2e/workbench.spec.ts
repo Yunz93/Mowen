@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
 const project = path.join(process.cwd(), ".mowen-test", "e2e-project");
@@ -27,6 +27,7 @@ test.beforeAll(() => {
       }),
     ].join("\n"),
   );
+  rmSync(path.join(project, "denied.txt"), { force: true });
 });
 
 test("workbench core loop", async ({ page }) => {
@@ -51,6 +52,10 @@ test("workbench core loop", async ({ page }) => {
   await page.getByLabel("输入消息").fill("change course");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("Echo: change course").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "选项" }).click();
+  await page.getByLabel("审批").selectOption("ask");
+  await page.getByRole("button", { name: "选项" }).click();
 
   await page.getByLabel("输入消息").fill("WRITE:denied.txt:secret");
   await page.getByRole("button", { name: "发送" }).click();
@@ -170,4 +175,61 @@ test("visual workbench at required viewports", async ({ page }) => {
     );
     expect(overflow).toBe(false);
   }
+});
+
+async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
+  await page.goto("/");
+  await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
+  const list = page.getByRole("complementary", { name: "会话" }).locator("li");
+  try {
+    await expect.poll(async () => list.count(), { timeout: 2_000 }).toBeGreaterThan(0);
+  } catch {
+    // A fresh server has no leftover sessions to archive.
+  }
+  while ((await list.count()) > 0) {
+    const count = await list.count();
+    const item = list.first();
+    await item.hover();
+    await item.getByRole("button", { name: /^归档 / }).click();
+    await expect(list).toHaveCount(count - 1);
+  }
+  await page.getByRole("button", { name: "新对话" }).click();
+  await page.getByRole("button", { name: "输入路径" }).click();
+  await page.getByLabel("工作文件夹").fill(project);
+  await page.getByLabel("标题").fill(title);
+  await page.getByRole("button", { name: "创建对话" }).click();
+  await expect(page.getByRole("banner").getByText(title)).toBeVisible();
+}
+
+test("reload during a run keeps the agent going", async ({ page }) => {
+  await createTask(page, "Reload task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly ${"word ".repeat(80)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await page.reload();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("please stream this slowly").first()).toBeVisible();
+});
+
+test("scrolling up during stream is not yanked back down", async ({ page }) => {
+  await createTask(page, "Scroll task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.setViewportSize({ width: 1280, height: 420 });
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly\n${"padding line to force a tall transcript\n".repeat(18)}${"word ".repeat(40)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  const main = page.locator("#main-content");
+  await expect.poll(async () => main.evaluate((el) => el.scrollHeight > el.clientHeight + 40)).toBe(true);
+  await main.evaluate((el) => {
+    el.dispatchEvent(new WheelEvent("wheel", { deltaY: -140, bubbles: true }));
+    el.scrollTop = 0;
+  });
+  await page.waitForTimeout(700);
+  const remaining = await main.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  expect(remaining).toBeGreaterThan(80);
 });
