@@ -20,6 +20,10 @@ export function applyDesktopEnv(): void {
     process.env.MOWEN_NODE_BIN = process.execPath;
     process.env.MOWEN_PI_BUNDLED = "1";
   }
+  const toolsDir = resolvePiToolsDir();
+  if (toolsDir) {
+    process.env.MOWEN_PI_TOOLS = toolsDir;
+  }
 }
 
 export function webDistDir(): string {
@@ -49,6 +53,26 @@ export function resolvePiEntry(): string | null {
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+export function resolvePiToolsDir(): string | null {
+  const candidates = [
+    app.isPackaged
+      ? path.join(process.resourcesPath, "tools")
+      : path.resolve(app.getAppPath(), "vendor/tools"),
+    path.resolve(app.getAppPath(), "vendor/tools"),
+  ];
+  for (const candidate of candidates) {
+    if (
+      fs.existsSync(path.join(candidate, "fd")) ||
+      fs.existsSync(path.join(candidate, "fd.exe")) ||
+      fs.existsSync(path.join(candidate, "rg")) ||
+      fs.existsSync(path.join(candidate, "rg.exe"))
+    ) {
+      return candidate;
+    }
   }
   return null;
 }

@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
+import { humanizeSearchToolDownloadError } from "./pi-search-tools.js";
 
 export function defaultPiAgentDir(homeDir = os.homedir()): string {
   return path.join(homeDir, ".pi", "agent");
@@ -36,7 +37,8 @@ export function humanizeAuthAccessError(error: unknown): string | null {
 }
 
 export function humanizeUserFacingError(error: unknown): string {
-  return humanizeAuthAccessError(error) ?? (error instanceof Error ? error.message : String(error));
+  const text = error instanceof Error ? error.message : String(error);
+  return humanizeAuthAccessError(error) ?? humanizeSearchToolDownloadError(text) ?? text;
 }
 
 /** True for missing API keys / login — not filesystem errors on auth.json. */
