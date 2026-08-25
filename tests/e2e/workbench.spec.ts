@@ -217,14 +217,14 @@ test("reload during a run keeps the agent going", async ({ page }) => {
 test("scrolling up during stream is not yanked back down", async ({ page }) => {
   await createTask(page, "Scroll task");
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
-  await page.locator("#main-content").evaluate((el) => {
-    (el as HTMLElement).style.maxHeight = "160px";
-  });
-  await page.getByLabel("输入消息").fill(`please stream this slowly ${"word ".repeat(40)}`);
+  await page.setViewportSize({ width: 1280, height: 420 });
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly\n${"padding line to force a tall transcript\n".repeat(18)}${"word ".repeat(40)}`);
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
   const main = page.locator("#main-content");
-  await expect.poll(async () => main.evaluate((el) => el.scrollHeight > el.clientHeight + 20)).toBe(true);
+  await expect.poll(async () => main.evaluate((el) => el.scrollHeight > el.clientHeight + 40)).toBe(true);
   await main.evaluate((el) => {
     el.dispatchEvent(new WheelEvent("wheel", { deltaY: -140, bubbles: true }));
     el.scrollTop = 0;
