@@ -2,6 +2,8 @@ export type MowenDesktopApi = {
   isDesktop: true;
   platform: "darwin" | "win32" | "linux" | string;
   pickFolder: (defaultPath?: string) => Promise<string | null>;
+  openPath?: (filePath: string) => Promise<string>;
+  onOpenSetup?: (callback: () => void) => () => void;
 };
 
 declare global {

@@ -38,6 +38,8 @@ type Props = {
   onBranch?: (entryId: string) => void;
   onLoadResources?: () => void;
   onExport?: () => void;
+  lastExportPath?: string | null;
+  onOpenExport?: (path: string) => void;
   onCompact?: (customInstructions?: string) => void;
   drawer?: boolean;
   onClose?: () => void;
@@ -68,6 +70,8 @@ export function InspectorPanel({
   onBranch,
   onLoadResources,
   onExport,
+  lastExportPath = null,
+  onOpenExport,
   onCompact,
   drawer,
   onClose,
@@ -136,6 +140,15 @@ export function InspectorPanel({
             {onExport ? (
               <button type="button" className="pressable mb-3 ml-2 h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink" onClick={onExport}>
                 导出 HTML
+              </button>
+            ) : null}
+            {lastExportPath && onOpenExport ? (
+              <button
+                type="button"
+                className="pressable mb-3 ml-2 h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                onClick={() => onOpenExport(lastExportPath)}
+              >
+                打开
               </button>
             ) : null}
             {tools.length === 0 ? <p className="text-sm text-mute">还没有操作记录。</p> : null}

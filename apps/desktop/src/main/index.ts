@@ -169,6 +169,12 @@ function registerIpc(): void {
     if (result.canceled) return null;
     return result.filePaths[0] ?? null;
   });
+  ipcMain.handle("mowen:open-path", async (_event, filePath: unknown) => {
+    if (typeof filePath !== "string" || path.extname(filePath).toLowerCase() !== ".html") {
+      return "invalid path";
+    }
+    return shell.openPath(filePath);
+  });
 }
 
 async function boot(): Promise<void> {

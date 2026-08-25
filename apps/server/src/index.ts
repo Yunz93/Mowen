@@ -9,6 +9,7 @@ import { loadDotEnv } from "./env.js";
 import { loadConfig, readPiVersion, resolvePiRuntime } from "./config.js";
 import { registerHealth } from "./routes/health.js";
 import { registerSetupRoutes, buildSetupStatus } from "./routes/setup.js";
+import { registerExportRoutes } from "./routes/exports.js";
 import { registerUploads } from "./routes/uploads.js";
 import { ensureSessionCookie } from "./security/session-cookie.js";
 import { SettingsStore } from "./setup/settings-store.js";
@@ -203,6 +204,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
       setup,
     };
   });
+  registerExportRoutes(app, () => config);
   registerUploads(app, service, config.allowedOrigins, config.host);
   registerWebsocket(app, config, service);
 
