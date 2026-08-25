@@ -18,9 +18,9 @@
     "start": "node apps/server/dist/index.js",
     "doctor": "tsx scripts/doctor.ts",
     "desktop:dev": "pnpm --filter @mowen/protocol build && pnpm --filter @mowen/server build && pnpm --filter @mowen/desktop build && pnpm --parallel --filter @mowen/web --filter @mowen/desktop dev",
-    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack",
-    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack:mac",
-    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && pnpm --filter @mowen/desktop pack:win",
+    "desktop:pack": "pnpm build && tsx scripts/bundle-pi.ts && tsx scripts/bundle-pi-tools.ts && pnpm --filter @mowen/desktop pack",
+    "desktop:pack:mac": "pnpm build && tsx scripts/bundle-pi.ts && tsx scripts/bundle-pi-tools.ts && pnpm --filter @mowen/desktop pack:mac",
+    "desktop:pack:win": "pnpm build && tsx scripts/bundle-pi.ts && tsx scripts/bundle-pi-tools.ts && pnpm --filter @mowen/desktop pack:win",
     "desktop:install:mac": "bash scripts/install-macos.sh",
     "desktop:install:win": "pwsh -File scripts/install-windows.ps1",
     "smoke:real": "tsx scripts/smoke-real.ts"
