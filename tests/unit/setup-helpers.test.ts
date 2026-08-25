@@ -26,6 +26,16 @@ describe("setup helpers", () => {
     expect(providers).toContain("anthropic");
   });
 
+  it("overwrites an existing API key for the same provider", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-update-"));
+    dirs.push(home);
+    await saveApiKey("anthropic", "sk-ant-old-key-123456", home);
+    await saveApiKey("anthropic", "sk-ant-new-key-654321", home);
+    const raw = await readFile(path.join(home, ".pi", "agent", "auth.json"), "utf8");
+    const json = JSON.parse(raw) as { anthropic: { type: string; key: string } };
+    expect(json.anthropic.key).toBe("sk-ant-new-key-654321");
+  });
+
   it("persists workspace settings", async () => {
     const dataDir = await mkdtemp(path.join(os.tmpdir(), "mowen-settings-"));
     dirs.push(dataDir);
