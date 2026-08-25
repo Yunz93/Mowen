@@ -103,4 +103,57 @@ describe("event sequence dedup", () => {
     };
     expect(serverFrameSchema.parse({ __batch: true, events: [event] }).events).toHaveLength(1);
   });
+
+  it("keeps a provider 401 visible after an empty assistant message starts", () => {
+    const store = useAgentStore.getState();
+    store.setActiveTask("t-401");
+    const base = {
+      serverInstanceId: "server-401",
+      taskId: "t-401",
+      timestamp: new Date().toISOString(),
+    };
+    store.applyEvent({
+      ...base,
+      eventId: "e1",
+      sequence: 1,
+      type: "server.error",
+      payload: {
+        code: "pi.retry",
+        message: "登录已失效或密钥不正确（HTTP 401）。打开设置检查 API Key，或重新登录。",
+      },
+    });
+    store.applyEvent({
+      ...base,
+      eventId: "e2",
+      sequence: 2,
+      type: "message.started",
+      payload: {
+        message: {
+          id: "asst-empty",
+          role: "assistant",
+          text: "",
+          createdAt: base.timestamp,
+          streaming: true,
+        },
+      },
+    });
+    expect(useAgentStore.getState().serverError).toMatch(/401/);
+
+    store.applyEvent({
+      ...base,
+      eventId: "e3",
+      sequence: 3,
+      type: "message.started",
+      payload: {
+        message: {
+          id: "user-retry",
+          role: "user",
+          text: "再试一次",
+          createdAt: base.timestamp,
+          streaming: false,
+        },
+      },
+    });
+    expect(useAgentStore.getState().serverError).toBeNull();
+  });
 });

@@ -50,6 +50,19 @@ describe("event normalizer", () => {
       maxAttempts: 3,
       error: "529",
     });
+    expect(
+      normalizePiEvent({
+        type: "auto_retry_end",
+        success: false,
+        attempt: 1,
+        finalError: "HTTP 401 Unauthorized",
+      }),
+    ).toEqual({
+      kind: "runtime.retry",
+      phase: "end",
+      attempt: 1,
+      error: "HTTP 401 Unauthorized",
+    });
     expect(normalizePiEvent({ type: "queue_update", steering: ["go left"], followUp: ["then summarize"] })).toEqual({
       kind: "runtime.queue",
       steering: ["go left"],

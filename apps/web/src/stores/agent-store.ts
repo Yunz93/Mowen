@@ -338,7 +338,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
         }
         set({
           lastSeen,
-          serverError: event.payload.message.role === "assistant" ? null : current.serverError,
+          // Pi often starts an empty assistant bubble before the provider
+          // returns 401/403. Keep that error visible until the user sends again.
+          serverError: event.payload.message.role === "user" ? null : current.serverError,
           messages: current.messages.some((item) => item.id === event.payload.message.id)
             ? current.messages
             : [...current.messages, event.payload.message],

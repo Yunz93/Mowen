@@ -35,16 +35,48 @@ export function humanizeAuthAccessError(error: unknown): string | null {
   ].join("\n");
 }
 
-export function humanizeUserFacingError(error: unknown): string {
-  return humanizeAuthAccessError(error) ?? (error instanceof Error ? error.message : String(error));
+export function isAuthHttpError(raw: string): boolean {
+  const message = raw.toLowerCase();
+  if (/eacces|eperm|permission denied/i.test(raw) && /auth\.json/i.test(raw)) return false;
+  return (
+    /\b401\b/.test(message) ||
+    /\b403\b/.test(message) ||
+    message.includes("authentication_error") ||
+    message.includes("invalid api key") ||
+    message.includes("invalid_api_key") ||
+    message.includes("invalid x-api-key") ||
+    /\bunauthorized\b/.test(message) ||
+    message.includes("authentication failed")
+  );
 }
 
-/** True for missing API keys / login — not filesystem errors on auth.json. */
+export function humanizeAuthHttpError(error: unknown): string | null {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (!isAuthHttpError(raw)) return null;
+  if (/\b403\b/.test(raw) || /forbidden/i.test(raw)) {
+    return "当前密钥没有权限调用这个模型（HTTP 403）。打开设置换一个可用的 API Key，或换一个模型。";
+  }
+  return "登录已失效或密钥不正确（HTTP 401）。打开设置检查 API Key，或重新登录。";
+}
+
+export function humanizeUserFacingError(error: unknown): string {
+  return (
+    humanizeAuthAccessError(error) ??
+    humanizeAuthHttpError(error) ??
+    (error instanceof Error ? error.message : String(error))
+  );
+}
+
+/** True for missing API keys / login — not HTTP 401/403 or filesystem errors on auth.json. */
 export function isMissingCredentialError(text: string): boolean {
   if (/EACCES|EPERM|permission denied/i.test(text) && /auth\.json/i.test(text)) return false;
-  return /api key|missing key|no credentials|unauthorized|\b401\b|please (?:log\s*in|authenticate)|not logged in/i.test(
-    text,
-  );
+  if (isAuthHttpError(text)) return false;
+  return /api key|missing key|no credentials|please (?:log\s*in|authenticate)|not logged in/i.test(text);
+}
+
+export function shouldSurfacePiStderr(chunk: string): boolean {
+  if (/auth\.json/i.test(chunk) && /EACCES|EPERM|permission denied/i.test(chunk)) return true;
+  return isAuthHttpError(chunk);
 }
 
 export async function tryRepairAgentDir(agentDir: string): Promise<boolean> {

@@ -21,6 +21,8 @@ type EventMsg = {
     task?: { id: string };
     status?: string;
     messages?: Array<{ text: string }>;
+    message?: string;
+    authHint?: boolean;
   };
 };
 
@@ -212,6 +214,56 @@ describe("integration fake-pi", () => {
     expect(crashed.payload?.status).toBe("error");
     sock2.ws.close();
   }, 20_000);
+
+  it("surfaces HTTP 401 from Pi as a visible server.error", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-401"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "1",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
+    try {
+      const project = path.join(root.current, "project");
+      const sock = await openSocket(isolated.base);
+      await sock.waitFor("snapshot");
+      sock.send({
+        id: "c-401",
+        type: "task.create",
+        payload: { cwd: project, title: "Auth 401" },
+      });
+      const created = await sock.waitFor("request.succeeded");
+      const taskId = created?.payload?.data?.task?.id as string;
+
+      sock.send({ id: "p-401", type: "prompt.send", taskId, payload: { message: "FAIL401" } });
+      const error = await sock.waitFor("server.error");
+      expect(error.payload?.message).toMatch(/401|登录已失效/);
+      expect(error.payload?.authHint).not.toBe(true);
+
+      await new Promise<void>((resolve, reject) => {
+        const start = Date.now();
+        const tick = () => {
+          const match = sock.events.find(
+            (event) =>
+              event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+          );
+          if (match) return resolve();
+          if (Date.now() - start > 4000) return reject(new Error("401 turn did not settle"));
+          setTimeout(tick, 25);
+        };
+        tick();
+      });
+      const afterSettle = sock.events.filter((event) => event.type === "server.error");
+      expect(afterSettle.some((event) => event.payload?.message?.match(/401|登录已失效/))).toBe(true);
+      sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
+  }, 15_000);
 
   it("starts a second turn after idle instead of queuing a dead follow_up", async () => {
     const project = path.join(root.current, "project");
