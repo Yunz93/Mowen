@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
+import { humanizeSearchToolDownloadError } from "./pi-search-tools.js";
 
 export function defaultPiAgentDir(homeDir = os.homedir()): string {
   return path.join(homeDir, ".pi", "agent");
@@ -60,10 +61,12 @@ export function humanizeAuthHttpError(error: unknown): string | null {
 }
 
 export function humanizeUserFacingError(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
   return (
     humanizeAuthAccessError(error) ??
+    humanizeSearchToolDownloadError(text) ??
     humanizeAuthHttpError(error) ??
-    (error instanceof Error ? error.message : String(error))
+    text
   );
 }
 
