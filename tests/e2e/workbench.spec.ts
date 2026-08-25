@@ -181,7 +181,11 @@ async function createTask(page: import("@playwright/test").Page, title: string):
   await page.goto("/");
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
   const list = page.getByRole("complementary", { name: "会话" }).locator("li");
-  await expect.poll(async () => list.count(), { timeout: 10_000 }).toBeGreaterThan(0);
+  try {
+    await expect.poll(async () => list.count(), { timeout: 2_000 }).toBeGreaterThan(0);
+  } catch {
+    // A fresh server has no leftover sessions to archive.
+  }
   while ((await list.count()) > 0) {
     const count = await list.count();
     const item = list.first();
