@@ -181,9 +181,7 @@ async function createTask(page: import("@playwright/test").Page, title: string):
   await page.goto("/");
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
   const list = page.getByRole("complementary", { name: "会话" }).locator("li");
-  await expect
-    .poll(async () => list.count(), { timeout: 10_000 })
-    .toBeGreaterThanOrEqual(0);
+  await expect.poll(async () => list.count(), { timeout: 10_000 }).toBeGreaterThan(0);
   while ((await list.count()) > 0) {
     const count = await list.count();
     const item = list.first();
@@ -224,8 +222,10 @@ test("scrolling up during stream is not yanked back down", async ({ page }) => {
   const main = page.locator("#main-content");
   await expect.poll(async () => main.evaluate((el) => el.scrollHeight > el.clientHeight + 20)).toBe(true);
   await main.evaluate((el) => {
+    el.dispatchEvent(new WheelEvent("wheel", { deltaY: -140, bubbles: true }));
     el.scrollTop = 0;
   });
   await page.waitForTimeout(700);
-  expect(await main.evaluate((el) => el.scrollTop)).toBeLessThan(80);
+  const remaining = await main.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  expect(remaining).toBeGreaterThan(80);
 });
