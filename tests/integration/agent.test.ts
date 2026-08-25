@@ -554,14 +554,27 @@ describe("integration fake-pi", () => {
   }, 15_000);
 
   it("attaches @file contents, queues follow_up, and round-trips select", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-gui"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "3",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
     const project = path.join(root.current, "project");
-    const sock = await openSocket(ctx.base);
+    try {
+    const sock = await openSocket(isolated.base);
     await sock.waitFor("snapshot");
     sock.send({ id: "c-gui", type: "task.create", payload: { cwd: project, title: "GUI phases" } });
     const created = await sock.waitFor("request.succeeded");
     const taskId = created?.payload?.data?.task?.id as string;
 
     sock.send({ id: "p-file", type: "prompt.send", taskId, payload: { message: "please read @README.md" } });
+    expect((await sock.waitForRequest("p-file")).type).toBe("request.succeeded");
     const attached = await new Promise<EventMsg>((resolve, reject) => {
       const start = Date.now();
       const tick = () => {
@@ -578,6 +591,19 @@ describe("integration fake-pi", () => {
       tick();
     });
     expect(JSON.stringify(attached.payload)).toMatch(/README\.md/);
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find(
+          (event) =>
+            event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+        );
+        if (match) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("@file turn did not settle"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
 
     sock.send({
       id: "p-slow",
@@ -595,6 +621,20 @@ describe("integration fake-pi", () => {
         const match = sock.events.find((event) => JSON.stringify(event.payload).includes("Follow-up: queued next"));
         if (match) return resolve();
         if (Date.now() - start > 8000) return reject(new Error("follow_up did not run"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find(
+          (event) =>
+            event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+        );
+        if (match) return resolve();
+        if (Date.now() - start > 10_000) return reject(new Error("follow_up turn did not settle"));
         setTimeout(tick, 25);
       };
       tick();
@@ -629,5 +669,8 @@ describe("integration fake-pi", () => {
     sock.send({ id: "reload", type: "resources.reload", taskId, payload: {} });
     await sock.waitForRequest("reload");
     sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
   }, 25_000);
 });

@@ -154,7 +154,7 @@ export function registerSetupRoutes(
       return reply.code(400).send({ error: "请选择要登录的服务商。" });
     }
     const config = options.getConfig();
-    const known = [...OAUTH_PROVIDERS.map((item) => item.id), ...BEGINNER_PROVIDERS.map((item) => item.id)];
+    const known: string[] = [...OAUTH_PROVIDERS.map((item) => item.id), ...BEGINNER_PROVIDERS.map((item) => item.id)];
     if (!known.includes(parsed.data.provider) && !/^[a-z0-9_-]+$/i.test(parsed.data.provider)) {
       return reply.code(400).send({ error: "不支持这个服务商。" });
     }

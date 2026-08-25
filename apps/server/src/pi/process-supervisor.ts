@@ -42,6 +42,14 @@ export type RuntimeSnapshot = {
   sessionLeafId: string | null;
 };
 
+type ApprovalPending = {
+  requestId: string;
+  taskId: string;
+  generation: number;
+  payload: ApprovalRequest;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 type InteractionPending = {
   requestId: string;
   taskId: string;

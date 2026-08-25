@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
-import { approvalPolicies, interactionModes } from "@mowen/protocol";
+import { approvalPolicies, extractAtMentions, interactionModes } from "@mowen/protocol";
 import { ArrowUp, ImagePlus, Square } from "lucide-react";
-import { extractAtMentions } from "@mowen/protocol";
+import { filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type CommandItem = { name: string; description?: string; source?: string };
