@@ -47,24 +47,37 @@ function isAllowedImage(file: File): boolean {
   return /\.(png|jpe?g|webp)$/i.test(file.name);
 }
 
+export function fileFingerprint(file: File): string {
+  return `${file.name}:${file.size}:${normalizeImageType(file.type)}:${file.lastModified}`;
+}
+
 export function filesFromClipboard(data: ClipboardLike | null | undefined): File[] {
   if (!data) return [];
   const files: File[] = [];
-  const seen = new Set<File>();
+  const seen = new Set<string>();
 
   const add = (file: File | null | undefined) => {
-    if (!file || seen.has(file) || !isAllowedImage(file)) return;
-    seen.add(file);
+    if (!file || !isAllowedImage(file)) return;
+    const key = fileFingerprint(file);
+    if (seen.has(key)) return;
+    seen.add(key);
     files.push(file);
   };
 
   if (data.files) {
     for (const file of Array.from(data.files as ArrayLike<File>)) add(file);
   }
+  // Browsers often expose the same paste on both `files` and `items` as distinct
+  // File objects. Prefer the FileList and only read items when it was empty.
+  if (files.length > 0) return files;
   if (data.items) {
     for (const item of data.items) {
       if (item.kind === "file") add(item.getAsFile());
     }
   }
   return files;
+}
+
+export function composerCanSubmit(text: string, imageCount: number): boolean {
+  return Boolean(text.trim()) || imageCount > 0;
 }
