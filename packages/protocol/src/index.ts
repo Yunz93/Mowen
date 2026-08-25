@@ -47,6 +47,7 @@ export {
   approvalPolicies,
   effectiveApprovalPolicy,
   interactionModes,
+  isHighRiskCommand,
   rememberKey,
   stripModePrefix,
 } from "./interaction-policy.js";

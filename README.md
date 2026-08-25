@@ -118,5 +118,7 @@ pnpm desktop:install:mac
 
 - 默认只监听本机
 - 禁止写入 `.env`、`.ssh` 和 Pi 的 `auth.json`
-- 改文件、跑命令默认要你点允许（`MOWEN_MUTATIONS=disabled` 时全部拒绝）
+- 默认开启「自动审核」：改文件和普通命令自动放行，高危命令（`sudo`、`rm -rf`、磁盘格式化、`curl | sh`、强制推送等）仍需你确认
+- 界面里可随时切换审批策略：每次确认 / 自动改文件 / 自动审核 / 只读
+- `MOWEN_MUTATIONS=disabled` 时拒绝所有改动
 - macOS 安装包目前**没有** Apple 公证；信任由安装脚本在本机完成

@@ -282,7 +282,7 @@ export class TaskService {
       unreadCount: 0,
       errorMessage: null,
       mode: "agent",
-      approvalPolicy: "ask",
+      approvalPolicy: "auto",
     };
     await this.store.upsert(task);
     this.activeTaskId = task.id;
@@ -569,7 +569,7 @@ export class TaskService {
   private async applyStoredPolicy(taskId: string, approval: import("@mowen/protocol").ApprovalRequest): Promise<void> {
     const task = this.store.get(taskId);
     if (!task) return;
-    const policy = effectiveApprovalPolicy(task.mode ?? "agent", task.approvalPolicy ?? "ask");
+    const policy = effectiveApprovalPolicy(task.mode ?? "agent", task.approvalPolicy ?? "auto");
     let decision = approvalDecision(policy, approval);
     if (decision === null && this.remembered.match(approval)) decision = true;
     if (decision === null) return;

@@ -18,6 +18,11 @@ export const approvalPolicies: Array<{
 }> = [
   { value: "ask", label: "每次确认", description: "改文件和跑命令都先问你" },
   { value: "workspace", label: "自动改文件", description: "工作区内改文件自动允许，命令仍要确认" },
+  {
+    value: "auto",
+    label: "自动审核",
+    description: "自动放行普通操作，高危命令（sudo、rm -rf、格式化、强制推送等）仍需确认",
+  },
   { value: "read_only", label: "只读", description: "拒绝所有改动" },
 ];
 
@@ -34,12 +39,45 @@ export function effectiveApprovalPolicy(
   return mode === "agent" ? policy : "read_only";
 }
 
+// 高危命令：命中任意一条就视为需要人工确认。
+// 匹配的是常见危险操作（提权、递归删除、磁盘写入、远程脚本执行、
+// 强制推送、批量销毁等）；普通命令（测试、构建、git add/commit 等）不受影响。
+const HIGH_RISK_PATTERNS: RegExp[] = [
+  /\bsudo\b/, // 提权
+  /\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*[rf][a-zA-Z]*/, // rm -rf 递归强制删除
+  /\b(dd|mkfs\.\w+|fdisk|parted|gdisk)\b/, // 磁盘/分区操作
+  /\b(curl|wget)\b[^|;]*\|\s*(sudo\s+)?(ba)?sh\b/, // curl|sh 远程脚本
+  /\b(ba)?sh\s+-c\b/, // 任意命令注入
+  /\bchmod\s+-[a-zA-Z]*R[a-zA-Z]*\b/, // 递归改权限
+  /\bchown\s+-[a-zA-Z]*R[a-zA-Z]*\b/, // 递归改属主
+  /\bgit\s+push\b[^|;&]*\s+(?:-f|--force)\b/, // 强制推送
+  /\bgit\s+reset\s+--hard\b/, // 丢弃提交历史
+  /\bgit\s+clean\s+-[a-zA-Z]*[fdx][a-zA-Z]*/, // 删除未跟踪文件
+  /\b(kill|pkill)\s+-9\b|\bkillall\s+-9\b/, // 强杀进程
+  /\b(useradd|userdel|usermod|passwd)\b/, // 账号管理
+  /\b(shutdown|reboot|poweroff|halt)\b|\binit\s+[06]\b/, // 关机/重启
+  /\b(pnpm|npm|yarn|bun|cargo)\s+publish\b|\bgem\s+push\b/, // 发布上线
+  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/, // fork bomb
+];
+
+export function isHighRiskCommand(command: string): boolean {
+  return HIGH_RISK_PATTERNS.some((pattern) => pattern.test(command));
+}
+
 export function approvalDecision(
   policy: ApprovalPolicy,
   approval: ApprovalRequest,
 ): boolean | null {
   if (policy === "read_only") return false;
   if (policy === "workspace" && (approval.toolName === "edit" || approval.toolName === "write")) {
+    return true;
+  }
+  if (policy === "auto") {
+    if (approval.toolName === "bash") {
+      const command = approval.rawCommand ?? approval.target ?? "";
+      return isHighRiskCommand(command) ? null : true;
+    }
+    // edit/write 已在 Pi 扩展里做过路径与受保护文件校验，其余工具只读或无害。
     return true;
   }
   return null;

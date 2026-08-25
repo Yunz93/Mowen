@@ -323,7 +323,7 @@ export function WorkbenchLayout() {
             modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
             thinkingLevel={task.thinkingLevel ?? "off"}
             mode={task.mode ?? "agent"}
-            approvalPolicy={task.approvalPolicy ?? "ask"}
+            approvalPolicy={task.approvalPolicy ?? "auto"}
             files={files}
             commands={commands}
             hasTurns={messages.some((item) => item.role === "user")}
