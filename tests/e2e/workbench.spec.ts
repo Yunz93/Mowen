@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
 const project = path.join(process.cwd(), ".mowen-test", "e2e-project");
@@ -27,6 +27,7 @@ test.beforeAll(() => {
       }),
     ].join("\n"),
   );
+  rmSync(path.join(project, "denied.txt"), { force: true });
 });
 
 test("workbench core loop", async ({ page }) => {
@@ -178,9 +179,17 @@ test("visual workbench at required viewports", async ({ page }) => {
 
 async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
   await page.goto("/");
-  const archive = page.getByRole("button", { name: /^归档 / });
-  while ((await archive.count()) > 0) {
-    await archive.first().click();
+  await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
+  const list = page.getByRole("complementary", { name: "会话" }).locator("li");
+  await expect
+    .poll(async () => list.count(), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(0);
+  while ((await list.count()) > 0) {
+    const count = await list.count();
+    const item = list.first();
+    await item.hover();
+    await item.getByRole("button", { name: /^归档 / }).click();
+    await expect(list).toHaveCount(count - 1);
   }
   await page.getByRole("button", { name: "新对话" }).click();
   await page.getByRole("button", { name: "输入路径" }).click();
