@@ -1,6 +1,6 @@
 {
   "name": "@mowen/desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local-first 墨问 / Mowen workbench for Windows and macOS",
   "author": "Mowen",
   "type": "module",
