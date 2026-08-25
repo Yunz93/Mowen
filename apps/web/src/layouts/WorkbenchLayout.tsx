@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
-import { PromptComposer } from "../components/composer/PromptComposer";
+import { PromptComposer, type ComposerImage } from "../components/composer/PromptComposer";
 import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
@@ -60,7 +60,7 @@ export function WorkbenchLayout() {
   const [cwd, setCwd] = useState(workspaceRoot ?? allowedRoots[0] ?? "");
   const [creating, setCreating] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [imageIds, setImageIds] = useState<string[]>([]);
+  const [composerImages, setComposerImages] = useState<ComposerImage[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -68,7 +68,15 @@ export function WorkbenchLayout() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const skipTitleCommitRef = useRef(false);
+  const composerImagesRef = useRef(composerImages);
+  composerImagesRef.current = composerImages;
   const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      for (const item of composerImagesRef.current) URL.revokeObjectURL(item.previewUrl);
+    };
+  }, []);
 
   useEffect(() => {
     const preferred = workspaceRoot ?? allowedRoots[0];
@@ -182,11 +190,11 @@ export function WorkbenchLayout() {
   }
 
   const sendPrompt = async () => {
-    if (!task || !draft.trim()) return;
+    if (!task || (!draft.trim() && composerImages.length === 0)) return;
     const text = draft;
-    const images = imageIds;
+    const images = composerImages.map((item) => item.id);
     setDraft("");
-    setImageIds([]);
+    clearComposerImages();
     setRetryPrompt(null);
     if (task.status === "stopped" || task.status === "error") {
       await socketClient.send("task.activate", {}, task.id);
@@ -195,11 +203,11 @@ export function WorkbenchLayout() {
   };
 
   const sendFollowUp = async () => {
-    if (!task || !draft.trim()) return;
+    if (!task || (!draft.trim() && composerImages.length === 0)) return;
     const text = draft;
-    const images = imageIds;
+    const images = composerImages.map((item) => item.id);
     setDraft("");
-    setImageIds([]);
+    clearComposerImages();
     setRetryPrompt(null);
     await socketClient.send("prompt.followUp", { message: text, imageIds: images }, task.id);
   };
@@ -248,16 +256,32 @@ export function WorkbenchLayout() {
   }
 
   async function uploadImages(files: FileList | File[]) {
-    const ids: string[] = [];
+    const next: ComposerImage[] = [];
     for (const file of [...files]) {
       const body = new FormData();
       body.append("file", file);
-      const response = await fetch("/uploads", { method: "POST", body });
+      const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
       if (!response.ok) continue;
       const json = (await response.json()) as { id: string };
-      ids.push(json.id);
+      next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
     }
-    setImageIds((current) => [...current, ...ids]);
+    if (next.length === 0) return;
+    setComposerImages((current) => [...current, ...next]);
+  }
+
+  function removeComposerImage(id: string) {
+    setComposerImages((current) => {
+      const gone = current.find((item) => item.id === id);
+      if (gone) URL.revokeObjectURL(gone.previewUrl);
+      return current.filter((item) => item.id !== id);
+    });
+  }
+
+  function clearComposerImages() {
+    setComposerImages((current) => {
+      for (const item of current) URL.revokeObjectURL(item.previewUrl);
+      return [];
+    });
   }
 
   const requestFiles = useCallback(() => {
@@ -530,9 +554,9 @@ export function WorkbenchLayout() {
             onSend={() => void sendPrompt()}
             onSteer={() => {
               const text = draft;
-              const images = imageIds;
+              const images = composerImages.map((item) => item.id);
               setDraft("");
-              setImageIds([]);
+              clearComposerImages();
               setRetryPrompt(null);
               void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
             }}
@@ -548,8 +572,9 @@ export function WorkbenchLayout() {
               void socketClient.send("task.policy.set", { mode: nextMode, approvalPolicy: nextPolicy }, task.id)
             }
             onImages={(files) => void uploadImages(files)}
+            onRemoveImage={removeComposerImage}
             onNeedFiles={requestFiles}
-            imageCount={imageIds.length}
+            images={composerImages}
           />
         ) : null}
       </div>

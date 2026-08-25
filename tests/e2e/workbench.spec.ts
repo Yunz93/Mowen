@@ -405,3 +405,44 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
     page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("订阅 / 登录"),
   ).toBeVisible();
 });
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("attached images show a thumbnail that can be removed", async ({ page }) => {
+  await createTask(page, "Image preview task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.getByLabel("添加图片").setInputFiles({
+    name: "shot.png",
+    mimeType: "image/png",
+    buffer: TINY_PNG,
+  });
+  await expect(page.getByRole("img", { name: "shot.png" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "shot.png" })).toHaveCount(1);
+  await expect(page.getByLabel("已添加 1 张图")).toBeVisible();
+  await page.getByRole("button", { name: "移除 shot.png" }).click();
+  await expect(page.getByRole("img", { name: "shot.png" })).toHaveCount(0);
+});
+
+test("pasting one image attaches a single preview", async ({ page }) => {
+  await createTask(page, "Paste image task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.getByLabel("输入消息").focus();
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
+    const fromFiles = new File([bytes], "pasted.png", { type: "image/png", lastModified: 1 });
+    const fromItems = new File([bytes], "pasted.png", { type: "image/png", lastModified: 1 });
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files: [fromFiles],
+        items: [{ kind: "file", getAsFile: () => fromItems }],
+      },
+    });
+    document.activeElement?.dispatchEvent(event);
+  }, TINY_PNG.toString("base64"));
+  await expect(page.getByRole("img", { name: "pasted.png" })).toHaveCount(1);
+  await expect(page.getByLabel("已添加 1 张图")).toBeVisible();
+});

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
 import { approvalPolicies, extractAtMentions, interactionModes } from "@mowen/protocol";
-import { ArrowUp, ImagePlus, Square } from "lucide-react";
-import { filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
+import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
+import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type CommandItem = { name: string; description?: string; source?: string };
+export type ComposerImage = { id: string; previewUrl: string; name: string };
 
 type Props = {
   status: TaskStatus;
@@ -29,8 +30,9 @@ type Props = {
   onThinking: (level: ThinkingLevel) => void;
   onPolicy: (mode: InteractionMode, approvalPolicy: ApprovalPolicy) => void;
   onImages: (files: FileList | File[]) => void;
+  onRemoveImage: (id: string) => void;
   onNeedFiles: () => void;
-  imageCount: number;
+  images: ComposerImage[];
 };
 
 const THINKING_LABEL: Record<ThinkingLevel, string> = {
@@ -79,8 +81,9 @@ export function PromptComposer({
   onThinking,
   onPolicy,
   onImages,
+  onRemoveImage,
   onNeedFiles,
-  imageCount,
+  images,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
@@ -286,6 +289,27 @@ export function PromptComposer({
             </select>
           </div>
         ) : null}
+        {images.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5 pb-2 pt-1" aria-label={`已添加 ${images.length} 张图`}>
+            {images.map((image) => (
+              <li key={image.id} className="relative">
+                <img
+                  src={image.previewUrl}
+                  alt={image.name}
+                  className="h-14 w-14 rounded-md bg-fill object-cover"
+                />
+                <button
+                  type="button"
+                  className="pressable absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-elevated text-mute shadow-dialog"
+                  aria-label={`移除 ${image.name}`}
+                  onClick={() => onRemoveImage(image.id)}
+                >
+                  <X size={10} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5 pt-0.5">
           <button
             type="button"
@@ -300,7 +324,7 @@ export function PromptComposer({
               ? ` · ${approvalPolicies.find((item) => item.value === approvalPolicy)?.label}`
               : " · 只读"}
           </span>
-          <label className="pressable icon-btn cursor-pointer">
+          <label className="pressable icon-btn cursor-pointer" aria-label="添加图片">
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
@@ -308,12 +332,11 @@ export function PromptComposer({
               multiple
               onChange={(event) => {
                 if (event.target.files) onImages(event.target.files);
+                event.target.value = "";
               }}
             />
             <ImagePlus size={15} />
-            <span className="sr-only">添加图片</span>
           </label>
-          {imageCount > 0 ? <span className="text-[11px] text-mute">{imageCount} 张图</span> : null}
           {attachedCount > 0 ? (
             <span className="text-[11px] text-mute">{attachedCount} 个文件会随消息附上</span>
           ) : null}
@@ -329,7 +352,7 @@ export function PromptComposer({
               type="button"
               className="pressable btn btn-ghost"
               onClick={onFollowUp}
-              disabled={disabled || !value.trim()}
+              disabled={disabled || !composerCanSubmit(value, images.length)}
               title="排队下一条（Shift+Enter）"
             >
               排队
@@ -339,7 +362,7 @@ export function PromptComposer({
             type="button"
             className="pressable send-btn"
             onClick={submit}
-            disabled={disabled || !value.trim()}
+            disabled={disabled || !composerCanSubmit(value, images.length)}
             aria-label="发送"
             title="发送"
           >
