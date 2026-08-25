@@ -187,10 +187,6 @@ html.dark {
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
 
-  html.desktop[data-platform="darwin"] .traffic-inline {
-    padding-left: 78px;
-  }
-
   .material-sidebar {
     background: color-mix(in oklch, var(--color-sidebar) 86%, transparent);
     backdrop-filter: saturate(180%) blur(28px);
@@ -689,6 +685,17 @@ html.dark {
       filter: brightness(1.06);
     }
   }
+}
+
+/* Unlayered so this beats Tailwind utilities like px-3 / pl-*. The previous
+   rule lived in @layer components and lost to those classes, so 「会话」 sat
+   under the macOS traffic lights (hiddenInset at x:16). */
+html.desktop[data-platform="darwin"] {
+  --traffic-lights-inset: 80px;
+}
+
+html.desktop[data-platform="darwin"] .traffic-inline {
+  padding-left: var(--traffic-lights-inset);
 }
 
 @media (prefers-reduced-motion: reduce) {

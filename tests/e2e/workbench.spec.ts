@@ -101,6 +101,22 @@ test("keyboard and viewports", async ({ page }) => {
   }
 });
 
+test("macOS traffic lights leave room for the sidebar title", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.documentElement.classList.add("desktop");
+    document.documentElement.dataset.platform = "darwin";
+  });
+  const sidebar = page.getByRole("complementary", { name: "会话" });
+  await expect(sidebar).toBeVisible();
+  const header = sidebar.locator(".traffic-inline");
+  const paddingLeft = await header.evaluate((el) => getComputedStyle(el).paddingLeft);
+  expect(Number.parseFloat(paddingLeft)).toBeGreaterThanOrEqual(80);
+  const titleLeft = await sidebar.locator("p", { hasText: /^会话$/ }).evaluate((el) => el.getBoundingClientRect().left);
+  expect(titleLeft).toBeGreaterThanOrEqual(80);
+});
+
 test("reduced motion disables the status ring spin", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
