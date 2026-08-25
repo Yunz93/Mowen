@@ -52,6 +52,10 @@ test("workbench core loop", async ({ page }) => {
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("Echo: change course").first()).toBeVisible();
 
+  await page.getByRole("button", { name: "选项" }).click();
+  await page.getByLabel("审批").selectOption("ask");
+  await page.getByRole("button", { name: "选项" }).click();
+
   await page.getByLabel("输入消息").fill("WRITE:denied.txt:secret");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("heading", { name: "允许修改文件吗？" })).toBeVisible();
@@ -174,6 +178,10 @@ test("visual workbench at required viewports", async ({ page }) => {
 
 async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
   await page.goto("/");
+  const archive = page.getByRole("button", { name: /^归档 / });
+  while ((await archive.count()) > 0) {
+    await archive.first().click();
+  }
   await page.getByRole("button", { name: "新对话" }).click();
   await page.getByRole("button", { name: "输入路径" }).click();
   await page.getByLabel("工作文件夹").fill(project);
