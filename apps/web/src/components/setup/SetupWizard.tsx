@@ -18,6 +18,7 @@ export type SetupStatus = {
   dataDir: string;
   needsSetup: boolean;
   piBundled?: boolean;
+  canInstallPi?: boolean;
   authEntries?: Array<{ id: string; label: string; kind: "api_key" | "oauth" | "other" }>;
   hasModelsFile?: boolean;
   modelCount?: number;
@@ -37,6 +38,22 @@ async function fetchSetup(): Promise<SetupStatus> {
   return (await response.json()) as SetupStatus;
 }
 
+export function setupStorePayload(status: SetupStatus) {
+  return {
+    needsSetup: status.needsSetup,
+    authConfigured: status.authConfigured,
+    configuredProviders: status.configuredProviders,
+    homeDir: status.homeDir,
+    workspaceRoot: status.workspaceRoot,
+    allowedRoots: status.allowedRoots,
+    authEntries: status.authEntries,
+    trustProject: status.trustProject,
+    piVersion: status.piVersion,
+    piAvailable: status.piAvailable,
+    piError: status.piError,
+  };
+}
+
 export function SetupWizard({ onFinished, onCancel }: Props) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [step, setStep] = useState<Step>("welcome");
@@ -45,6 +62,8 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
   const [workspace, setWorkspace] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installLog, setInstallLog] = useState("");
   const existingLogins = status?.authEntries ?? [];
   const hasExistingLogin = existingLogins.length > 0 || Boolean(status?.authConfigured);
 
@@ -118,6 +137,50 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
     }
   }
 
+  async function recheckPi() {
+    setBusy(true);
+    setError("");
+    try {
+      const next = await fetchSetup();
+      setStatus(next);
+      if (next.piAvailable) setStep("auth");
+    } catch {
+      setError("检查 Pi 失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function installPi() {
+    setBusy(true);
+    setInstalling(true);
+    setError("");
+    setInstallLog("");
+    try {
+      const response = await fetch("/api/setup/install-pi", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const json = (await response.json()) as SetupStatus & { error?: string; log?: string };
+      if (json.log) setInstallLog(json.log);
+      if (!response.ok) {
+        setError(json.error ?? "安装 Pi 失败。");
+        if (json.piAvailable) {
+          setStatus(json);
+          setStep("auth");
+        }
+        return;
+      }
+      setStatus(json);
+      if (json.piAvailable) setStep("auth");
+    } catch {
+      setError("安装 Pi 失败。");
+    } finally {
+      setBusy(false);
+      setInstalling(false);
+    }
+  }
+
   function goBack() {
     setError("");
     if (step === "pi") setStep("welcome");
@@ -186,11 +249,18 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
               <p className="text-sm leading-6 text-mute">
                 {status?.piBundled
                   ? "内置 AI 引擎没能启动。请退出后重新打开墨问。如果还是不行，重新安装一次。"
-                  : "Pi 是墨问使用的 AI 引擎。请让帮你安装的人把它装到这台电脑上，然后点「再检查」。"}
+                  : "Pi 是墨问使用的 AI 引擎。点「安装 Pi」会在这台电脑上运行官方安装脚本。装好后也可以点「再检查」。"}
               </p>
               <div className="rounded-md border border-line bg-canvas px-3 py-2 text-[12px] text-mute">
-                {status?.piAvailable ? `已找到 Pi ${status.piVersion}` : (status?.piError ?? "还没有安装 Pi。")}
+                {status?.piAvailable
+                  ? `已找到 Pi ${status.piVersion}`
+                  : (status?.piError ?? "还没有安装 Pi，或找不到可执行文件。")}
               </div>
+              {installLog ? (
+                <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-canvas px-3 py-2 font-mono text-[11px] leading-5 text-mute">
+                  {installLog}
+                </pre>
+              ) : null}
             </>
           ) : null}
 
@@ -279,7 +349,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
 
           {step === "pi" ? (
             <>
-              <button type="button" className="pressable btn btn-ghost" onClick={goBack}>
+              <button type="button" className="pressable btn btn-ghost" disabled={busy} onClick={goBack}>
                 上一步
               </button>
               {status?.piAvailable ? (
@@ -291,23 +361,26 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
                   继续
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="pressable btn btn-primary"
-                  disabled={busy}
-                  onClick={() => {
-                    setBusy(true);
-                    void fetchSetup()
-                      .then((next) => {
-                        setStatus(next);
-                        if (next.piAvailable) setStep("auth");
-                      })
-                      .catch(() => setError("检查 Pi 失败。"))
-                      .finally(() => setBusy(false));
-                  }}
-                >
-                  再检查
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={`pressable btn ${status?.canInstallPi === false || status?.piBundled ? "btn-primary" : "btn-ghost"}`}
+                    disabled={busy}
+                    onClick={() => void recheckPi()}
+                  >
+                    再检查
+                  </button>
+                  {status?.piBundled ? null : (
+                    <button
+                      type="button"
+                      className="pressable btn btn-primary"
+                      disabled={busy}
+                      onClick={() => void installPi()}
+                    >
+                      {installing ? "正在安装…" : "安装 Pi"}
+                    </button>
+                  )}
+                </>
               )}
             </>
           ) : null}

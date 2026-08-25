@@ -13,6 +13,7 @@ import {
 } from "../setup/auth-status.js";
 import type { AuthEntry } from "@mowen/protocol";
 import { listFolders } from "../setup/folder-browser.js";
+import { InstallPiError } from "../setup/install-pi.js";
 import type { SettingsStore } from "../setup/settings-store.js";
 
 const apiKeyBodySchema = z.object({
@@ -43,6 +44,7 @@ export type SetupStatus = {
   hasModelsFile: boolean;
   modelCount: number;
   trustProject: boolean;
+  canInstallPi: boolean;
 };
 
 export async function buildSetupStatus(
@@ -80,6 +82,7 @@ export async function buildSetupStatus(
     hasModelsFile: models.present,
     modelCount: models.count,
     trustProject: userSettings.trustProject,
+    canInstallPi: !config.piBundled,
   };
 }
 
@@ -91,6 +94,7 @@ export function registerSetupRoutes(
     settings: SettingsStore;
     getPi: () => { version: string | null; error: string | null };
     onSetupChanged?: () => void;
+    installPi?: () => Promise<SetupStatus & { log: string }>;
   },
 ): void {
   app.get("/api/setup", async () => {
@@ -144,6 +148,25 @@ export function registerSetupRoutes(
     await options.settings.save({ trustProject: parsed.data.trust });
     options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/install-pi", async (_request, reply) => {
+    if (!options.installPi) {
+      return reply.code(501).send({ error: "这台墨问不支持在界面里安装 Pi。" });
+    }
+    const current = options.getPi();
+    if (current.version && !current.error) {
+      return { ...(await buildSetupStatus(options.getConfig(), options.settings, current)), log: "" };
+    }
+    try {
+      return await options.installPi();
+    } catch (error) {
+      if (error instanceof InstallPiError) {
+        return reply.code(error.statusCode).send({ error: error.message, log: error.log });
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(500).send({ error: message });
+    }
   });
 
   app.post("/api/setup/complete", async () => {

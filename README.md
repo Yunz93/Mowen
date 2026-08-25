@@ -76,7 +76,13 @@ pnpm dev                 # http://127.0.0.1:5173
 pnpm desktop:dev         # Electron + web
 ```
 
-可选：不走桌面包时，把 Pi 装到 PATH：
+可选：不走桌面包时，把 Pi 装到 PATH。浏览器开发模式的设置向导也可以点「安装 Pi」，直接运行官方脚本：
+
+```bash
+curl -fsSL https://pi.dev/install.sh | sh
+```
+
+或：
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent

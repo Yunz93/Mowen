@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AppRouter } from "./router";
 import { socketClient } from "../transport/socket-client";
-import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
+import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useAgentStore } from "../stores/agent-store";
 import { applyTheme, readTheme } from "../lib/theme";
 import { getDesktop } from "../desktop-bridge";
@@ -31,16 +31,7 @@ export function App() {
         if (response.ok) {
           const setup = (await response.json()) as SetupStatus;
           if (!cancelled) {
-            useAgentStore.getState().setSetupState({
-              needsSetup: setup.needsSetup,
-              authConfigured: setup.authConfigured,
-              configuredProviders: setup.configuredProviders,
-              homeDir: setup.homeDir,
-              workspaceRoot: setup.workspaceRoot,
-              allowedRoots: setup.allowedRoots,
-              authEntries: setup.authEntries,
-              trustProject: setup.trustProject,
-            });
+            useAgentStore.getState().setSetupState(setupStorePayload(setup));
             setShowWizard(setup.needsSetup);
           }
         }
@@ -63,16 +54,7 @@ export function App() {
       {checked && (showWizard || needsSetup) ? (
         <SetupWizard
           onFinished={(status) => {
-            useAgentStore.getState().setSetupState({
-              needsSetup: status.needsSetup,
-              authConfigured: status.authConfigured,
-              configuredProviders: status.configuredProviders,
-              homeDir: status.homeDir,
-              workspaceRoot: status.workspaceRoot,
-              allowedRoots: status.allowedRoots,
-              authEntries: status.authEntries,
-              trustProject: status.trustProject,
-            });
+            useAgentStore.getState().setSetupState(setupStorePayload(status));
             setShowWizard(false);
             void socketClient.send("snapshot.request");
           }}

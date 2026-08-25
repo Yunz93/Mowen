@@ -63,8 +63,8 @@ export class TaskService {
   constructor(
     private config: AppConfig,
     private readonly store: TaskStore,
-    readonly piVersion: string | null,
-    readonly piError: string | null,
+    public piVersion: string | null,
+    public piError: string | null,
   ) {
     this.supervisor = new ProcessSupervisor(
       config,
@@ -105,6 +105,11 @@ export class TaskService {
   updateConfig(config: AppConfig): void {
     this.config = config;
     this.supervisor.updateConfig(config);
+  }
+
+  setPi(version: string | null, error: string | null): void {
+    this.piVersion = version;
+    this.piError = error;
   }
 
   setSetupHints(hints: SetupHints): void {
