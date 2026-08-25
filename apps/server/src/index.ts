@@ -6,12 +6,18 @@ import multipart from "@fastify/multipart";
 import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 import { loadDotEnv } from "./env.js";
-import { loadConfig, readPiVersion } from "./config.js";
+import { loadConfig, readPiVersion, resolvePiRuntime } from "./config.js";
 import { registerHealth } from "./routes/health.js";
 import { registerSetupRoutes, buildSetupStatus } from "./routes/setup.js";
 import { registerUploads } from "./routes/uploads.js";
 import { ensureSessionCookie } from "./security/session-cookie.js";
 import { SettingsStore } from "./setup/settings-store.js";
+import {
+  applyPiBinToEnv,
+  discoverPiExecutable,
+  InstallPiError,
+  runOfficialPiInstall,
+} from "./setup/install-pi.js";
 import { TaskStore } from "./tasks/task-store.js";
 import { TaskService } from "./tasks/task-service.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
@@ -40,9 +46,17 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
   const store = new TaskStore(config.dataDir);
   await store.load();
   const service = new TaskService(config, store, version, error);
+  const healthInfo = {
+    piVersion: version,
+    piError: error,
+    mutations: config.mutations,
+  };
 
   const refreshSetupHints = async () => {
-    const setup = await buildSetupStatus(config, settings, { version, error });
+    const setup = await buildSetupStatus(config, settings, {
+      version: healthInfo.piVersion,
+      error: healthInfo.piError,
+    });
     service.setSetupHints({
       authConfigured: setup.authConfigured,
       configuredProviders: setup.configuredProviders,
@@ -55,6 +69,50 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     return setup;
   };
   await refreshSetupHints();
+
+  async function adoptPiBin(bin: string): Promise<void> {
+    applyPiBinToEnv(bin, env);
+    const runtime = resolvePiRuntime(env);
+    config = {
+      ...config,
+      piBin: bin,
+      piCommand: runtime.command,
+      piPrefixArgs: runtime.prefixArgs,
+      piExtraEnv: runtime.extraEnv,
+    };
+    service.updateConfig(config);
+  }
+
+  async function refreshPiState(): Promise<void> {
+    const next = await readPiVersion(config);
+    healthInfo.piVersion = next.version;
+    healthInfo.piError = next.error;
+    service.setPi(next.version, next.error);
+    if (next.version) {
+      console.log(`[mowen] Pi version: ${next.version}`);
+    } else if (next.error) {
+      console.warn(`[mowen] ${next.error}`);
+    }
+  }
+
+  async function installPi(): Promise<Awaited<ReturnType<typeof buildSetupStatus>> & { log: string }> {
+    if (config.piBundled) {
+      throw new InstallPiError("桌面版已内置 Pi。请退出后重新打开墨问；如果还是不行，重新安装一次。", 400);
+    }
+    const result = await runOfficialPiInstall({ homeDir: config.homeDir, env });
+    const bin = result.bin ?? (await discoverPiExecutable({ homeDir: config.homeDir, env }));
+    if (bin) await adoptPiBin(bin);
+    await refreshPiState();
+    if (!healthInfo.piVersion) {
+      throw new InstallPiError(
+        healthInfo.piError ?? "安装完成，但还是找不到 Pi 可执行文件。",
+        500,
+        result.log,
+      );
+    }
+    const status = await refreshSetupHints();
+    return { ...status, log: result.log };
+  }
 
   const app = Fastify({
     logger: {
@@ -71,11 +129,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     ensureSessionCookie(request, reply);
   });
 
-  registerHealth(app, {
-    piVersion: version,
-    piError: error,
-    mutations: config.mutations,
-  });
+  registerHealth(app, healthInfo);
 
   registerSetupRoutes(app, {
     getConfig: () => config,
@@ -84,7 +138,8 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
       service.updateConfig(config);
     },
     settings,
-    getPi: () => ({ version, error }),
+    getPi: () => ({ version: healthInfo.piVersion, error: healthInfo.piError }),
+    installPi,
     onSetupChanged: () => {
       const nextTrust = settings.get().trustProject;
       if (config.trustProject !== nextTrust) {

@@ -132,6 +132,9 @@ type AgentState = {
     allowedRoots?: string[];
     authEntries?: AuthEntry[];
     trustProject?: boolean;
+    piVersion?: string | null;
+    piAvailable?: boolean;
+    piError?: string | null;
   }) => void;
 };
 
@@ -203,6 +206,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
       authHint: !payload.authConfigured,
       authEntries: payload.authEntries ?? get().authEntries,
       trustProject: payload.trustProject ?? get().trustProject,
+      ...(payload.piVersion !== undefined ? { piVersion: payload.piVersion } : {}),
+      ...(payload.piAvailable !== undefined ? { piAvailable: payload.piAvailable } : {}),
+      ...(payload.piError !== undefined ? { piError: payload.piError } : {}),
     }),
   applySnapshot: (payload, taskId) =>
     set({

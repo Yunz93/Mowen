@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { useAgentStore } from "../stores/agent-store";
-import { SetupWizard, type SetupStatus } from "../components/setup/SetupWizard";
+import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
+import { socketClient } from "../transport/socket-client";
 
 export function SettingsPage() {
   const piVersion = useAgentStore((state) => state.piVersion);
@@ -19,6 +20,9 @@ export function SettingsPage() {
   const [theme, setTheme] = useTheme();
   const [models, setModels] = useState<{ present: boolean; count: number }>({ present: false, count: 0 });
   const [trustBusy, setTrustBusy] = useState(false);
+  const [installBusy, setInstallBusy] = useState(false);
+  const [installError, setInstallError] = useState("");
+  const [canInstallPi, setCanInstallPi] = useState(false);
 
   useEffect(() => {
     void fetch("/api/setup", { credentials: "same-origin" })
@@ -26,16 +30,8 @@ export function SettingsPage() {
       .then((setup: SetupStatus | null) => {
         if (!setup) return;
         setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
-        useAgentStore.getState().setSetupState({
-          needsSetup: setup.needsSetup,
-          authConfigured: setup.authConfigured,
-          configuredProviders: setup.configuredProviders,
-          homeDir: setup.homeDir,
-          workspaceRoot: setup.workspaceRoot,
-          allowedRoots: setup.allowedRoots,
-          authEntries: setup.authEntries,
-          trustProject: setup.trustProject,
-        });
+        setCanInstallPi(setup.canInstallPi !== false && !setup.piBundled);
+        useAgentStore.getState().setSetupState(setupStorePayload(setup));
       });
   }, []);
 
@@ -50,18 +46,32 @@ export function SettingsPage() {
       });
       if (!response.ok) return;
       const setup = (await response.json()) as SetupStatus;
-      useAgentStore.getState().setSetupState({
-        needsSetup: setup.needsSetup,
-        authConfigured: setup.authConfigured,
-        configuredProviders: setup.configuredProviders,
-        homeDir: setup.homeDir,
-        workspaceRoot: setup.workspaceRoot,
-        allowedRoots: setup.allowedRoots,
-        authEntries: setup.authEntries,
-        trustProject: setup.trustProject,
-      });
+      useAgentStore.getState().setSetupState(setupStorePayload(setup));
     } finally {
       setTrustBusy(false);
+    }
+  }
+
+  async function installPi() {
+    setInstallBusy(true);
+    setInstallError("");
+    try {
+      const response = await fetch("/api/setup/install-pi", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const json = (await response.json()) as SetupStatus & { error?: string };
+      if (!response.ok) {
+        setInstallError(json.error ?? "安装 Pi 失败。");
+        return;
+      }
+      setCanInstallPi(json.canInstallPi !== false && !json.piBundled);
+      useAgentStore.getState().setSetupState(setupStorePayload(json));
+      void socketClient.send("snapshot.request");
+    } catch {
+      setInstallError("安装 Pi 失败。");
+    } finally {
+      setInstallBusy(false);
     }
   }
 
@@ -112,13 +122,24 @@ export function SettingsPage() {
           <section>
             <h2 className="settings-label">账户与引擎</h2>
             <div className="settings-card">
-              <div className="settings-row">
-                <div>
+              <div className="settings-row items-center">
+                <div className="min-w-0 pr-3">
                   <p className="text-[13px] text-ink">AI 引擎</p>
                   <p className="mt-0.5 text-[12px] text-mute">
                     {piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好")}
                   </p>
+                  {installError ? <p className="mt-1 text-[12px] text-danger">{installError}</p> : null}
                 </div>
+                {!piVersion && canInstallPi ? (
+                  <button
+                    type="button"
+                    className="pressable btn btn-primary shrink-0"
+                    disabled={installBusy}
+                    onClick={() => void installPi()}
+                  >
+                    {installBusy ? "正在安装…" : "安装 Pi"}
+                  </button>
+                ) : null}
               </div>
               <div className="settings-row">
                 <div className="min-w-0">
@@ -206,16 +227,7 @@ export function SettingsPage() {
         <SetupWizard
           onCancel={() => setWizardOpen(false)}
           onFinished={(status: SetupStatus) => {
-            useAgentStore.getState().setSetupState({
-              needsSetup: status.needsSetup,
-              authConfigured: status.authConfigured,
-              configuredProviders: status.configuredProviders,
-              homeDir: status.homeDir,
-              workspaceRoot: status.workspaceRoot,
-              allowedRoots: status.allowedRoots,
-              authEntries: status.authEntries,
-              trustProject: status.trustProject,
-            });
+            useAgentStore.getState().setSetupState(setupStorePayload(status));
             setModels({ present: Boolean(status.hasModelsFile), count: status.modelCount ?? 0 });
             setWizardOpen(false);
           }}
