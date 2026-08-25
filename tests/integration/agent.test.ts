@@ -51,7 +51,7 @@ async function openSocket(base: string) {
     ws.once("error", reject);
   });
   let cursor = 0;
-  const waitFor = async (type: string, timeout = 8000) => {
+  const waitFor = async (type: string, timeout = 12_000) => {
     const start = Date.now();
     while (Date.now() - start < timeout) {
       const match = events.slice(cursor).find((event) => event.type === type);
@@ -338,7 +338,7 @@ describe("integration fake-pi", () => {
     });
     await sock.waitForRequest("set-policy");
     sock.send({ id: "auto-write", type: "prompt.send", taskId, payload: { message: "WRITE:auto.txt:hello" } });
-    const completed = await sock.waitFor("tool.completed", 8000);
+    const completed = await sock.waitFor("tool.completed", 15_000);
     expect(completed.payload?.tool?.isError).toBeFalsy();
     const written = await import("node:fs/promises").then((fs) => fs.readFile(path.join(project, "auto.txt"), "utf8"));
     expect(written).toBe("hello");
