@@ -376,12 +376,17 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   const backup = readFileSync(authPath, "utf8");
   try {
     await page.goto("/settings");
-    await expect(page.getByText("GitHub Copilot")).toBeVisible();
-    await page.locator("li").filter({ hasText: "GitHub Copilot" }).getByRole("button", { name: "退出" }).click();
+    const githubRow = page.locator("li").filter({ hasText: "GitHub Copilot" });
+    await expect(githubRow.getByRole("button", { name: "退出" })).toBeVisible();
+    await githubRow.getByRole("button", { name: "退出" }).click();
     await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
+    await expect(page.getByText("已退出登录。")).toBeVisible();
   } finally {
     writeFileSync(authPath, backup);
   }
   await page.getByRole("button", { name: "刷新登录状态" }).click();
-  await expect(page.getByText("订阅 / 登录")).toBeVisible();
+  await expect(page.getByText("已刷新登录状态。")).toBeVisible();
+  await expect(
+    page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("订阅 / 登录"),
+  ).toBeVisible();
 });

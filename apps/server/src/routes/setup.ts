@@ -103,11 +103,14 @@ export function registerSetupRoutes(
     getPi: () => { version: string | null; error: string | null };
     refreshPi?: () => Promise<void>;
     fetchLatestPi?: () => Promise<{ version: string | null; error: string | null }>;
-    onSetupChanged?: () => void;
+    onSetupChanged?: () => void | Promise<unknown>;
+    loadSetup?: () => Promise<SetupStatus>;
     installPi?: () => Promise<SetupStatus & { log: string }>;
   },
 ): void {
   app.get("/api/setup", async () => {
+    if (options.loadSetup) return options.loadSetup();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -128,7 +131,7 @@ export function registerSetupRoutes(
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(400).send({ error: message });
     }
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -144,7 +147,7 @@ export function registerSetupRoutes(
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(400).send({ error: message });
     }
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -165,6 +168,7 @@ export function registerSetupRoutes(
       provider: parsed.data.provider,
       homeDir: config.homeDir,
     });
+    await options.onSetupChanged?.();
     const setup = await buildSetupStatus(config, options.settings, options.getPi());
     return { ...setup, loginStarted: result.started, hint: result.hint };
   });
@@ -189,7 +193,7 @@ export function registerSetupRoutes(
     });
     const nextRoots = [workspace, ...config.allowedRoots.filter((root) => root !== workspace)];
     options.setAllowedRoots(nextRoots);
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -199,7 +203,7 @@ export function registerSetupRoutes(
       return reply.code(400).send({ error: "请选择是否信任这个项目。" });
     }
     await options.settings.save({ trustProject: parsed.data.trust });
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -248,7 +252,7 @@ export function registerSetupRoutes(
       workspaceRoot: current.workspaceRoot ?? options.getConfig().allowedRoots[0] ?? null,
       setupCompletedAt: new Date().toISOString(),
     });
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 

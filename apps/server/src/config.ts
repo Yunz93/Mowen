@@ -120,7 +120,7 @@ export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   options: { workspaceRoot?: string | null; homeDir?: string; trustProject?: boolean } = {},
 ): AppConfig {
-  const homeDir = options.homeDir ?? mowenEnv(env, "HOME_DIR") ?? os.homedir();
+  const homeDir = path.resolve(expandHome(options.homeDir ?? mowenEnv(env, "HOME_DIR") ?? os.homedir()));
   const host = env.HOST ?? "127.0.0.1";
   const port = Number(env.PORT ?? "4310");
   const nodeEnv = env.NODE_ENV ?? "development";

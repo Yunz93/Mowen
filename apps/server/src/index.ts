@@ -185,15 +185,15 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     refreshPi: refreshPiState,
     fetchLatestPi: () => fetchLatestPiVersion({ env }),
     installPi,
-    onSetupChanged: () => {
+    loadSetup: refreshSetupHints,
+    onSetupChanged: async () => {
       const nextTrust = settings.get().trustProject;
       if (config.trustProject !== nextTrust) {
         config = { ...config, trustProject: nextTrust };
         service.updateConfig(config);
       }
-      void refreshSetupHints().then(() => {
-        void service.refreshResources();
-      });
+      await refreshSetupHints();
+      void service.refreshResources();
     },
   });
 
