@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, isValidElement } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import hljs from "highlight.js";
 import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 
@@ -33,27 +37,54 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
   );
 }
 
+function highlightCode(content: string, language?: string): string {
+  if (language && hljs.getLanguage(language)) {
+    return hljs.highlight(content, { language }).value;
+  }
+  return hljs.highlightAuto(content).value;
+}
+
 function renderAssistant(text: string) {
-  const chunks = text.split(/```/);
-  return chunks.map((chunk, index) => {
-    if (index % 2 === 1) {
-      const newline = chunk.indexOf("\n");
-      const body = newline === -1 ? chunk : chunk.slice(newline + 1);
-      return (
-        <pre
-          key={index}
-          className="my-3 overflow-x-auto rounded-[10px] bg-canvas px-3 py-2.5 font-mono text-[12.5px] leading-5 text-ink"
-        >
-          {body}
-        </pre>
-      );
-    }
-    return (
-      <p key={index} className="whitespace-pre-wrap text-[15px] leading-[1.47] text-pretty text-ink">
-        {chunk}
-      </p>
-    );
-  });
+  return (
+    <div className="markdown">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={{
+          pre({ children }) {
+            let language = "";
+            let code = "";
+            if (isValidElement(children)) {
+              const props = children.props as { className?: string; children?: unknown };
+              language = /language-([\w-]+)/.exec(props.className ?? "")?.[1] ?? "";
+              code = String(props.children ?? "").replace(/\n$/, "");
+            }
+            const html = highlightCode(code, language);
+            return (
+              <pre className="markdown-pre">
+                {language ? <div className="markdown-pre-lang">{language}</div> : null}
+                <code dangerouslySetInnerHTML={{ __html: html }} />
+              </pre>
+            );
+          },
+          code({ children }) {
+            return <code className="markdown-inline">{children}</code>;
+          },
+          a({ href, children }) {
+            return (
+              <a href={href} target="_blank" rel="noreferrer noopener">
+                {children}
+              </a>
+            );
+          },
+          input({ checked }) {
+            return <input type="checkbox" checked={checked ?? false} disabled readOnly />;
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function UserMessage({
