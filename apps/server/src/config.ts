@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { defaultPiAgentDir } from "./setup/pi-agent-dir.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -34,6 +35,7 @@ export type AppConfig = {
   approvalExtensionPath: string;
   homeDir: string;
   piBundled: boolean;
+  piAgentDir: string;
   trustProject: boolean;
 };
 
@@ -170,6 +172,7 @@ export function loadConfig(
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
     homeDir,
     piBundled: mowenEnv(env, "PI_BUNDLED") === "1" || Boolean(mowenEnv(env, "PI_ENTRY")?.trim()),
+    piAgentDir: defaultPiAgentDir(homeDir),
     trustProject: options.trustProject === true,
   };
 }

@@ -18,7 +18,7 @@ export function isProtectedWriteTarget(resolvedPath: string): boolean {
   const base = path.basename(resolvedPath);
   if (base === ".env" || base.startsWith(".env.")) return true;
   if (parts.includes(".ssh")) return true;
-  if (base === "auth.json" && parts.includes(".pi")) return true;
+  if (base === "auth.json" && (parts.includes(".pi") || parts.includes("pi-agent"))) return true;
   return false;
 }
 

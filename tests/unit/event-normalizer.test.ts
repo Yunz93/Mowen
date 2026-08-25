@@ -55,6 +55,15 @@ describe("event normalizer", () => {
       steering: ["go left"],
       followUp: ["then summarize"],
     });
+    expect(
+      normalizePiEvent({
+        type: "agent_error",
+        error: "EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'",
+      }),
+    ).toEqual({
+      kind: "agent_error",
+      error: "EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'",
+    });
   });
 
   it("restores user and assistant messages from Pi history", () => {

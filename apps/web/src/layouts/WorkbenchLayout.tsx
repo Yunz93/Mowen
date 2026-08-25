@@ -241,7 +241,13 @@ export function WorkbenchLayout() {
             </Link>
           </div>
         </header>
-        <RunStatusBar status={status} tools={tools} hasChanges={hasChanges} runtime={runtime} />
+        <RunStatusBar
+          status={status}
+          tools={tools}
+          hasChanges={hasChanges}
+          runtime={runtime}
+          errorMessage={task?.errorMessage ?? serverError ?? requestError}
+        />
         {!piAvailable ? (
           <div className="banner-note text-danger">
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
@@ -252,14 +258,16 @@ export function WorkbenchLayout() {
             {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
           </div>
         ) : null}
-        {authHint || serverError || requestError || notice ? (
-          <div className="banner-note text-mute">
-            {notice
-              ? notice
-              : authHint
-                ? "还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。"
-                : (serverError ?? requestError)}
+        {serverError || requestError || task?.errorMessage ? (
+          <div className="banner-note whitespace-pre-wrap text-danger">
+            {serverError ?? requestError ?? task?.errorMessage}
           </div>
+        ) : authHint ? (
+          <div className="banner-note text-mute">
+            还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。
+          </div>
+        ) : notice ? (
+          <div className="banner-note text-mute">{notice}</div>
         ) : null}
         {otherApproval ? (
           <div className="banner-note text-ink">
@@ -278,7 +286,8 @@ export function WorkbenchLayout() {
             <ConversationTimeline
               messages={messages}
               tools={tools}
-              canRewrite={status === "idle" || status === "stopped"}
+              canRewrite={status === "idle" || status === "stopped" || status === "error"}
+              error={serverError ?? requestError ?? task.errorMessage ?? null}
               onRetry={(messageId, text) =>
                 void socketClient.send("session.fork", { messageId, message: text }, task.id)
               }

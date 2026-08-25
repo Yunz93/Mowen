@@ -12,6 +12,7 @@ export type NormalizedPiEvent =
   | { kind: "tool.completed"; tool: Partial<ToolExecution> & { toolCallId: string } }
   | { kind: "approval.ui"; requestId: string; method: string; title?: string; message?: string }
   | { kind: "extension_error"; error: string }
+  | { kind: "agent_error"; error: string }
   | { kind: "runtime.compaction"; phase: "start" | "end"; reason?: string }
   | {
       kind: "runtime.retry";
@@ -200,6 +201,13 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
       };
     case "extension_error":
       return { kind: "extension_error", error: String(event.error ?? "Extension error") };
+    case "error":
+    case "agent_error":
+    case "turn_error":
+      return {
+        kind: "agent_error",
+        error: String(event.error ?? event.message ?? event.errorMessage ?? "Pi error"),
+      };
     case "compaction_start":
       return {
         kind: "runtime.compaction",

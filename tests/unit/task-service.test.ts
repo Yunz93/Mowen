@@ -56,6 +56,7 @@ describe("task service process reservations", () => {
       approvalExtensionPath: path.join(root, "approval.ts"),
       homeDir: root,
       piBundled: false,
+      piAgentDir: path.join(root, ".pi", "agent"),
       trustProject: false,
     };
     const service = new TaskService(config, store, "test", null);

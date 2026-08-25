@@ -6,9 +6,16 @@ type Props = {
   tools: ToolExecution[];
   hasChanges: boolean;
   runtime?: RuntimeState | null;
+  errorMessage?: string | null;
 };
 
-function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean, runtime?: RuntimeState | null) {
+function stage(
+  status: TaskStatus,
+  tools: ToolExecution[],
+  hasChanges: boolean,
+  runtime?: RuntimeState | null,
+  errorMessage?: string | null,
+) {
   const current = [...tools].reverse().find((tool) => tool.status === "running" || tool.status === "waiting_approval");
   if (runtime?.compacting) {
     return { label: "正在压缩上下文", detail: runtime.compactionReason ?? "把旧内容收成摘要", icon: LoaderCircle };
@@ -27,7 +34,9 @@ function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean, 
   if (status === "queued") return { label: "排队中", detail: "正在等待空闲的 AI 进程", icon: Clock3 };
   if (status === "booting") return { label: "正在启动", detail: "正在准备 AI 引擎", icon: LoaderCircle };
   if (status === "aborting") return { label: "正在停止", detail: "正在结束当前操作", icon: LoaderCircle };
-  if (status === "error") return { label: "需要处理", detail: "这次运行没有完成", icon: AlertTriangle };
+  if (status === "error") {
+    return { label: "需要处理", detail: errorMessage || "这次运行没有完成", icon: AlertTriangle };
+  }
   if (status === "running") {
     const toolName = current?.toolName ?? "agent";
     const normalized = `${toolName} ${current?.target ?? ""}`.toLowerCase();
@@ -38,8 +47,8 @@ function stage(status: TaskStatus, tools: ToolExecution[], hasChanges: boolean, 
   return null;
 }
 
-export function RunStatusBar({ status, tools, hasChanges, runtime }: Props) {
-  const current = stage(status, tools, hasChanges, runtime);
+export function RunStatusBar({ status, tools, hasChanges, runtime, errorMessage }: Props) {
+  const current = stage(status, tools, hasChanges, runtime, errorMessage);
   if (!current) return null;
   const Icon = current.icon;
   const active =

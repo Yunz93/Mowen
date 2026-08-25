@@ -8,6 +8,7 @@ type Props = {
   messages: TimelineMessage[];
   tools: ToolExecution[];
   canRewrite?: boolean;
+  error?: string | null;
   onRetry?: (messageId: string, text: string) => void;
   onClone?: () => void;
 };
@@ -102,7 +103,7 @@ const AssistantMessage = memo(function AssistantMessage({ message }: { message: 
   );
 });
 
-export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onClone }: Props) {
+export function ConversationTimeline({ messages, tools, canRewrite, error, onRetry, onClone }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const userCountRef = useRef(0);
@@ -178,6 +179,14 @@ export function ConversationTimeline({ messages, tools, canRewrite, onRetry, onC
         .map((tool) => (
           <ToolExecutionRow key={tool.toolCallId} tool={tool} />
         ))}
+      {error ? (
+        <div
+          role="alert"
+          className="whitespace-pre-wrap rounded-[14px] border border-[color-mix(in_oklch,var(--color-danger)_22%,transparent)] bg-[color-mix(in_oklch,var(--color-danger)_8%,transparent)] px-4 py-3 text-[13px] leading-6 text-danger"
+        >
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

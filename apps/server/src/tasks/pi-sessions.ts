@@ -2,9 +2,10 @@ import { opendir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { PiSessionRef } from "@mowen/protocol";
 import { isInsideRoot } from "../security/path-policy.js";
+import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
 
-export function piSessionsRoot(homeDir: string): string {
-  return path.join(homeDir, ".pi", "agent", "sessions");
+export function piSessionsRoot(homeDir: string, agentDir = defaultPiAgentDir(homeDir)): string {
+  return path.join(agentDir, "sessions");
 }
 
 export function assertPiSessionPath(sessionPath: string, allowedRoots: string[]): string {
@@ -46,8 +47,12 @@ async function walkJsonl(root: string, files: string[], depth: number): Promise<
   }
 }
 
-export async function listPiSessions(homeDir: string, cwd?: string): Promise<PiSessionRef[]> {
-  const root = piSessionsRoot(homeDir);
+export async function listPiSessions(
+  homeDir: string,
+  cwd?: string,
+  agentDir = defaultPiAgentDir(homeDir),
+): Promise<PiSessionRef[]> {
+  const root = piSessionsRoot(homeDir, agentDir);
   const files: string[] = [];
   await walkJsonl(root, files, 0);
   const sessions: PiSessionRef[] = [];
