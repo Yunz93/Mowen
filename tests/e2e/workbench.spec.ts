@@ -118,6 +118,14 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByText("本机 Pi 登录")).toBeVisible();
   await expect(page.getByText("GitHub Copilot")).toBeVisible();
   await expect(page.getByText("订阅 / 登录")).toBeVisible();
+  await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByText("更新 API Key")).toBeVisible();
+  await page.getByLabel("服务商").selectOption("anthropic");
+  await page.getByLabel("API Key").fill("sk-ant-e2e-updated-key-123456");
+  await page.getByRole("button", { name: "保存密钥" }).click();
+  await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: "Anthropic (Claude)" })).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();

@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 
 export const DEFAULT_PI_INSTALL_SCRIPT_URL = "https://pi.dev/install.sh";
 export const PI_NPM_PACKAGE = "@earendil-works/pi-coding-agent";
+export const DEFAULT_PI_NPM_LATEST_URL = `https://registry.npmjs.org/${PI_NPM_PACKAGE}/latest`;
 export const PI_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const LOG_TAIL = 8_000;
@@ -28,6 +29,76 @@ export class InstallPiError extends Error {
 
 export function piInstallScriptUrl(env: NodeJS.ProcessEnv = process.env): string {
   return mowenEnv(env, "PI_INSTALL_SCRIPT_URL")?.trim() || DEFAULT_PI_INSTALL_SCRIPT_URL;
+}
+
+export function piNpmLatestUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return mowenEnv(env, "PI_NPM_LATEST_URL")?.trim() || DEFAULT_PI_NPM_LATEST_URL;
+}
+
+export function parsePiVersion(raw: string | null | undefined): [number, number, number] | null {
+  if (!raw) return null;
+  const match = raw.trim().replace(/^v/i, "").match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+export function isPiUpdateAvailable(
+  latest: string | null | undefined,
+  current: string | null | undefined,
+): boolean {
+  const next = parsePiVersion(latest);
+  const have = parsePiVersion(current);
+  if (!next) return false;
+  if (!have) return true;
+  for (let i = 0; i < 3; i += 1) {
+    if (next[i]! > have[i]!) return true;
+    if (next[i]! < have[i]!) return false;
+  }
+  return false;
+}
+
+export async function fetchLatestPiVersion(
+  options: {
+    env?: NodeJS.ProcessEnv;
+    fetchText?: (url: string) => Promise<string>;
+  } = {},
+): Promise<{ version: string | null; error: string | null }> {
+  const env = options.env ?? process.env;
+  const url = piNpmLatestUrl(env);
+  try {
+    assertInstallScriptUrl(url);
+  } catch {
+    return { version: null, error: "检查更新的地址无效。" };
+  }
+  try {
+    const fetchText = options.fetchText ?? fetchLatestDocument;
+    const raw = await fetchText(url);
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    const version = typeof parsed.version === "string" ? parsed.version.trim() : "";
+    if (!version) return { version: null, error: "无法解析 Pi 最新版本。" };
+    return { version, error: null };
+  } catch (error) {
+    if (error instanceof SyntaxError) return { version: null, error: "无法解析 Pi 最新版本。" };
+    return { version: null, error: "无法检查 Pi 更新。请检查网络后重试。" };
+  }
+}
+
+async function fetchLatestDocument(url: string): Promise<string> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      signal: ac.signal,
+      redirect: "follow",
+      headers: { "user-agent": "mowen-pi-update-check", accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function windowsNpmInstallArgs(): string[] {
