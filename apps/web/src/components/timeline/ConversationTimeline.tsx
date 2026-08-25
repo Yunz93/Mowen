@@ -48,7 +48,7 @@ function UserMessage({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stripModePrefix(message.text));
   return (
-    <article className="ml-auto max-w-[78%] rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink">
+    <article className="flex w-fit max-w-[78%] shrink-0 flex-col self-end rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink">
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -79,7 +79,7 @@ function UserMessage({
           {canRewrite && onRetry ? (
             <button
               type="button"
-              className="pressable mt-1.5 h-7 text-[12px] text-mute"
+              className="pressable mt-2 h-7 text-[12px] text-mute"
               onClick={() => {
                 setDraft(stripModePrefix(message.text));
                 setEditing(true);
@@ -96,7 +96,7 @@ function UserMessage({
 
 const AssistantMessage = memo(function AssistantMessage({ message }: { message: TimelineMessage }) {
   return (
-    <article className="mr-auto max-w-[90%]">
+    <article className="mr-auto w-full max-w-[90%] shrink-0 self-start">
       <ThinkingBlock message={message} />
       <AssistantMarkdown text={message.text} streaming={message.streaming} />
     </article>
@@ -142,7 +142,7 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
   const renderedTools = new Set<string>();
 
   return (
-    <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-7 sm:px-6">
+    <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6">
       {messages.length === 0 ? (
         <div className="pt-20 text-center">
           <p className="text-[13px] leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
