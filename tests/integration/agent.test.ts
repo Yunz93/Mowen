@@ -553,7 +553,7 @@ describe("integration fake-pi", () => {
     }
   }, 15_000);
 
-  it("attaches @file contents, queues follow_up, and round-trips select", async () => {
+  it("attaches @file contents, queues follow_up, and round-trips select/input/notify", async () => {
     const isolated = await listen({
       HOST: "127.0.0.1",
       PORT: "0",
@@ -651,6 +651,7 @@ describe("integration fake-pi", () => {
       taskId,
       payload: { requestId, value: "alpha" },
     });
+    const afterSelect = sock.events.length;
     await sock.waitForRequest("sel");
     await new Promise<void>((resolve, reject) => {
       const start = Date.now();
@@ -658,6 +659,76 @@ describe("integration fake-pi", () => {
         const match = sock.events.find((event) => JSON.stringify(event.payload).includes("Selected: alpha"));
         if (match) return resolve();
         if (Date.now() - start > 6000) return reject(new Error("select did not complete"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.slice(afterSelect).find(
+          (event) =>
+            event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+        );
+        if (match) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("select turn did not settle"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+
+    sock.send({ id: "p-in", type: "prompt.send", taskId, payload: { message: "INPUT:your name" } });
+    const inputRequested = await sock.waitFor("interaction.requested");
+    const inputId = (inputRequested.payload as { interaction?: { requestId?: string } } | undefined)?.interaction
+      ?.requestId;
+    expect(inputId).toBeTruthy();
+    sock.send({
+      id: "in",
+      type: "interaction.respond",
+      taskId,
+      payload: { requestId: inputId, value: "Ada" },
+    });
+    const afterInput = sock.events.length;
+    await sock.waitForRequest("in");
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find((event) => JSON.stringify(event.payload).includes("Input: Ada"));
+        if (match) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("input did not complete"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.slice(afterInput).find(
+          (event) =>
+            event.type === "agent.status" && event.taskId === taskId && event.payload?.status === "idle",
+        );
+        if (match) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("input turn did not settle"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+
+    const beforeNotify = sock.events.length;
+    sock.send({ id: "p-note", type: "prompt.send", taskId, payload: { message: "NOTIFY:heads-up" } });
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const shown = sock.events.slice(beforeNotify).find(
+          (event) =>
+            event.type === "notification.shown" &&
+            (event.payload as { message?: string } | undefined)?.message === "heads-up",
+        );
+        const echoed = sock.events.slice(beforeNotify).find((event) =>
+          JSON.stringify(event.payload).includes("Notified: heads-up"),
+        );
+        if (shown && echoed) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("notify did not complete"));
         setTimeout(tick, 25);
       };
       tick();
@@ -672,5 +743,5 @@ describe("integration fake-pi", () => {
     } finally {
       await isolated.app.close();
     }
-  }, 25_000);
+  }, 35_000);
 });

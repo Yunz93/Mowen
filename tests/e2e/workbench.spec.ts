@@ -365,6 +365,21 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "alpha" }).click();
   await expect(page.getByText("Selected: alpha").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByLabel("输入消息").fill("INPUT:your name");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
+  await page.getByPlaceholder("your name").fill("Ada");
+  await page.getByRole("button", { name: "确定" }).click();
+  await expect(page.getByText("Input: Ada").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByLabel("输入消息").fill("NOTIFY:heads-up");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByText("Notified: heads-up").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("interaction-dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
   await page.getByLabel("输入消息").fill("WRITE:README.md:changed-by-e2e");
   await page.getByRole("button", { name: "发送" }).click();
