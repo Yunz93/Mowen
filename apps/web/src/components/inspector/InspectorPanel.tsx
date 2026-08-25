@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PiResources, SessionStats, SessionTreeNode, ToolExecution } from "@mowen/protocol";
 import hljs from "highlight.js";
 import { branchRoleLabel, visibleBranchNodes } from "../../copy";
@@ -30,6 +30,7 @@ type Props = {
   sessionTree?: SessionTreeNode[];
   sessionLeafId?: string | null;
   resources?: PiResources | null;
+  gitDiff?: string | null;
   onReadFile: (path: string) => void;
   onLoadTree: () => void;
   onLoadGit: () => void;
@@ -37,6 +38,11 @@ type Props = {
   onLoadBranch?: () => void;
   onBranch?: (entryId: string) => void;
   onLoadResources?: () => void;
+  onReloadResources?: () => void;
+  onOpenFile?: (path: string) => void;
+  onUndoFile?: (path: string) => void;
+  onGitDiff?: () => void;
+  onGitCommit?: (message: string) => void;
   onExport?: () => void;
   lastExportPath?: string | null;
   onOpenExport?: (path: string) => void;
@@ -62,6 +68,7 @@ export function InspectorPanel({
   sessionTree = [],
   sessionLeafId = null,
   resources = null,
+  gitDiff = null,
   onReadFile,
   onLoadTree,
   onLoadGit,
@@ -69,6 +76,11 @@ export function InspectorPanel({
   onLoadBranch,
   onBranch,
   onLoadResources,
+  onReloadResources,
+  onOpenFile,
+  onUndoFile,
+  onGitDiff,
+  onGitCommit,
   onExport,
   lastExportPath = null,
   onOpenExport,
@@ -77,7 +89,12 @@ export function InspectorPanel({
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("activity");
+  const [commitMessage, setCommitMessage] = useState("");
   const branchNodes = visibleBranchNodes(sessionTree);
+
+  useEffect(() => {
+    if (preview?.path) setTab("files");
+  }, [preview?.path]);
   const changed = tools.filter((tool) => tool.toolName === "write" || tool.toolName === "edit");
   const sortedFiles = [...files].sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
@@ -99,7 +116,10 @@ export function InspectorPanel({
               onClick={() => {
                 setTab(item);
                 if (item === "files") onLoadTree();
-                if (item === "git") onLoadGit();
+                if (item === "git") {
+                  onLoadGit();
+                  onGitDiff?.();
+                }
                 if (item === "branch") onLoadBranch?.();
                 if (item === "skills") onLoadResources?.();
               }}
@@ -153,7 +173,12 @@ export function InspectorPanel({
             ) : null}
             {tools.length === 0 ? <p className="text-sm text-mute">还没有操作记录。</p> : null}
             {tools.map((tool) => (
-              <ToolExecutionRow key={tool.toolCallId} tool={tool} />
+              <ToolExecutionRow
+                key={tool.toolCallId}
+                tool={tool}
+                onOpen={onOpenFile}
+                onUndo={onUndoFile}
+              />
             ))}
           </div>
         ) : null}
@@ -252,6 +277,40 @@ export function InspectorPanel({
             ) : (
               <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
             )}
+            {gitDiff ? (
+              <pre className="max-h-64 overflow-auto rounded-md bg-canvas p-2 font-mono text-[11px] leading-5 text-mute">
+                {gitDiff}
+              </pre>
+            ) : git ? (
+              <p className="text-sm text-mute">没有 diff，或还没加载。</p>
+            ) : null}
+            {onGitCommit ? (
+              <div className="space-y-2 border-t border-line pt-3">
+                <label className="block text-[12px] text-mute" htmlFor="git-commit-message">
+                  提交说明
+                </label>
+                <input
+                  id="git-commit-message"
+                  className="field w-full text-[13px] text-ink"
+                  value={commitMessage}
+                  placeholder="简述这次改动"
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                  disabled={!commitMessage.trim()}
+                  onClick={() => {
+                    const message = commitMessage.trim();
+                    if (!message) return;
+                    onGitCommit(message);
+                    setCommitMessage("");
+                  }}
+                >
+                  提交
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {tab === "branch" ? (
@@ -282,6 +341,15 @@ export function InspectorPanel({
         ) : null}
         {tab === "skills" ? (
           <div className="space-y-4">
+            {onReloadResources ? (
+              <button
+                type="button"
+                className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                onClick={() => onReloadResources()}
+              >
+                刷新技能
+              </button>
+            ) : null}
             <div>
               <p className="mb-2 text-sm text-ink">上下文文件</p>
               {resources?.agentsFiles.length ? (

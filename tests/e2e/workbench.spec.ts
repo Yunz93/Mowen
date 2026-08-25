@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const project = path.join(process.cwd(), ".mowen-test", "e2e-project");
@@ -328,4 +328,80 @@ test("scrolling up during stream is not yanked back down", async ({ page }) => {
   await page.waitForTimeout(700);
   const remaining = await main.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
   expect(remaining).toBeGreaterThan(80);
+});
+
+test("queue follow-up while running and retry after abort", async ({ page }) => {
+  await createTask(page, "Follow abort task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly ${"word ".repeat(40)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel("输入消息").fill("queued next");
+  await page.getByRole("button", { name: "排队" }).click();
+  await expect(page.getByText("Follow-up: queued next").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page
+    .getByLabel("输入消息")
+    .fill(`please stream this slowly retry-me ${"word ".repeat(40)}`);
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "停止" }).click();
+  await expect(page.getByRole("button", { name: "重试上一条" })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "重试上一条" }).click();
+  await expect(page.getByText(/Echo: please stream this slowly retry-me/).first()).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
+test("select dialog, undo a write, and logout then restore", async ({ page }) => {
+  await createTask(page, "Select undo task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+
+  await page.getByLabel("输入消息").fill("SELECT:alpha|beta");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "alpha" }).click();
+  await expect(page.getByText("Selected: alpha").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByLabel("输入消息").fill("INPUT:your name");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
+  await page.getByPlaceholder("your name").fill("Ada");
+  await page.getByRole("button", { name: "确定" }).click();
+  await expect(page.getByText("Input: Ada").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByLabel("输入消息").fill("NOTIFY:heads-up");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByText("Notified: heads-up").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("interaction-dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByLabel("输入消息").fill("WRITE:README.md:changed-by-e2e");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("button", { name: "撤回这次" })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "撤回这次" }).click();
+  await expect.poll(() => readFileSync(path.join(project, "README.md"), "utf8")).toBe("e2e");
+
+  const authPath = path.join(home, ".pi", "agent", "auth.json");
+  const backup = readFileSync(authPath, "utf8");
+  try {
+    await page.goto("/settings");
+    const githubRow = page.locator("li").filter({ hasText: "GitHub Copilot" });
+    await expect(githubRow.getByRole("button", { name: "退出" })).toBeVisible();
+    await githubRow.getByRole("button", { name: "退出" }).click();
+    await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
+    await expect(page.getByText("已退出登录。")).toBeVisible();
+  } finally {
+    writeFileSync(authPath, backup);
+  }
+  await page.getByRole("button", { name: "刷新登录状态" }).click();
+  await expect(page.getByText("已刷新登录状态。")).toBeVisible();
+  await expect(
+    page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("订阅 / 登录"),
+  ).toBeVisible();
 });

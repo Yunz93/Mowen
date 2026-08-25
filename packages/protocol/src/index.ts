@@ -52,8 +52,10 @@ export {
   stripModePrefix,
 } from "./interaction-policy.js";
 export { diffFromApproval, unifiedDiff, type DiffLine } from "./diff.js";
+export { extractAtMentions } from "./mentions.js";
 export {
   authEntrySchema,
+  interactionRequestSchema,
   piResourceFileSchema,
   piResourcesSchema,
   piSessionRefSchema,
@@ -62,6 +64,7 @@ export {
   sessionTreeNodeSchema,
   emptyRuntime,
   type AuthEntry,
+  type InteractionRequest,
   type PiResources,
   type PiSessionRef,
   type RuntimeState,

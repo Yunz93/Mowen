@@ -42,6 +42,11 @@ export function SettingsPage() {
   const [keyNotice, setKeyNotice] = useState("");
   const [piLatest, setPiLatest] = useState<PiLatest | null>(null);
   const [checkBusy, setCheckBusy] = useState(false);
+  const [authBusy, setAuthBusy] = useState("");
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const oauthProviders = [{ id: "github", label: "GitHub Copilot" }];
 
   function applySetup(setup: SetupStatus) {
     setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
@@ -180,6 +185,77 @@ export function SettingsPage() {
     }
   }
 
+  async function refreshAuth() {
+    setRefreshBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/setup", { credentials: "same-origin" });
+      const setup = (await response.json()) as SetupStatus;
+      if (!response.ok) {
+        setAuthError("刷新登录状态失败。");
+        return;
+      }
+      applySetup(setup);
+      void socketClient.send("snapshot.request");
+      setAuthNotice("已刷新登录状态。");
+    } catch {
+      setAuthError("刷新登录状态失败。");
+    } finally {
+      setRefreshBusy(false);
+    }
+  }
+
+  async function logoutProvider(provider: string) {
+    setAuthBusy(provider);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const response = await fetch("/api/setup/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const json = (await response.json()) as SetupStatus & { error?: string };
+      if (!response.ok) {
+        setAuthError(json.error ?? "退出失败。");
+        return;
+      }
+      applySetup(json);
+      void socketClient.send("snapshot.request");
+      setAuthNotice("已退出登录。");
+    } catch {
+      setAuthError("退出失败。");
+    } finally {
+      setAuthBusy("");
+    }
+  }
+
+  async function loginProvider(provider: string) {
+    setAuthBusy(provider);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const response = await fetch("/api/setup/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const json = (await response.json()) as SetupStatus & { error?: string; hint?: string };
+      if (!response.ok) {
+        setAuthError(json.error ?? "无法打开登录。");
+        return;
+      }
+      applySetup(json);
+      setAuthNotice(json.hint ?? "完成登录后点刷新。");
+    } catch {
+      setAuthError("无法打开登录。");
+    } finally {
+      setAuthBusy("");
+    }
+  }
+
   const replacingKey = authEntries.some((entry) => entry.id === provider && entry.kind === "api_key");
   const engineDetail = piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好");
   let updateDetail: string | null = null;
@@ -286,21 +362,58 @@ export function SettingsPage() {
                   <p className="text-[13px] text-ink">本机 Pi 登录</p>
                   <div className="mt-1 text-[12px] text-mute">
                     {authEntries.length ? (
-                      <ul className="space-y-1">
+                      <ul className="space-y-2">
                         {authEntries.map((entry) => (
-                          <li key={entry.id} className="text-ink">
-                            {entry.label}
-                            <span className="ml-2 text-mute">
-                              {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
+                          <li key={entry.id} className="flex items-center justify-between gap-2 text-ink">
+                            <span>
+                              {entry.label}
+                              <span className="ml-2 text-mute">
+                                {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
+                              </span>
                             </span>
+                            <button
+                              type="button"
+                              className="pressable btn btn-ghost shrink-0"
+                              disabled={authBusy === entry.id}
+                              onClick={() => void logoutProvider(entry.id)}
+                            >
+                              {authBusy === entry.id ? "正在退出…" : "退出"}
+                            </button>
                           </li>
                         ))}
                       </ul>
                     ) : authConfigured ? (
                       configuredProviders.length ? configuredProviders.join("、") : "已连接"
                     ) : (
-                      "还没有登录。在下面粘贴 API Key，或在终端运行 pi 后输入 /login。"
+                      "还没有登录。在下面粘贴 API Key，或点登录。"
                     )}
+                  </div>
+                  {oauthProviders
+                    .filter((item) => !authEntries.some((entry) => entry.id === item.id))
+                    .map((item) => (
+                      <div key={item.id} className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[12px] text-ink">{item.label}</p>
+                        <button
+                          type="button"
+                          className="pressable btn btn-ghost"
+                          disabled={authBusy === item.id}
+                          onClick={() => void loginProvider(item.id)}
+                        >
+                          {authBusy === item.id ? "正在打开…" : "登录"}
+                        </button>
+                      </div>
+                    ))}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="pressable btn btn-ghost"
+                      disabled={refreshBusy}
+                      onClick={() => void refreshAuth()}
+                    >
+                      {refreshBusy ? "正在刷新…" : "刷新登录状态"}
+                    </button>
+                    {authNotice ? <p className="text-[12px] text-success">{authNotice}</p> : null}
+                    {authError ? <p className="text-[12px] text-danger">{authError}</p> : null}
                   </div>
                 </div>
               </div>

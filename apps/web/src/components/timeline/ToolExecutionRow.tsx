@@ -14,11 +14,16 @@ const ICONS = {
   aborted: Ban,
 } as const;
 
+const FILE_TOOLS = new Set(["write", "edit", "read"]);
+const UNDO_TOOLS = new Set(["write", "edit"]);
+
 type Props = {
   tool: ToolExecution;
+  onOpen?: (path: string) => void;
+  onUndo?: (path: string) => void;
 };
 
-export function ToolExecutionRow({ tool }: Props) {
+export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
   const [open, setOpen] = useState(Boolean(tool.isError) || tool.status === "failed");
   const Icon = ICONS[tool.status];
   const duration =
@@ -27,6 +32,9 @@ export function ToolExecutionRow({ tool }: Props) {
     tool.status === "running" || tool.status === "pending"
       ? `正在${toolNameLabel(tool.toolName)}`
       : toolNameLabel(tool.toolName);
+  const target = tool.target?.trim() ?? "";
+  const canOpen = Boolean(onOpen && target && FILE_TOOLS.has(tool.toolName));
+  const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");
 
   return (
     <div className="overflow-hidden rounded-[10px] bg-fill">
@@ -43,11 +51,39 @@ export function ToolExecutionRow({ tool }: Props) {
           }
         />
         <span className="text-xs text-ink">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-mute">{tool.target ?? ""}</span>
+        <span className="min-w-0 flex-1 truncate text-xs text-mute">{target}</span>
         <span className="text-[11px] text-mute">{toolStatusLabel(tool.status)}</span>
         {duration ? <span className="text-[11px] text-mute">{duration}</span> : null}
         <ChevronRight size={14} className={`text-mute transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
+      {canOpen || canUndo ? (
+        <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-1.5">
+          {canOpen ? (
+            <button
+              type="button"
+              className="pressable h-7 rounded-md px-2 text-[12px] text-accent"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen?.(target);
+              }}
+            >
+              打开
+            </button>
+          ) : null}
+          {canUndo ? (
+            <button
+              type="button"
+              className="pressable h-7 rounded-md px-2 text-[12px] text-ink"
+              onClick={(event) => {
+                event.stopPropagation();
+                onUndo?.(target);
+              }}
+            >
+              撤回这次
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {open && tool.resultText ? (
         <pre className="max-h-64 overflow-auto border-t border-line bg-canvas px-3 py-2 font-mono text-xs leading-5 text-mute fade-in">
           {tool.resultText}

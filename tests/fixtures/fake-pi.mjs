@@ -219,6 +219,49 @@ async function runBash(command) {
   });
 }
 
+async function runSelect(options) {
+  const requestId = `ui-${now()}`;
+  send({
+    type: "extension_ui_request",
+    id: requestId,
+    method: "select",
+    title: "Choose",
+    message: "Pick one",
+    options,
+  });
+  const response = await waitForUiResponse(requestId);
+  const value = response.cancelled ? "(cancelled)" : String(response.value ?? "");
+  await streamText(`Selected: ${value}`);
+}
+
+async function runInput(placeholder) {
+  const requestId = `ui-${now()}`;
+  send({
+    type: "extension_ui_request",
+    id: requestId,
+    method: "input",
+    title: "Enter a value",
+    placeholder: placeholder || "Type here",
+  });
+  const response = await waitForUiResponse(requestId);
+  const value = response.cancelled ? "(cancelled)" : String(response.value ?? "");
+  await streamText(`Input: ${value}`);
+}
+
+async function runNotify(message) {
+  const requestId = `ui-${now()}`;
+  send({
+    type: "extension_ui_request",
+    id: requestId,
+    method: "notify",
+    title: "Notice",
+    message,
+    notifyType: "info",
+  });
+  await waitForUiResponse(requestId);
+  await streamText(`Notified: ${message}`);
+}
+
 async function handlePrompt(message, mode) {
   state.aborted = false;
   state.isStreaming = true;
@@ -254,7 +297,21 @@ async function handlePrompt(message, mode) {
     }
     const writeAt = message.indexOf("WRITE:");
     const bashAt = message.indexOf("BASH:");
-    if (writeAt >= 0) {
+    const selectAt = message.indexOf("SELECT:");
+    const inputAt = message.indexOf("INPUT:");
+    const notifyAt = message.indexOf("NOTIFY:");
+    if (selectAt >= 0) {
+      const options = message
+        .slice(selectAt + "SELECT:".length)
+        .split("|")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      await runSelect(options);
+    } else if (inputAt >= 0) {
+      await runInput(message.slice(inputAt + "INPUT:".length).trim());
+    } else if (notifyAt >= 0) {
+      await runNotify(message.slice(notifyAt + "NOTIFY:".length).trim());
+    } else if (writeAt >= 0) {
       const rest = message.slice(writeAt + "WRITE:".length);
       const split = rest.indexOf(":");
       const filePath = rest.slice(0, split);
@@ -455,6 +512,9 @@ function handleLine(line) {
         cost: 0.0012,
         contextUsage: { tokens: 20, contextWindow: 100000, percent: 1 },
       });
+      break;
+    case "reload_skills":
+      respond(id, type, true, { ok: true });
       break;
     default:
       respond(id, type, false, undefined, `Unknown command: ${type}`);

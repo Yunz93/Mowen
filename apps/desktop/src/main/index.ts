@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Menu, Notification, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "@mowen/server";
@@ -170,10 +170,18 @@ function registerIpc(): void {
     return result.filePaths[0] ?? null;
   });
   ipcMain.handle("mowen:open-path", async (_event, filePath: unknown) => {
-    if (typeof filePath !== "string" || path.extname(filePath).toLowerCase() !== ".html") {
+    if (typeof filePath !== "string" || !filePath.trim() || filePath.includes("\0")) {
       return "invalid path";
     }
     return shell.openPath(filePath);
+  });
+  ipcMain.handle("mowen:notify", async (_event, payload: unknown) => {
+    const record = payload && typeof payload === "object" ? (payload as { title?: unknown; body?: unknown }) : {};
+    const title = typeof record.title === "string" && record.title.trim() ? record.title.trim() : "墨问";
+    const body = typeof record.body === "string" ? record.body : "";
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
   });
 }
 

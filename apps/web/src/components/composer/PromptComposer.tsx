@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
-import { approvalPolicies, interactionModes } from "@mowen/protocol";
+import { approvalPolicies, extractAtMentions, interactionModes } from "@mowen/protocol";
 import { ArrowUp, ImagePlus, Square } from "lucide-react";
 import { filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 
@@ -90,6 +90,7 @@ export function PromptComposer({
   const followUp = status === "idle" && hasTurns;
   const mention = mentionQuery(value, caret);
   const slash = !mention ? slashQuery(value, caret) : null;
+  const attachedCount = extractAtMentions(value).length;
 
   useEffect(() => {
     const node = ref.current;
@@ -138,7 +139,13 @@ export function PromptComposer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!shouldSubmitOnEnter(event, composingRef.current) || mention || slash) return;
+    if (mention || slash) return;
+    if (event.key === "Enter" && event.shiftKey && running && !composingRef.current) {
+      event.preventDefault();
+      onFollowUp();
+      return;
+    }
+    if (!shouldSubmitOnEnter(event, composingRef.current)) return;
     event.preventDefault();
     submit();
   };
@@ -171,7 +178,11 @@ export function PromptComposer({
               composingRef.current = false;
             }, 0);
           }}
-          placeholder={running ? "正在处理。可以直接发送补充，或点停止。" : "有什么想做的，直接说。用 @ 点文件，用 / 找技能"}
+          placeholder={
+            running
+              ? "正在处理。回车补充，Shift+Enter 排队下一条。"
+              : "有什么想做的，直接说。用 @ 点文件，用 / 找技能"
+          }
           aria-label="输入消息"
           disabled={disabled}
           className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 text-[15px] leading-6 text-ink placeholder:text-mute"
@@ -303,11 +314,25 @@ export function PromptComposer({
             <span className="sr-only">添加图片</span>
           </label>
           {imageCount > 0 ? <span className="text-[11px] text-mute">{imageCount} 张图</span> : null}
+          {attachedCount > 0 ? (
+            <span className="text-[11px] text-mute">{attachedCount} 个文件会随消息附上</span>
+          ) : null}
           <div className="flex-1" />
           {running ? (
             <button type="button" className="pressable btn btn-danger gap-1.5" onClick={onAbort}>
               <Square size={10} fill="currentColor" />
               停止
+            </button>
+          ) : null}
+          {running ? (
+            <button
+              type="button"
+              className="pressable btn btn-ghost"
+              onClick={onFollowUp}
+              disabled={disabled || !value.trim()}
+              title="排队下一条（Shift+Enter）"
+            >
+              排队
             </button>
           ) : null}
           <button

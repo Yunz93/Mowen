@@ -8,7 +8,10 @@ import {
   hasAnyAuth,
   inspectModelsFile,
   listAuthEntries,
+  OAUTH_PROVIDERS,
+  removeAuth,
   saveApiKey,
+  tryPiLogin,
   type BeginnerProviderId,
 } from "../setup/auth-status.js";
 import type { AuthEntry } from "@mowen/protocol";
@@ -100,11 +103,14 @@ export function registerSetupRoutes(
     getPi: () => { version: string | null; error: string | null };
     refreshPi?: () => Promise<void>;
     fetchLatestPi?: () => Promise<{ version: string | null; error: string | null }>;
-    onSetupChanged?: () => void;
+    onSetupChanged?: () => void | Promise<unknown>;
+    loadSetup?: () => Promise<SetupStatus>;
     installPi?: () => Promise<SetupStatus & { log: string }>;
   },
 ): void {
   app.get("/api/setup", async () => {
+    if (options.loadSetup) return options.loadSetup();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -125,8 +131,46 @@ export function registerSetupRoutes(
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(400).send({ error: message });
     }
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/logout", async (request, reply) => {
+    const parsed = z.object({ provider: z.string().min(1) }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "请选择要退出的登录。" });
+    }
+    try {
+      const config = options.getConfig();
+      await removeAuth(parsed.data.provider, config.homeDir, config.piAgentDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(400).send({ error: message });
+    }
+    await options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/login", async (request, reply) => {
+    const parsed = z.object({ provider: z.string().min(1) }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "请选择要登录的服务商。" });
+    }
+    const config = options.getConfig();
+    const known: string[] = [...OAUTH_PROVIDERS.map((item) => item.id), ...BEGINNER_PROVIDERS.map((item) => item.id)];
+    if (!known.includes(parsed.data.provider) && !/^[a-z0-9_-]+$/i.test(parsed.data.provider)) {
+      return reply.code(400).send({ error: "不支持这个服务商。" });
+    }
+    const result = await tryPiLogin({
+      piCommand: config.piCommand,
+      prefixArgs: config.piPrefixArgs,
+      extraEnv: config.piExtraEnv,
+      provider: parsed.data.provider,
+      homeDir: config.homeDir,
+    });
+    await options.onSetupChanged?.();
+    const setup = await buildSetupStatus(config, options.settings, options.getPi());
+    return { ...setup, loginStarted: result.started, hint: result.hint };
   });
 
   app.post("/api/setup/workspace", async (request, reply) => {
@@ -149,7 +193,7 @@ export function registerSetupRoutes(
     });
     const nextRoots = [workspace, ...config.allowedRoots.filter((root) => root !== workspace)];
     options.setAllowedRoots(nextRoots);
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -159,7 +203,7 @@ export function registerSetupRoutes(
       return reply.code(400).send({ error: "请选择是否信任这个项目。" });
     }
     await options.settings.save({ trustProject: parsed.data.trust });
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
@@ -208,7 +252,7 @@ export function registerSetupRoutes(
       workspaceRoot: current.workspaceRoot ?? options.getConfig().allowedRoots[0] ?? null,
       setupCompletedAt: new Date().toISOString(),
     });
-    options.onSetupChanged?.();
+    await options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 

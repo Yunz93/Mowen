@@ -18,6 +18,8 @@ type Props = {
   error?: string | null;
   onRetry?: (messageId: string, text: string) => void;
   onClone?: () => void;
+  onOpenFile?: (path: string) => void;
+  onUndoFile?: (path: string) => void;
 };
 
 async function copyText(text: string): Promise<boolean> {
@@ -162,7 +164,16 @@ const AssistantMessage = memo(function AssistantMessage({
   );
 });
 
-export function ConversationTimeline({ messages, tools, canRewrite, error, onRetry, onClone }: Props) {
+export function ConversationTimeline({
+  messages,
+  tools,
+  canRewrite,
+  error,
+  onRetry,
+  onClone,
+  onOpenFile,
+  onUndoFile,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const pinnedRef = useRef(true);
@@ -303,7 +314,14 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
           const tool = message.toolCallId ? toolById.get(message.toolCallId) : undefined;
           if (tool && !renderedTools.has(tool.toolCallId)) {
             renderedTools.add(tool.toolCallId);
-            return <ToolExecutionRow key={tool.toolCallId} tool={tool} />;
+            return (
+              <ToolExecutionRow
+                key={tool.toolCallId}
+                tool={tool}
+                onOpen={onOpenFile}
+                onUndo={onUndoFile}
+              />
+            );
           }
           return null;
         }
@@ -315,7 +333,12 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
       {tools
         .filter((tool) => !renderedTools.has(tool.toolCallId))
         .map((tool) => (
-          <ToolExecutionRow key={tool.toolCallId} tool={tool} />
+          <ToolExecutionRow
+            key={tool.toolCallId}
+            tool={tool}
+            onOpen={onOpenFile}
+            onUndo={onUndoFile}
+          />
         ))}
       {error ? (
         <div

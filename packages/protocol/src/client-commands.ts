@@ -131,7 +131,44 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     ...commandBase,
     type: z.literal("checkpoint.restore"),
     taskId: z.string().min(1),
-    payload: z.object({ checkpointId: z.string().min(1) }),
+    payload: z.object({
+      checkpointId: z.string().min(1).optional(),
+      path: z.string().min(1).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("git.diff"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("git.commit"),
+    taskId: z.string().min(1),
+    payload: z.object({ message: z.string().min(1).max(400) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.reload"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("files.open"),
+    taskId: z.string().min(1),
+    payload: z.object({ path: z.string().min(1) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("interaction.respond"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      requestId: z.string().min(1),
+      cancelled: z.boolean().optional(),
+      value: z.string().optional(),
+    }),
   }),
   z.object({
     ...commandBase,

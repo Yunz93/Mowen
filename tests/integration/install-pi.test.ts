@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,13 +24,19 @@ echo "Pi was installed successfully."
 
 async function listen(
   env: NodeJS.ProcessEnv,
-): Promise<{ app: Awaited<ReturnType<typeof createApp>>["app"]; base: string; close: () => Promise<void> }> {
-  const { app, config } = await createApp(env);
+): Promise<{
+  app: Awaited<ReturnType<typeof createApp>>["app"];
+  service: Awaited<ReturnType<typeof createApp>>["service"];
+  base: string;
+  close: () => Promise<void>;
+}> {
+  const { app, config, service } = await createApp(env);
   await app.listen({ host: config.host, port: 0 });
   const address = app.server.address();
   if (!address || typeof address === "string") throw new Error("no port");
   return {
     app,
+    service,
     base: `http://${config.host}:${address.port}`,
     close: async () => {
       await app.close();
@@ -292,6 +298,46 @@ describe("POST /api/setup/install-pi", () => {
       expect(second.configuredProviders).toEqual(expect.arrayContaining(["anthropic", "openai"]));
     } finally {
       await ctx.close();
+    }
+  });
+});
+
+describe("GET /api/setup", () => {
+  it("reloads restored auth.json into live setup hints", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-setup-refresh-"));
+    await mkdir(path.join(home, ".pi", "agent"), { recursive: true });
+    const authPath = path.join(home, ".pi", "agent", "auth.json");
+    await writeFile(authPath, JSON.stringify({ github: { type: "oauth" } }));
+    const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
+    const ctx = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(home, "data"),
+      MOWEN_HOME_DIR: home,
+      MOWEN_ALLOWED_ROOTS: home,
+    });
+    try {
+      const cookie = await sessionCookie(ctx.base);
+      const logout = await fetch(`${ctx.base}/api/setup/logout`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ provider: "github" }),
+      });
+      expect(logout.ok).toBe(true);
+      const afterLogout = ctx.service.buildSnapshot(null).authEntries as Array<{ id: string }>;
+      expect(afterLogout.some((entry) => entry.id === "github")).toBe(false);
+
+      await writeFile(authPath, JSON.stringify({ github: { type: "oauth" } }));
+      const refreshed = await fetch(`${ctx.base}/api/setup`, { headers: { cookie } });
+      const json = (await refreshed.json()) as { authEntries: Array<{ id: string; kind: string }> };
+      expect(json.authEntries.some((entry) => entry.id === "github" && entry.kind === "oauth")).toBe(true);
+      const hints = ctx.service.buildSnapshot(null).authEntries as Array<{ id: string }>;
+      expect(hints.some((entry) => entry.id === "github")).toBe(true);
+    } finally {
+      await ctx.close();
+      await rm(home, { recursive: true, force: true });
     }
   });
 });

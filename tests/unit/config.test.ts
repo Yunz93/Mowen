@@ -80,6 +80,11 @@ describe("portable config", () => {
     expect(config.maxProcesses).toBe(7);
   });
 
+  it("resolves a relative MOWEN_HOME_DIR against the process cwd", () => {
+    const config = loadConfig({ MOWEN_HOME_DIR: "./.relative-mowen-home" });
+    expect(config.homeDir).toBe(path.resolve("./.relative-mowen-home"));
+  });
+
   it("launches bundled Pi via node entry", () => {
     const entry = path.resolve(os.tmpdir(), "pi-cli.js");
     const runtime = resolvePiRuntime({
