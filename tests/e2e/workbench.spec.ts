@@ -225,6 +225,27 @@ async function createTask(page: import("@playwright/test").Page, title: string):
   await expect(page.getByRole("banner").getByText(title)).toBeVisible();
 }
 
+test("stacked user bubbles stay separated", async ({ page }) => {
+  await createTask(page, "Bubble task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  for (const text of ["alpha bubble", "beta bubble"]) {
+    await page.getByLabel("输入消息").fill(text);
+    await page.getByRole("button", { name: "发送" }).click();
+    await expect(page.getByText(`Echo: ${text}`).first()).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+  const boxes = await page.locator("#main-content article").evaluateAll((els) =>
+    els.map((el) => {
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }),
+  );
+  expect(boxes.length).toBeGreaterThanOrEqual(2);
+  for (let i = 1; i < boxes.length; i += 1) {
+    expect(boxes[i]?.top ?? 0).toBeGreaterThanOrEqual((boxes[i - 1]?.bottom ?? 0) - 0.5);
+  }
+});
+
 test("HTTP 401 shows a red error instead of failing silently", async ({ page }) => {
   await createTask(page, "Auth 401 task");
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
