@@ -546,10 +546,88 @@ describe("integration fake-pi", () => {
         };
         tick();
       });
-      expect(idle.payload?.status).toBe("idle");
-      sock.ws.close();
+    expect(idle.payload?.status).toBe("idle");
+    sock.ws.close();
     } finally {
       await timed.app.close();
     }
   }, 15_000);
+
+  it("attaches @file contents, queues follow_up, and round-trips select", async () => {
+    const project = path.join(root.current, "project");
+    const sock = await openSocket(ctx.base);
+    await sock.waitFor("snapshot");
+    sock.send({ id: "c-gui", type: "task.create", payload: { cwd: project, title: "GUI phases" } });
+    const created = await sock.waitFor("request.succeeded");
+    const taskId = created?.payload?.data?.task?.id as string;
+
+    sock.send({ id: "p-file", type: "prompt.send", taskId, payload: { message: "please read @README.md" } });
+    const attached = await new Promise<EventMsg>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find(
+          (event) =>
+            event.type === "message.completed" &&
+            JSON.stringify(event.payload).includes("Attached file: README.md") &&
+            JSON.stringify(event.payload).includes("hello"),
+        );
+        if (match) return resolve(match);
+        if (Date.now() - start > 6000) return reject(new Error("@file contents were not attached"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+    expect(JSON.stringify(attached.payload)).toMatch(/README\.md/);
+
+    sock.send({
+      id: "p-slow",
+      type: "prompt.send",
+      taskId,
+      payload: { message: "please stream this slowly keep going now" },
+    });
+    await sock.waitFor("message.delta");
+    sock.send({ id: "fu", type: "prompt.followUp", taskId, payload: { message: "queued next" } });
+    const follow = await sock.waitForRequest("fu");
+    expect(follow.type).toBe("request.succeeded");
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find((event) => JSON.stringify(event.payload).includes("Follow-up: queued next"));
+        if (match) return resolve();
+        if (Date.now() - start > 8000) return reject(new Error("follow_up did not run"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+
+    sock.send({ id: "p-sel", type: "prompt.send", taskId, payload: { message: "SELECT:alpha|beta" } });
+    const requested = await sock.waitFor("interaction.requested");
+    const requestId = (requested.payload as { interaction?: { requestId?: string } } | undefined)?.interaction
+      ?.requestId;
+    expect(requestId).toBeTruthy();
+    sock.send({
+      id: "sel",
+      type: "interaction.respond",
+      taskId,
+      payload: { requestId, value: "alpha" },
+    });
+    await sock.waitForRequest("sel");
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        const match = sock.events.find((event) => JSON.stringify(event.payload).includes("Selected: alpha"));
+        if (match) return resolve();
+        if (Date.now() - start > 6000) return reject(new Error("select did not complete"));
+        setTimeout(tick, 25);
+      };
+      tick();
+    });
+
+    sock.send({ id: "open", type: "files.open", taskId, payload: { path: "README.md" } });
+    const opened = await sock.waitForRequest("open");
+    expect(opened.type).toBe("request.succeeded");
+    sock.send({ id: "reload", type: "resources.reload", taskId, payload: {} });
+    await sock.waitForRequest("reload");
+    sock.ws.close();
+  }, 25_000);
 });

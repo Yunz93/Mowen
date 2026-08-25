@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { listAuthEntries } from "../../apps/server/src/setup/auth-status.ts";
+import { listAuthEntries, removeAuth } from "../../apps/server/src/setup/auth-status.ts";
 import { scanPiResources } from "../../apps/server/src/tasks/pi-resources.ts";
 import { listPiSessions } from "../../apps/server/src/tasks/pi-sessions.ts";
 import { flattenSessionTree } from "../../apps/server/src/tasks/session-tree.ts";
@@ -26,6 +26,18 @@ describe("pi mvp helpers", () => {
       ]),
     );
     expect(JSON.stringify(entries)).not.toContain("sk-secret");
+  });
+
+  it("removes a provider from auth.json", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-logout-"));
+    await mkdir(path.join(home, ".pi", "agent"), { recursive: true });
+    await writeFile(
+      path.join(home, ".pi", "agent", "auth.json"),
+      JSON.stringify({ github: { type: "oauth" }, anthropic: { type: "api_key", key: "sk-keep" } }),
+    );
+    await removeAuth("github", home);
+    const remaining = await listAuthEntries(home);
+    expect(remaining.map((entry) => entry.id)).toEqual(["anthropic"]);
   });
 
   it("scans AGENTS.md and only project skills when trusted", async () => {

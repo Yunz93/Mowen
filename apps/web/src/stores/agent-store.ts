@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   ApprovalRequest,
   AuthEntry,
+  InteractionRequest,
   ModelRef,
   PiResources,
   PiSessionRef,
@@ -113,6 +114,9 @@ type AgentState = {
   piSessions: PiSessionRef[];
   authEntries: AuthEntry[];
   trustProject: boolean;
+  pendingInteractions: InteractionRequest[];
+  gitDiff: string | null;
+  toast: { message: string; notifyType?: "info" | "warning" | "error" } | null;
   serverInstanceId: string | null;
   // Per-task last processed sequence, used to drop replayed events after a
   // reconnect or duplicate broadcast. Single WS channel is ordered, so keeping
@@ -186,6 +190,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
   piSessions: [],
   authEntries: [],
   trustProject: false,
+  pendingInteractions: [],
+  gitDiff: null,
+  toast: null,
   serverInstanceId: null,
   lastSeen: {},
   setConnection: (connection) => set({ connection }),
@@ -243,6 +250,8 @@ export const useAgentStore = create<AgentState>((set, get) => {
       piSessions: payload.piSessions ?? [],
       authEntries: payload.authEntries ?? [],
       trustProject: payload.trustProject ?? false,
+      pendingInteractions: payload.pendingInteractions ?? [],
+      gitDiff: payload.gitDiff ?? null,
       approval:
         payload.approval ??
         (payload.pendingApprovals ?? []).find((item) => item.taskId === (taskId ?? payload.activeTaskId)) ??
@@ -300,6 +309,8 @@ export const useAgentStore = create<AgentState>((set, get) => {
           piSessions: event.payload.piSessions ?? current.piSessions,
           authEntries: event.payload.authEntries ?? current.authEntries,
           trustProject: event.payload.trustProject ?? current.trustProject,
+          pendingInteractions: event.payload.pendingInteractions ?? current.pendingInteractions,
+          gitDiff: event.payload.gitDiff !== undefined ? event.payload.gitDiff : current.gitDiff,
           approval:
             event.payload.approval ??
             (event.payload.pendingApprovals ?? current.pendingApprovals).find(
@@ -491,6 +502,28 @@ export const useAgentStore = create<AgentState>((set, get) => {
       case "resources.updated":
         if (!event.taskId || event.taskId === current.activeTaskId) {
           set({ lastSeen, resources: event.payload });
+        } else set({ lastSeen });
+        break;
+      case "interaction.requested": {
+        const pendingInteractions = [
+          ...current.pendingInteractions.filter((item) => item.requestId !== event.payload.interaction.requestId),
+          event.payload.interaction,
+        ];
+        set({ lastSeen, pendingInteractions });
+        break;
+      }
+      case "interaction.resolved":
+        set({
+          lastSeen,
+          pendingInteractions: current.pendingInteractions.filter((item) => item.requestId !== event.payload.requestId),
+        });
+        break;
+      case "notification.shown":
+        set({ lastSeen, toast: event.payload });
+        break;
+      case "git.diff":
+        if (!event.taskId || event.taskId === current.activeTaskId) {
+          set({ lastSeen, gitDiff: event.payload.diff });
         } else set({ lastSeen });
         break;
       default:

@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { AuthEntry } from "@mowen/protocol";
 import {
   defaultPiAgentDir,
@@ -9,6 +11,10 @@ import {
   piAuthFile,
   tryRepairAgentDir,
 } from "./pi-agent-dir.js";
+
+const execFileAsync = promisify(execFile);
+
+export const OAUTH_PROVIDERS = [{ id: "github", label: "GitHub Copilot" }] as const;
 
 /** Providers we expose in the beginner setup wizard. */
 export const BEGINNER_PROVIDERS = [
@@ -196,5 +202,69 @@ export async function saveApiKey(
   const provider = BEGINNER_PROVIDERS.find((item) => item.id === providerId);
   if (provider) {
     process.env[provider.envVar] = key;
+  }
+}
+
+export async function removeAuth(
+  providerId: string,
+  homeDir = os.homedir(),
+  agentDir = defaultPiAgentDir(homeDir),
+): Promise<void> {
+  const id = providerId.trim();
+  if (!id) throw new Error("请选择要退出的登录");
+  const authPath = piAuthPath(homeDir, agentDir);
+  const persist = async () => {
+    const auth = await readAuthFile(homeDir, agentDir);
+    if (!(id in auth)) {
+      throw new Error("没有这条登录");
+    }
+    delete auth[id];
+    await mkdir(agentDir, { recursive: true, mode: 0o700 });
+    await writeFile(authPath, `${JSON.stringify(auth, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  };
+  try {
+    await persist();
+  } catch (error) {
+    if (error instanceof Error && error.message === "没有这条登录") throw error;
+    if (!isAccessDenied(error) && !/auth\.json/i.test(error instanceof Error ? error.message : String(error))) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+    if (await tryRepairAgentDir(agentDir)) {
+      try {
+        await persist();
+      } catch (retry) {
+        throw new Error(humanizeUserFacingError(retry));
+      }
+    } else {
+      throw new Error(humanizeUserFacingError(error));
+    }
+  }
+
+  const beginner = BEGINNER_PROVIDERS.find((item) => item.id === id);
+  if (beginner) {
+    delete process.env[beginner.envVar];
+  }
+}
+
+export async function tryPiLogin(options: {
+  piCommand: string;
+  prefixArgs: string[];
+  extraEnv?: NodeJS.ProcessEnv;
+  provider: string;
+  homeDir: string;
+}): Promise<{ started: boolean; hint: string }> {
+  const label = PROVIDER_LABELS[options.provider] ?? options.provider;
+  const hint = `在终端运行 pi，然后输入 /login 登录 ${label}。完成后点「刷新登录状态」。墨问不会代填登录令牌。`;
+  if (!options.piCommand.trim()) {
+    return { started: false, hint };
+  }
+  try {
+    await execFileAsync(options.piCommand, [...options.prefixArgs, "login", options.provider], {
+      timeout: 1200,
+      env: { ...process.env, ...options.extraEnv, HOME: options.homeDir },
+    });
+    return { started: true, hint: `如果浏览器已打开，完成 ${label} 登录后点「刷新登录状态」。` };
+  } catch {
+    return { started: false, hint };
   }
 }

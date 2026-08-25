@@ -70,4 +70,15 @@ export class CheckpointStore {
     await copyFile(source, dest);
     return record;
   }
+
+  async restoreLatestByPath(taskId: string, filePath: string, cwd: string): Promise<CheckpointRecord> {
+    const current = await this.list(taskId);
+    const normalized = filePath.replaceAll("\\", "/");
+    const record = current.find((item) => {
+      const stored = item.path.replaceAll("\\", "/");
+      return stored === normalized || stored.endsWith(`/${normalized}`) || normalized.endsWith(`/${stored}`);
+    });
+    if (!record) throw new Error("找不到这个文件的检查点");
+    return this.restore(taskId, record.id, cwd);
+  }
 }

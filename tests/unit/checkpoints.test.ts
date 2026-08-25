@@ -19,4 +19,20 @@ describe("checkpoints", () => {
     await store.restore("task-1", saved!.id, project);
     expect(await readFile(file, "utf8")).toBe("before");
   });
+
+  it("restores the latest checkpoint for a path", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-check-path-"));
+    const project = path.join(root, "project");
+    const data = path.join(root, "data");
+    await mkdir(project, { recursive: true });
+    const file = path.join(project, "note.txt");
+    await writeFile(file, "one");
+    const store = new CheckpointStore(data);
+    await store.save("task-1", project, "note.txt", "edit");
+    await writeFile(file, "two");
+    await store.save("task-1", project, "note.txt", "edit");
+    await writeFile(file, "three");
+    await store.restoreLatestByPath("task-1", "note.txt", project);
+    expect(await readFile(file, "utf8")).toBe("two");
+  });
 });

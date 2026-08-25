@@ -8,7 +8,10 @@ import {
   hasAnyAuth,
   inspectModelsFile,
   listAuthEntries,
+  OAUTH_PROVIDERS,
+  removeAuth,
   saveApiKey,
+  tryPiLogin,
   type BeginnerProviderId,
 } from "../setup/auth-status.js";
 import type { AuthEntry } from "@mowen/protocol";
@@ -127,6 +130,43 @@ export function registerSetupRoutes(
     }
     options.onSetupChanged?.();
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/logout", async (request, reply) => {
+    const parsed = z.object({ provider: z.string().min(1) }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "请选择要退出的登录。" });
+    }
+    try {
+      const config = options.getConfig();
+      await removeAuth(parsed.data.provider, config.homeDir, config.piAgentDir);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(400).send({ error: message });
+    }
+    options.onSetupChanged?.();
+    return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
+  });
+
+  app.post("/api/setup/login", async (request, reply) => {
+    const parsed = z.object({ provider: z.string().min(1) }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "请选择要登录的服务商。" });
+    }
+    const config = options.getConfig();
+    const known = [...OAUTH_PROVIDERS.map((item) => item.id), ...BEGINNER_PROVIDERS.map((item) => item.id)];
+    if (!known.includes(parsed.data.provider) && !/^[a-z0-9_-]+$/i.test(parsed.data.provider)) {
+      return reply.code(400).send({ error: "不支持这个服务商。" });
+    }
+    const result = await tryPiLogin({
+      piCommand: config.piCommand,
+      prefixArgs: config.piPrefixArgs,
+      extraEnv: config.piExtraEnv,
+      provider: parsed.data.provider,
+      homeDir: config.homeDir,
+    });
+    const setup = await buildSetupStatus(config, options.settings, options.getPi());
+    return { ...setup, loginStarted: result.started, hint: result.hint };
   });
 
   app.post("/api/setup/workspace", async (request, reply) => {

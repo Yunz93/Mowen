@@ -6,6 +6,7 @@ import {
   approvalDecision,
   effectiveApprovalPolicy,
   emptyRuntime,
+  extractAtMentions,
   normalizeSessionStats,
   stripModePrefix,
   type AuthEntry,
@@ -19,12 +20,12 @@ import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd } from "../security/path-policy.js";
+import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
 import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-agent-dir.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
-import { readGitStatus } from "./git-status.js";
+import { commitGit, readGitDiff, readGitStatus } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
 import { scanPiResources } from "./pi-resources.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
@@ -60,6 +61,7 @@ export class TaskService {
     trustProject: false,
   };
   private readonly resources = new Map<string, PiResources>();
+  private readonly gitDiffs = new Map<string, string>();
 
   constructor(
     private config: AppConfig,
@@ -199,7 +201,22 @@ export class TaskService {
       case "checkpoint.list":
         return this.emitCheckpoints(command.taskId);
       case "checkpoint.restore":
-        return this.restoreCheckpoint(command.taskId, command.payload.checkpointId);
+        return this.restoreCheckpoint(command.taskId, command.payload);
+      case "git.diff":
+        return this.emitGitDiff(command.taskId);
+      case "git.commit":
+        return this.commitTaskGit(command.taskId, command.payload.message);
+      case "resources.reload":
+        return this.reloadResources(command.taskId);
+      case "files.open":
+        return this.openFile(command.taskId, command.payload.path);
+      case "interaction.respond":
+        return this.respondInteraction(
+          command.taskId,
+          command.payload.requestId,
+          command.payload.cancelled,
+          command.payload.value,
+        );
       case "commands.list":
         return this.emitCommands(command.taskId);
       case "session.compact":
@@ -266,6 +283,8 @@ export class TaskService {
       sessionLeafId: runtime?.sessionLeafId ?? null,
       authEntries: this.setupHints.authEntries,
       trustProject: this.config.trustProject,
+      pendingInteractions: this.supervisor.listInteractions(),
+      gitDiff: activeId ? (this.gitDiffs.get(activeId) ?? null) : null,
     };
   }
 
@@ -435,9 +454,10 @@ export class TaskService {
       mimeType: item.mimeType,
     }));
 
+    const expanded = await this.attachMentionedFiles(latest, message);
     const payload: Record<string, unknown> & { type: string } = {
       type: rpcMode,
-      message: applyModePrefix(latest.mode ?? "agent", message),
+      message: applyModePrefix(latest.mode ?? "agent", expanded),
     };
     if (images.length > 0) payload.images = images;
 
@@ -469,6 +489,25 @@ export class TaskService {
       }
     }
     return { ok: true };
+  }
+
+  private async attachMentionedFiles(task: TaskRecord, message: string): Promise<string> {
+    const mentions = extractAtMentions(message).slice(0, 6);
+    if (mentions.length === 0) return message;
+    const parts = [message];
+    for (const mention of mentions) {
+      try {
+        const preview = await previewProjectFile(mention, task.cwd, this.config.allowedRoots);
+        const content = preview.content.slice(0, 80_000);
+        parts.push(`\n\n---\nAttached file: ${mention}\n\`\`\`\n${content}\n\`\`\``);
+        if (preview.truncated || preview.content.length > 80_000) {
+          parts.push("\n[truncated]");
+        }
+      } catch {
+        // Missing or out-of-policy paths stay as @mentions in the prompt.
+      }
+    }
+    return parts.join("");
   }
 
   private async abort(taskId: string): Promise<{ ok: true }> {
@@ -601,9 +640,18 @@ export class TaskService {
     return { checkpoints };
   }
 
-  private async restoreCheckpoint(taskId: string, checkpointId: string): Promise<{ ok: true }> {
+  private async restoreCheckpoint(
+    taskId: string,
+    payload: { checkpointId?: string; path?: string },
+  ): Promise<{ ok: true }> {
     const task = this.requireTask(taskId);
-    await this.checkpoints.restore(taskId, checkpointId, task.cwd);
+    if (payload.checkpointId) {
+      await this.checkpoints.restore(taskId, payload.checkpointId, task.cwd);
+    } else if (payload.path) {
+      await this.checkpoints.restoreLatestByPath(taskId, payload.path, task.cwd);
+    } else {
+      throw new Error("请选择检查点或文件路径");
+    }
     await this.emitCheckpoints(taskId);
     await this.emitGitStatus(taskId);
     return { ok: true };
@@ -614,6 +662,55 @@ export class TaskService {
     const git = await readGitStatus(task.cwd);
     if (git) this.emit(taskId, "git.status", git);
     return { git };
+  }
+
+  private async emitGitDiff(taskId: string): Promise<{ diff: string }> {
+    const task = this.requireTask(taskId);
+    const diff = (await readGitDiff(task.cwd)) ?? "";
+    this.gitDiffs.set(taskId, diff);
+    this.emit(taskId, "git.diff", { diff });
+    return { diff };
+  }
+
+  private async commitTaskGit(taskId: string, message: string): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    await commitGit(task.cwd, message);
+    await this.emitGitStatus(taskId);
+    await this.emitGitDiff(taskId);
+    return { ok: true };
+  }
+
+  private async reloadResources(taskId: string): Promise<PiResources> {
+    this.requireTask(taskId);
+    if (this.supervisor.has(taskId)) {
+      try {
+        await this.supervisor.rpcData(taskId, { type: "reload_skills" });
+      } catch {
+        // Optional on fake-pi / older Pi builds.
+      }
+    }
+    const resources = await this.emitResources(taskId);
+    await this.emitCommands(taskId);
+    return resources;
+  }
+
+  private async openFile(taskId: string, relativePath: string): Promise<{ path: string }> {
+    const task = this.requireTask(taskId);
+    const resolved = await resolveAllowedPath(relativePath, task.cwd, this.config.allowedRoots);
+    await this.filePreview(taskId, relativePath);
+    return { path: resolved };
+  }
+
+  private async respondInteraction(
+    taskId: string,
+    requestId: string,
+    cancelled?: boolean,
+    value?: string,
+  ): Promise<{ ok: true }> {
+    this.requireTask(taskId);
+    const ok = this.supervisor.respondInteraction(requestId, { cancelled, value });
+    if (!ok) throw new Error("这条询问已经失效");
+    return { ok: true };
   }
 
   private async emitCommands(taskId: string): Promise<{ commands: Array<{ name: string; description?: string; source?: string }> }> {
@@ -885,6 +982,12 @@ export class TaskService {
     this.emit(taskId, "task.updated", { task: next });
     if (event === "agent_settled") {
       void this.refreshStats(taskId);
+      if (task.status === "running" || task.status === "waiting_approval") {
+        this.emit(taskId, "notification.shown", { message: "回复完成", notifyType: "info" });
+      }
+    }
+    if (next.status === "error" && next.errorMessage) {
+      this.emit(taskId, "notification.shown", { message: next.errorMessage, notifyType: "error" });
     }
     return next;
   }

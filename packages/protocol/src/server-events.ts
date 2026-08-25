@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   authEntrySchema,
+  interactionRequestSchema,
   piResourcesSchema,
   piSessionRefSchema,
   runtimeStateSchema,
@@ -46,6 +47,10 @@ export const serverEventTypeSchema = z.enum([
   "session.tree",
   "sessions.listed",
   "resources.updated",
+  "interaction.requested",
+  "interaction.resolved",
+  "notification.shown",
+  "git.diff",
 ]);
 
 export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
@@ -120,6 +125,8 @@ export const snapshotPayloadSchema = z.object({
   piSessions: z.array(piSessionRefSchema).optional(),
   authEntries: z.array(authEntrySchema).optional(),
   trustProject: z.boolean().optional(),
+  pendingInteractions: z.array(interactionRequestSchema).optional(),
+  gitDiff: z.string().nullable().optional(),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;
@@ -322,6 +329,33 @@ export const serverEventSchema = z.discriminatedUnion("type", [
     ...eventBase,
     type: z.literal("resources.updated"),
     payload: piResourcesSchema,
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("interaction.requested"),
+    payload: z.object({ interaction: interactionRequestSchema }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("interaction.resolved"),
+    payload: z.object({
+      requestId: z.string(),
+      cancelled: z.boolean().optional(),
+      value: z.string().optional(),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("notification.shown"),
+    payload: z.object({
+      message: z.string(),
+      notifyType: z.enum(["info", "warning", "error"]).optional(),
+    }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("git.diff"),
+    payload: z.object({ diff: z.string() }),
   }),
 ]);
 

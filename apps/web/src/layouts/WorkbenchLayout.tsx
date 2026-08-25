@@ -6,6 +6,7 @@ import { ConversationTimeline } from "../components/timeline/ConversationTimelin
 import { PromptComposer } from "../components/composer/PromptComposer";
 import { InspectorPanel } from "../components/inspector/InspectorPanel";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
+import { InteractionSheet } from "../components/interaction/InteractionSheet";
 import { PiStatusRing } from "../components/status/PiStatusRing";
 import { ThemeToggle } from "../components/status/ThemeToggle";
 import { ContextMeter } from "../components/status/ContextMeter";
@@ -15,9 +16,12 @@ import { socketClient } from "../transport/socket-client";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
+import { stripModePrefix } from "@mowen/protocol";
 import { folderName, nextHint } from "../copy";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
+import { showOsNotification } from "../lib/notify";
+import { getDesktop } from "../desktop-bridge";
 
 export function WorkbenchLayout() {
   const tasks = useAgentStore((state) => state.tasks);
@@ -33,6 +37,7 @@ export function WorkbenchLayout() {
   const preview = useAgentStore((state) => state.filePreview);
   const commands = useAgentStore((state) => state.commands);
   const git = useAgentStore((state) => state.git);
+  const gitDiff = useAgentStore((state) => state.gitDiff);
   const checkpoints = useAgentStore((state) => state.checkpoints);
   const runtime = useAgentStore((state) => state.runtime);
   const resources = useAgentStore((state) => state.resources);
@@ -47,6 +52,8 @@ export function WorkbenchLayout() {
   const connection = useAgentStore((state) => state.connection);
   const allowedRoots = useAgentStore((state) => state.allowedRoots);
   const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
+  const pendingInteractions = useAgentStore((state) => state.pendingInteractions);
+  const toast = useAgentStore((state) => state.toast);
 
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -61,6 +68,7 @@ export function WorkbenchLayout() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const skipTitleCommitRef = useRef(false);
+  const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     const preferred = workspaceRoot ?? allowedRoots[0];
@@ -77,10 +85,18 @@ export function WorkbenchLayout() {
   );
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
+  const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
 
   useEffect(() => {
-    setEditingTitle(false);
-  }, [task?.id]);
+    if (!toast?.message) return;
+    void showOsNotification("墨问", toast.message, toast.notifyType);
+    const timer = window.setTimeout(() => {
+      if (useAgentStore.getState().toast === toast) {
+        useAgentStore.setState({ toast: null });
+      }
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -118,6 +134,15 @@ export function WorkbenchLayout() {
           );
           return;
         }
+        if (interaction) {
+          event.preventDefault();
+          void socketClient.send(
+            "interaction.respond",
+            { requestId: interaction.requestId, cancelled: true },
+            interaction.taskId,
+          );
+          return;
+        }
         event.preventDefault();
         if (task) void socketClient.send("agent.abort", {}, task.id);
       }
@@ -132,7 +157,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [approval, creating, editingTitle, inspectorOpen, paletteOpen, task, taskOpen]);
+  }, [approval, creating, editingTitle, inspectorOpen, interaction, paletteOpen, task, taskOpen]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -162,11 +187,65 @@ export function WorkbenchLayout() {
     const images = imageIds;
     setDraft("");
     setImageIds([]);
+    setRetryPrompt(null);
     if (task.status === "stopped" || task.status === "error") {
       await socketClient.send("task.activate", {}, task.id);
     }
     await socketClient.send("prompt.send", { message: text, imageIds: images }, task.id);
   };
+
+  const sendFollowUp = async () => {
+    if (!task || !draft.trim()) return;
+    const text = draft;
+    const images = imageIds;
+    setDraft("");
+    setImageIds([]);
+    setRetryPrompt(null);
+    await socketClient.send("prompt.followUp", { message: text, imageIds: images }, task.id);
+  };
+
+  const abortRun = () => {
+    if (!task) return;
+    const lastUser = [...messages].reverse().find((item) => item.role === "user");
+    const text = lastUser ? stripModePrefix(lastUser.text).trim() : draft.trim();
+    if (text) setRetryPrompt(text);
+    void socketClient.send("agent.abort", {}, task.id);
+  };
+
+  async function retryLastPrompt() {
+    if (!task || !retryPrompt) return;
+    const text = retryPrompt;
+    setRetryPrompt(null);
+    if (task.status === "stopped" || task.status === "error") {
+      await socketClient.send("task.activate", {}, task.id);
+    }
+    await socketClient.send("prompt.send", { message: text }, task.id);
+  }
+
+  async function openProjectFile(filePath: string) {
+    if (!task) return;
+    try {
+      const result = await socketClient.send<{ path: string }>("files.open", { path: filePath }, task.id);
+      setInspectorOpen(true);
+      const desktop = getDesktop();
+      if (desktop?.openPath && result.path) {
+        const error = await desktop.openPath(result.path);
+        if (error) setNotice(error);
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "无法打开文件");
+    }
+  }
+
+  async function undoProjectFile(filePath: string) {
+    if (!task) return;
+    try {
+      await socketClient.send("checkpoint.restore", { path: filePath }, task.id);
+      setNotice(`已撤回 ${filePath}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "撤回失败");
+    }
+  }
 
   async function uploadImages(files: FileList | File[]) {
     const ids: string[] = [];
@@ -364,6 +443,17 @@ export function WorkbenchLayout() {
             </button>
           </div>
         ) : null}
+        {retryPrompt && (status === "idle" || status === "error" || status === "stopped") ? (
+          <div className="banner-note text-ink">
+            已停止。
+            <button type="button" className="pressable app-no-drag text-accent" onClick={() => void retryLastPrompt()}>
+              重试上一条
+            </button>
+          </div>
+        ) : null}
+        {toast?.message && toast.message !== "回复完成" ? (
+          <div className="banner-note text-mute">{toast.message}</div>
+        ) : null}
         <main id="main-content" data-conversation-scroll className="min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain">
           {task ? (
             <ConversationTimeline
@@ -375,6 +465,8 @@ export function WorkbenchLayout() {
                 void socketClient.send("session.fork", { messageId, message: text }, task.id)
               }
               onClone={() => void socketClient.send("session.clone", {}, task.id)}
+              onOpenFile={(filePath) => void openProjectFile(filePath)}
+              onUndoFile={(filePath) => void undoProjectFile(filePath)}
             />
           ) : (
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
@@ -406,10 +498,24 @@ export function WorkbenchLayout() {
             />
           </div>
         ) : null}
+        {interaction ? (
+          <div className="dialog-scrim z-[60]" role="presentation">
+            <InteractionSheet
+              interaction={interaction}
+              onRespond={(payload) =>
+                void socketClient.send(
+                  "interaction.respond",
+                  { requestId: interaction.requestId, ...payload },
+                  interaction.taskId,
+                )
+              }
+            />
+          </div>
+        ) : null}
         {task ? (
           <PromptComposer
             status={status}
-            disabled={connection !== "open" || Boolean(approval)}
+            disabled={connection !== "open" || Boolean(approval) || Boolean(interaction)}
             models={models}
             thinkingLevels={thinkingLevels}
             modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
@@ -427,10 +533,11 @@ export function WorkbenchLayout() {
               const images = imageIds;
               setDraft("");
               setImageIds([]);
+              setRetryPrompt(null);
               void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
             }}
-            onFollowUp={() => void sendPrompt()}
-            onAbort={() => void socketClient.send("agent.abort", {}, task.id)}
+            onFollowUp={() => void sendFollowUp()}
+            onAbort={abortRun}
             onModel={(provider, modelId) =>
               void socketClient.send("model.set", { provider, modelId }, task.id)
             }
@@ -490,6 +597,7 @@ export function WorkbenchLayout() {
               files={files}
               preview={preview}
               git={git}
+              gitDiff={gitDiff}
               checkpoints={checkpoints}
               sessionTree={sessionTree}
               sessionLeafId={sessionLeafId}
@@ -502,12 +610,22 @@ export function WorkbenchLayout() {
                 void socketClient.send("git.status", {}, task.id);
                 void socketClient.send("checkpoint.list", {}, task.id);
               }}
+              onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
+              onGitCommit={(message) =>
+                task &&
+                void socketClient.send("git.commit", { message }, task.id).catch((error: unknown) => {
+                  setNotice(error instanceof Error ? error.message : "提交失败");
+                })
+              }
               onRestore={(checkpointId) =>
                 task && void socketClient.send("checkpoint.restore", { checkpointId }, task.id)
               }
               onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
               onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
               onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
+              onReloadResources={() => task && void socketClient.send("resources.reload", {}, task.id)}
+              onOpenFile={(filePath) => void openProjectFile(filePath)}
+              onUndoFile={(filePath) => void undoProjectFile(filePath)}
               lastExportPath={lastExportPath}
               onOpenExport={(filePath) => void openExport(filePath)}
               onExport={() => {

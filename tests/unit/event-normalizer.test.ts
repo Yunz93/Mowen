@@ -88,4 +88,38 @@ describe("event normalizer", () => {
     expect(messages[0]?.text).toBe("hello");
     expect(messages[1]?.text).toBe("hi");
   });
+
+  it("keeps select/input/notify fields on extension UI requests", () => {
+    expect(
+      normalizePiEvent({
+        type: "extension_ui_request",
+        id: "ui-1",
+        method: "select",
+        title: "Choose",
+        message: "Pick",
+        options: ["alpha", "beta"],
+      }),
+    ).toMatchObject({
+      kind: "approval.ui",
+      method: "select",
+      options: ["alpha", "beta"],
+    });
+    expect(
+      normalizePiEvent({
+        type: "extension_ui_request",
+        id: "ui-2",
+        method: "input",
+        placeholder: "Name",
+      }),
+    ).toMatchObject({ kind: "approval.ui", method: "input", placeholder: "Name" });
+    expect(
+      normalizePiEvent({
+        type: "extension_ui_request",
+        id: "ui-3",
+        method: "notify",
+        message: "done",
+        notifyType: "warning",
+      }),
+    ).toMatchObject({ kind: "approval.ui", method: "notify", notifyType: "warning" });
+  });
 });

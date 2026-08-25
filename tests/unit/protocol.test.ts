@@ -36,6 +36,30 @@ describe("protocol", () => {
         taskId: "11111111-1111-4111-8111-111111111111",
       }).type,
     ).toBe("session.stats");
+    expect(
+      clientCommandSchema.parse({
+        id: "4",
+        type: "git.commit",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { message: "save work" },
+      }).type,
+    ).toBe("git.commit");
+    expect(
+      clientCommandSchema.parse({
+        id: "5",
+        type: "interaction.respond",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { requestId: "ui-1", value: "alpha" },
+      }).payload,
+    ).toEqual({ requestId: "ui-1", value: "alpha" });
+    expect(
+      clientCommandSchema.parse({
+        id: "6",
+        type: "checkpoint.restore",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { path: "note.txt" },
+      }).payload,
+    ).toEqual({ path: "note.txt" });
   });
 
   it("accepts partial Pi session stats and fills context usage", () => {

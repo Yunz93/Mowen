@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type {
   ApprovalRequest,
+  InteractionRequest,
   ModelRef,
   RuntimeState,
   ServerEvent,
@@ -41,11 +42,11 @@ export type RuntimeSnapshot = {
   sessionLeafId: string | null;
 };
 
-type ApprovalPending = {
+type InteractionPending = {
   requestId: string;
   taskId: string;
   generation: number;
-  payload: ApprovalRequest;
+  payload: InteractionRequest;
   timer: ReturnType<typeof setTimeout>;
 };
 
@@ -124,6 +125,7 @@ export class ProcessSupervisor {
     }
   >();
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
+  private readonly pendingInteractions = new Map<string, InteractionPending>();
   private readonly listeners = new Set<Listener>();
   private readonly sequences = new Map<string, number>();
   private readonly serverInstanceId = randomUUID();
@@ -155,6 +157,10 @@ export class ProcessSupervisor {
 
   listApprovals(): ApprovalRequest[] {
     return [...this.pendingApprovals.values()].map((item) => item.payload);
+  }
+
+  listInteractions(): InteractionRequest[] {
+    return [...this.pendingInteractions.values()].map((item) => item.payload);
   }
 
   getApproval(requestId: string): ApprovalRequest | null {
@@ -342,6 +348,7 @@ export class ProcessSupervisor {
     if (!runtime) return;
     this.runtimes.delete(taskId);
     this.clearApprovalsForTask(taskId, "Task stopped");
+    this.clearInteractionsForTask(taskId);
     await runtime.client.stop(signal);
   }
 
@@ -379,6 +386,28 @@ export class ProcessSupervisor {
     return true;
   }
 
+  respondInteraction(requestId: string, payload: { cancelled?: boolean; value?: string }): boolean {
+    const pending = this.pendingInteractions.get(requestId);
+    if (!pending) return false;
+    const runtime = this.runtimes.get(pending.taskId);
+    if (!runtime || runtime.generation !== pending.generation) {
+      this.pendingInteractions.delete(requestId);
+      clearTimeout(pending.timer);
+      return false;
+    }
+    if (payload.cancelled) {
+      runtime.client.sendUiResponse({ id: requestId, cancelled: true });
+    } else {
+      runtime.client.sendUiResponse({
+        id: requestId,
+        value: payload.value ?? "",
+        confirmed: true,
+      });
+    }
+    this.finishInteraction(requestId, payload.cancelled === true, payload.value);
+    return true;
+  }
+
   denyAllApprovals(reason: string): void {
     for (const requestId of [...this.pendingApprovals.keys()]) {
       this.denyOne(requestId, reason);
@@ -407,6 +436,25 @@ export class ProcessSupervisor {
     const runtime = this.runtimes.get(pending.taskId);
     if (runtime) runtime.approval = null;
     this.emit(pending.taskId, "approval.resolved", { requestId, allow, reason });
+  }
+
+  private finishInteraction(requestId: string, cancelled: boolean, value?: string): void {
+    const pending = this.pendingInteractions.get(requestId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingInteractions.delete(requestId);
+    this.emit(pending.taskId, "interaction.resolved", { requestId, cancelled, value });
+  }
+
+  private clearInteractionsForTask(taskId: string): void {
+    for (const [requestId, pending] of this.pendingInteractions) {
+      if (pending.taskId !== taskId) continue;
+      const runtime = this.runtimes.get(pending.taskId);
+      if (runtime && runtime.generation === pending.generation) {
+        runtime.client.sendUiResponse({ id: requestId, cancelled: true });
+      }
+      this.finishInteraction(requestId, true);
+    }
   }
 
   private clearApprovalsForTask(taskId: string, reason: string): void {
@@ -503,6 +551,38 @@ export class ProcessSupervisor {
         break;
       }
       case "approval.ui": {
+        if (normalized.method === "notify") {
+          const message = normalized.message ?? normalized.title ?? "通知";
+          this.emit(taskId, "notification.shown", {
+            message,
+            notifyType: normalized.notifyType ?? "info",
+          });
+          runtime.client.sendUiResponse({ id: normalized.requestId, confirmed: true });
+          break;
+        }
+        if (normalized.method === "select" || normalized.method === "input") {
+          const interaction: InteractionRequest = {
+            requestId: normalized.requestId,
+            taskId,
+            method: normalized.method,
+            title: normalized.title,
+            message: normalized.message,
+            options: normalized.options,
+            placeholder: normalized.placeholder,
+          };
+          const timer = setTimeout(() => {
+            this.respondInteraction(interaction.requestId, { cancelled: true });
+          }, this.config.approvalTimeoutMs);
+          this.pendingInteractions.set(interaction.requestId, {
+            requestId: interaction.requestId,
+            taskId,
+            generation,
+            payload: interaction,
+            timer,
+          });
+          this.emit(taskId, "interaction.requested", { interaction });
+          break;
+        }
         if (normalized.method !== "confirm") break;
         const approval = parseApprovalMessage(
           normalized.requestId,
@@ -535,6 +615,10 @@ export class ProcessSupervisor {
           timer,
         });
         this.emit(taskId, "approval.requested", { approval });
+        this.emit(taskId, "notification.shown", {
+          message: "需要你确认一次操作",
+          notifyType: "warning",
+        });
         this.onApprovalNeeded(taskId);
         break;
       }

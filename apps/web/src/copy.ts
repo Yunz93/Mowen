@@ -77,7 +77,7 @@ export function folderName(cwd: string): string {
 export function nextHint(status: string, hasTask: boolean): string {
   if (!hasTask) return "从左侧选择会话，或点 + 开始聊天";
   if (status === "waiting_approval") return "请确认是否允许这次操作";
-  if (status === "running") return "正在处理，可以直接停止";
+  if (status === "running") return "正在处理。回车补充，Shift+Enter 排队下一条";
   if (status === "error") return "出了点问题。下面的红色说明可以看原因";
   if (status === "queued") return "正在等待空闲";
   if (status === "booting") return "正在启动";

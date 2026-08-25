@@ -10,7 +10,16 @@ export type NormalizedPiEvent =
   | { kind: "tool.started"; tool: ToolExecution }
   | { kind: "tool.updated"; tool: Partial<ToolExecution> & { toolCallId: string } }
   | { kind: "tool.completed"; tool: Partial<ToolExecution> & { toolCallId: string } }
-  | { kind: "approval.ui"; requestId: string; method: string; title?: string; message?: string }
+  | {
+      kind: "approval.ui";
+      requestId: string;
+      method: string;
+      title?: string;
+      message?: string;
+      options?: string[];
+      placeholder?: string;
+      notifyType?: "info" | "warning" | "error";
+    }
   | { kind: "extension_error"; error: string }
   | { kind: "agent_error"; error: string }
   | { kind: "runtime.compaction"; phase: "start" | "end"; reason?: string }
@@ -191,14 +200,25 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
         },
       };
     }
-    case "extension_ui_request":
+    case "extension_ui_request": {
+      const options = Array.isArray(event.options)
+        ? event.options.map((item) => String(item)).filter(Boolean)
+        : undefined;
+      const notifyType =
+        event.notifyType === "warning" || event.notifyType === "error" || event.notifyType === "info"
+          ? event.notifyType
+          : undefined;
       return {
         kind: "approval.ui",
         requestId: String(event.id ?? ""),
         method: String(event.method ?? ""),
         title: typeof event.title === "string" ? event.title : undefined,
         message: typeof event.message === "string" ? event.message : undefined,
+        options: options && options.length > 0 ? options : undefined,
+        placeholder: typeof event.placeholder === "string" ? event.placeholder : undefined,
+        notifyType,
       };
+    }
     case "extension_error":
       return { kind: "extension_error", error: String(event.error ?? "Extension error") };
     case "error":

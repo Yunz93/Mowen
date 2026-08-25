@@ -7,6 +7,18 @@ export const authEntrySchema = z.object({
 });
 export type AuthEntry = z.infer<typeof authEntrySchema>;
 
+export const interactionRequestSchema = z.object({
+  requestId: z.string(),
+  taskId: z.string(),
+  method: z.enum(["select", "input", "notify"]),
+  title: z.string().optional(),
+  message: z.string().optional(),
+  options: z.array(z.string()).optional(),
+  placeholder: z.string().optional(),
+  notifyType: z.enum(["info", "warning", "error"]).optional(),
+});
+export type InteractionRequest = z.infer<typeof interactionRequestSchema>;
+
 export const piResourceFileSchema = z.object({
   path: z.string(),
   kind: z.enum(["agents", "override", "claude", "system", "append"]),
