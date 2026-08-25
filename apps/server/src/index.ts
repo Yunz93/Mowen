@@ -18,6 +18,7 @@ import {
   InstallPiError,
   runOfficialPiInstall,
 } from "./setup/install-pi.js";
+import { applyPiAgentDir, resolvePiAgentDir } from "./setup/pi-agent-dir.js";
 import { TaskStore } from "./tasks/task-store.js";
 import { TaskService } from "./tasks/task-service.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
@@ -36,6 +37,8 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     trustProject: settings.get().trustProject,
   });
   await mkdir(config.dataDir, { recursive: true });
+  config = applyPiAgentDir(config, await resolvePiAgentDir(config.homeDir, config.dataDir));
+  env.PI_CODING_AGENT_DIR = config.piAgentDir;
 
   const { version, error } = await readPiVersion(config);
   console.log(`[mowen] Pi version: ${version ?? "unavailable"}`);
@@ -78,7 +81,10 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
       piBin: bin,
       piCommand: runtime.command,
       piPrefixArgs: runtime.prefixArgs,
-      piExtraEnv: runtime.extraEnv,
+      piExtraEnv: {
+        ...runtime.extraEnv,
+        PI_CODING_AGENT_DIR: config.piAgentDir,
+      },
     };
     service.updateConfig(config);
   }
@@ -102,6 +108,9 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     const result = await runOfficialPiInstall({ homeDir: config.homeDir, env });
     const bin = result.bin ?? (await discoverPiExecutable({ homeDir: config.homeDir, env }));
     if (bin) await adoptPiBin(bin);
+    config = applyPiAgentDir(config, await resolvePiAgentDir(config.homeDir, config.dataDir));
+    env.PI_CODING_AGENT_DIR = config.piAgentDir;
+    service.updateConfig(config);
     await refreshPiState();
     if (!healthInfo.piVersion) {
       throw new InstallPiError(

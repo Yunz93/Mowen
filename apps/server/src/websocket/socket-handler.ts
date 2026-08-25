@@ -4,6 +4,7 @@ import { clientCommandSchema } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { isAllowedOrigin } from "../config.js";
 import { hasSession, readSessionToken } from "../security/session-cookie.js";
+import { humanizeUserFacingError } from "../setup/pi-agent-dir.js";
 import type { TaskService } from "../tasks/task-service.js";
 
 export function registerWebsocket(app: FastifyInstance, config: AppConfig, service: TaskService): void {
@@ -90,7 +91,7 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
         } catch (error) {
           service.emit(taskId, "request.failed", {
             requestId: command.id,
-            error: error instanceof Error ? error.message : String(error),
+            error: humanizeUserFacingError(error),
           });
         }
         })

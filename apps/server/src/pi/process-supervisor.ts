@@ -19,6 +19,7 @@ import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
 import { flattenSessionTree } from "../tasks/session-tree.js";
+import { humanizeUserFacingError } from "../setup/pi-agent-dir.js";
 
 export type AgentCommand = {
   name: string;
@@ -119,6 +120,7 @@ export class ProcessSupervisor {
       runtime: RuntimeState;
       sessionTree: SessionTreeNode[];
       sessionLeafId: string | null;
+      stderrAlerted: boolean;
     }
   >();
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
@@ -227,6 +229,7 @@ export class ProcessSupervisor {
       runtime: emptyRuntime(),
       sessionTree: [] as SessionTreeNode[],
       sessionLeafId: null as string | null,
+      stderrAlerted: false,
     };
 
     const client = new RpcClient({
@@ -248,14 +251,24 @@ export class ProcessSupervisor {
         if (chunk.trim()) {
           console.warn(`[pi ${task.id}] ${redactSecrets(chunk.trim())}`);
         }
+        const current = this.runtimes.get(task.id);
+        if (!current || current.generation !== generation || current.stderrAlerted) return;
+        if (!/auth\.json/i.test(chunk) || !/EACCES|EPERM|permission denied/i.test(chunk)) return;
+        current.stderrAlerted = true;
+        this.emit(task.id, "server.error", {
+          code: "pi.stderr",
+          message: humanizeUserFacingError(new Error(chunk)),
+        });
       },
       onExit: (code, signal) => {
         const current = this.runtimes.get(task.id);
         if (!current || current.generation !== generation) return;
+        const stderr = redactSecrets(current.client?.getStderr?.().trim() ?? "");
+        const detail = stderr ? `\n${stderr}` : "";
         this.onUnexpectedExit(
           task.id,
           generation,
-          `Pi exited unexpectedly (code=${code} signal=${signal}).`,
+          humanizeUserFacingError(new Error(`Pi 进程退出（code=${code} signal=${signal}）。${detail}`)),
         );
       },
     });
@@ -527,6 +540,12 @@ export class ProcessSupervisor {
       }
       case "extension_error":
         this.emit(taskId, "server.error", { code: "extension", message: normalized.error });
+        break;
+      case "agent_error":
+        this.emit(taskId, "server.error", {
+          code: "pi.agent",
+          message: humanizeUserFacingError(new Error(normalized.error)),
+        });
         break;
       case "runtime.compaction":
         runtime.runtime = {

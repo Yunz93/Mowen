@@ -20,6 +20,7 @@ import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
 import { assertAllowedCwd } from "../security/path-policy.js";
+import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-agent-dir.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
@@ -391,9 +392,9 @@ export class TaskService {
       await this.emitResources(taskId);
       await this.refreshStats(taskId);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = humanizeUserFacingError(error);
       await this.apply(taskId, "spawn_failed", message);
-      throw error;
+      throw new Error(message);
     }
   }
 
@@ -443,8 +444,8 @@ export class TaskService {
     try {
       await this.supervisor.rpcData(taskId, payload);
     } catch (error) {
-      const text = error instanceof Error ? error.message : String(error);
-      const authHint = /api key|auth|login|unauthorized|401/i.test(text);
+      const text = humanizeUserFacingError(error);
+      const authHint = isMissingCredentialError(text);
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
@@ -452,7 +453,7 @@ export class TaskService {
           : text,
         authHint,
       });
-      throw error;
+      throw new Error(text);
     }
 
     if (rpcMode === "prompt") {
@@ -708,7 +709,7 @@ export class TaskService {
   }
 
   private async listSessions(cwd?: string): Promise<{ sessions: Awaited<ReturnType<typeof listPiSessions>> }> {
-    const sessions = await listPiSessions(this.config.homeDir, cwd);
+    const sessions = await listPiSessions(this.config.homeDir, cwd, this.config.piAgentDir);
     this.emit("", "sessions.listed", { sessions });
     return { sessions };
   }
@@ -719,12 +720,12 @@ export class TaskService {
     title?: string,
   ): Promise<{ task: TaskRecord }> {
     const allowed = [
-      piSessionsRoot(this.config.homeDir),
+      piSessionsRoot(this.config.homeDir, this.config.piAgentDir),
       path.join(this.config.dataDir, "sessions"),
       ...this.config.allowedRoots,
     ];
     const resolvedSession = assertPiSessionPath(sessionPath, allowed);
-    const listed = await listPiSessions(this.config.homeDir);
+    const listed = await listPiSessions(this.config.homeDir, undefined, this.config.piAgentDir);
     const match = listed.find((item) => path.resolve(item.path) === resolvedSession);
     const workspace = cwd?.trim() || match?.cwd;
     if (!workspace) {
@@ -743,7 +744,12 @@ export class TaskService {
 
   private async emitResources(taskId: string): Promise<PiResources> {
     const task = this.requireTask(taskId);
-    const resources = await scanPiResources(task.cwd, this.config.homeDir, this.config.trustProject);
+    const resources = await scanPiResources(
+      task.cwd,
+      this.config.homeDir,
+      this.config.trustProject,
+      this.config.piAgentDir,
+    );
     this.resources.set(taskId, resources);
     this.emit(taskId, "resources.updated", resources);
     return resources;

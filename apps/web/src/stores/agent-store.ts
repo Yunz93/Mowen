@@ -338,6 +338,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
         }
         set({
           lastSeen,
+          serverError: event.payload.message.role === "assistant" ? null : current.serverError,
           messages: current.messages.some((item) => item.id === event.payload.message.id)
             ? current.messages
             : [...current.messages, event.payload.message],

@@ -53,10 +53,11 @@ export async function buildSetupStatus(
   pi: { version: string | null; error: string | null },
 ): Promise<SetupStatus> {
   const userSettings = settings.get();
-  const authEntries = await listAuthEntries(config.homeDir);
+  const agentDir = config.piAgentDir;
+  const authEntries = await listAuthEntries(config.homeDir, agentDir);
   const configuredProviders = authEntries.map((entry) => entry.id);
-  const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir));
-  const models = await inspectModelsFile(config.homeDir);
+  const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir, agentDir));
+  const models = await inspectModelsFile(config.homeDir, agentDir);
   const piAvailable = Boolean(pi.version) && !pi.error;
   const e2e = process.env.MOWEN_E2E === "1" || process.env.OHMYPI_E2E === "1" || process.env.MOWEN_SKIP_SETUP === "1" || process.env.OHMYPI_SKIP_SETUP === "1";
   const setupCompleted = e2e || Boolean(userSettings.setupCompletedAt);
@@ -107,7 +108,13 @@ export function registerSetupRoutes(
       return reply.code(400).send({ error: "请选择服务商并粘贴有效的 API Key。" });
     }
     try {
-      await saveApiKey(parsed.data.provider as BeginnerProviderId, parsed.data.apiKey, options.getConfig().homeDir);
+      const config = options.getConfig();
+      await saveApiKey(
+        parsed.data.provider as BeginnerProviderId,
+        parsed.data.apiKey,
+        config.homeDir,
+        config.piAgentDir,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(400).send({ error: message });

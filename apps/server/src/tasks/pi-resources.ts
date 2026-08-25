@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { PiResources } from "@mowen/protocol";
+import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
 
 const CONTEXT_NAMES = [
   { name: "AGENTS.override.md", kind: "override" as const },
@@ -66,9 +67,10 @@ export async function scanPiResources(
   cwd: string,
   homeDir: string,
   trustProject: boolean,
+  agentDir = defaultPiAgentDir(homeDir),
 ): Promise<PiResources> {
   const agentsFiles: PiResources["agentsFiles"] = [];
-  const globalDir = path.join(homeDir, ".pi", "agent");
+  const globalDir = agentDir;
   for (const item of CONTEXT_NAMES) {
     const full = path.join(globalDir, item.name);
     if (await exists(full)) agentsFiles.push({ path: full, kind: item.kind });
@@ -92,10 +94,10 @@ export async function scanPiResources(
   }
 
   const skills = [
-    ...(await listSkillDirs(path.join(homeDir, ".pi", "agent", "skills"), "user")),
+    ...(await listSkillDirs(path.join(agentDir, "skills"), "user")),
     ...(await listSkillDirs(path.join(homeDir, ".agents", "skills"), "user")),
   ];
-  const templates = await listTemplates(path.join(homeDir, ".pi", "agent", "prompts"), "user");
+  const templates = await listTemplates(path.join(agentDir, "prompts"), "user");
   if (trustProject) {
     skills.push(
       ...(await listSkillDirs(path.join(cwd, ".pi", "skills"), "project")),
