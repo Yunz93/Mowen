@@ -28,10 +28,7 @@ export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
   const Icon = ICONS[tool.status];
   const duration =
     typeof tool.durationMs === "number" ? `${Math.max(1, Math.round(tool.durationMs / 100) / 10)}s` : "";
-  const label =
-    tool.status === "running" || tool.status === "pending"
-      ? `正在${toolNameLabel(tool.toolName)}`
-      : toolNameLabel(tool.toolName);
+  const label = toolNameLabel(tool.toolName);
   const target = tool.target?.trim() ?? "";
   const canOpen = Boolean(onOpen && target && FILE_TOOLS.has(tool.toolName));
   const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");

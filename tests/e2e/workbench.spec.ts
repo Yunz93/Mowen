@@ -338,6 +338,11 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
     .fill(`please stream this slowly ${"word ".repeat(40)}`);
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header.titlebar")).not.toContainText("回车补充");
+  await expect(page.getByLabel("输入消息")).toHaveAttribute(
+    "placeholder",
+    "正在处理。回车补充，Shift+Enter 排队下一条。",
+  );
   await page.getByLabel("输入消息").fill("queued next");
   await page.getByRole("button", { name: "排队" }).click();
   await expect(page.getByText("Follow-up: queued next").first()).toBeVisible({ timeout: 20_000 });

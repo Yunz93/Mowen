@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { branchRoleLabel, isVisibleBranchNode, visibleBranchNodes } from "../../apps/web/src/copy.ts";
+import {
+  branchRoleLabel,
+  headerSubtitle,
+  isVisibleBranchNode,
+  nextHint,
+  toolNameLabel,
+  visibleBranchNodes,
+} from "../../apps/web/src/copy.ts";
+import { runStatusStage } from "../../apps/web/src/lib/run-status.ts";
 
 describe("branch tree presentation", () => {
   it("uses short Chinese labels instead of raw Pi role names", () => {
@@ -32,5 +40,35 @@ describe("branch tree presentation", () => {
     ]);
     expect(nodes.map((node) => node.id)).toEqual(["u1", "t1"]);
     expect(nodes[1]?.leaf).toBe(true);
+  });
+});
+
+describe("running status copy", () => {
+  it("keeps keyboard hints in the composer, not the header subtitle", () => {
+    expect(headerSubtitle("/tmp/MyPi", true, "running")).toBe("MyPi");
+    expect(headerSubtitle("/tmp/MyPi", true, "idle")).toBe("MyPi");
+    expect(headerSubtitle(undefined, false, "idle")).toBe("从左侧选择会话，或点 + 开始聊天");
+    expect(nextHint("running", true)).not.toMatch(/回车补充/);
+  });
+
+  it("does not repeat the live command in the status bar", () => {
+    const stage = runStatusStage(
+      "running",
+      [
+        {
+          toolCallId: "1",
+          toolName: "bash",
+          status: "running",
+          target: "gh run list --limit 5",
+        },
+      ],
+      false,
+    );
+    expect(stage?.label).toBe("正在处理");
+    expect(stage?.detail).toBe("");
+  });
+
+  it("uses the tool name without a second 正在 prefix", () => {
+    expect(toolNameLabel("bash")).toBe("运行命令");
   });
 });
