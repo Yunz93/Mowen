@@ -228,13 +228,22 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
         maxAttempts: typeof event.maxAttempts === "number" ? event.maxAttempts : undefined,
         error: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
       };
-    case "auto_retry_end":
+    case "auto_retry_end": {
+      const finalError =
+        typeof event.finalError === "string"
+          ? event.finalError
+          : typeof event.error === "string"
+            ? event.error
+            : typeof event.errorMessage === "string"
+              ? event.errorMessage
+              : undefined;
       return {
         kind: "runtime.retry",
         phase: "end",
         attempt: typeof event.attempt === "number" ? event.attempt : undefined,
-        error: typeof event.finalError === "string" ? event.finalError : undefined,
+        error: finalError?.trim() ? finalError : undefined,
       };
+    }
     case "queue_update":
       return {
         kind: "runtime.queue",

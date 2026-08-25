@@ -19,7 +19,7 @@ import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
 import { flattenSessionTree } from "../tasks/session-tree.js";
-import { humanizeUserFacingError } from "../setup/pi-agent-dir.js";
+import { humanizeUserFacingError, shouldSurfacePiStderr } from "../setup/pi-agent-dir.js";
 
 export type AgentCommand = {
   name: string;
@@ -253,7 +253,7 @@ export class ProcessSupervisor {
         }
         const current = this.runtimes.get(task.id);
         if (!current || current.generation !== generation || current.stderrAlerted) return;
-        if (!/auth\.json/i.test(chunk) || !/EACCES|EPERM|permission denied/i.test(chunk)) return;
+        if (!shouldSurfacePiStderr(chunk)) return;
         current.stderrAlerted = true;
         this.emit(task.id, "server.error", {
           code: "pi.stderr",
@@ -564,6 +564,12 @@ export class ProcessSupervisor {
           retryError: normalized.error,
         };
         this.emit(taskId, "runtime.status", runtime.runtime);
+        if (normalized.phase === "end" && normalized.error?.trim()) {
+          this.emit(taskId, "server.error", {
+            code: "pi.retry",
+            message: humanizeUserFacingError(new Error(normalized.error)),
+          });
+        }
         break;
       case "runtime.queue":
         runtime.runtime = {

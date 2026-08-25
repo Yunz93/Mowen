@@ -13,7 +13,11 @@ import {
 } from "../setup/auth-status.js";
 import type { AuthEntry } from "@mowen/protocol";
 import { listFolders } from "../setup/folder-browser.js";
-import { InstallPiError } from "../setup/install-pi.js";
+import {
+  fetchLatestPiVersion,
+  InstallPiError,
+  isPiUpdateAvailable,
+} from "../setup/install-pi.js";
 import type { SettingsStore } from "../setup/settings-store.js";
 
 const apiKeyBodySchema = z.object({
@@ -94,6 +98,8 @@ export function registerSetupRoutes(
     setAllowedRoots: (roots: string[]) => void;
     settings: SettingsStore;
     getPi: () => { version: string | null; error: string | null };
+    refreshPi?: () => Promise<void>;
+    fetchLatestPi?: () => Promise<{ version: string | null; error: string | null }>;
     onSetupChanged?: () => void;
     installPi?: () => Promise<SetupStatus & { log: string }>;
   },
@@ -157,12 +163,32 @@ export function registerSetupRoutes(
     return buildSetupStatus(options.getConfig(), options.settings, options.getPi());
   });
 
-  app.post("/api/setup/install-pi", async (_request, reply) => {
+  app.get("/api/setup/pi-latest", async () => {
+    if (options.refreshPi) await options.refreshPi();
+    const config = options.getConfig();
+    const current = options.getPi();
+    const latest = options.fetchLatestPi
+      ? await options.fetchLatestPi()
+      : await fetchLatestPiVersion();
+    const updateAvailable = isPiUpdateAvailable(latest.version, current.version);
+    return {
+      current: current.version,
+      latest: latest.version,
+      updateAvailable,
+      canUpdate: !config.piBundled,
+      piBundled: config.piBundled,
+      error: latest.error,
+    };
+  });
+
+  app.post("/api/setup/install-pi", async (request, reply) => {
     if (!options.installPi) {
       return reply.code(501).send({ error: "这台墨问不支持在界面里安装 Pi。" });
     }
+    const force =
+      z.object({ force: z.boolean().optional() }).safeParse(request.body ?? {}).data?.force === true;
     const current = options.getPi();
-    if (current.version && !current.error) {
+    if (!force && current.version && !current.error) {
       return { ...(await buildSetupStatus(options.getConfig(), options.settings, current)), log: "" };
     }
     try {

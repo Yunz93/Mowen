@@ -7,10 +7,15 @@ import {
   assertInstallScriptUrl,
   candidatePiPaths,
   DEFAULT_PI_INSTALL_SCRIPT_URL,
+  DEFAULT_PI_NPM_LATEST_URL,
   discoverPiExecutable,
+  fetchLatestPiVersion,
   InstallPiError,
+  isPiUpdateAvailable,
+  parsePiVersion,
   PI_NPM_PACKAGE,
   piInstallScriptUrl,
+  piNpmLatestUrl,
   prependPath,
   resetInstallPiLock,
   runOfficialPiInstall,
@@ -44,6 +49,37 @@ describe("official Pi installer helpers", () => {
     expect(piInstallScriptUrl({ MOWEN_PI_INSTALL_SCRIPT_URL: "http://127.0.0.1:9/install.sh" })).toBe(
       "http://127.0.0.1:9/install.sh",
     );
+    expect(DEFAULT_PI_NPM_LATEST_URL).toContain(PI_NPM_PACKAGE);
+    expect(piNpmLatestUrl({ MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" })).toBe(
+      "http://127.0.0.1:9/latest.json",
+    );
+  });
+
+  it("compares installed Pi versions against the latest", () => {
+    expect(parsePiVersion("v0.30.2")).toEqual([0, 30, 2]);
+    expect(parsePiVersion("0.0.0-fake")).toEqual([0, 0, 0]);
+    expect(isPiUpdateAvailable("0.30.2", "0.30.2")).toBe(false);
+    expect(isPiUpdateAvailable("0.31.0", "0.30.2")).toBe(true);
+    expect(isPiUpdateAvailable("0.30.2", "0.31.0")).toBe(false);
+    expect(isPiUpdateAvailable("0.30.2", "0.0.0-fake")).toBe(true);
+    expect(isPiUpdateAvailable(null, "0.30.2")).toBe(false);
+  });
+
+  it("reads the latest Pi version from the npm registry payload", async () => {
+    const result = await fetchLatestPiVersion({
+      env: { MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
+      fetchText: async (url) => {
+        expect(url).toBe("http://127.0.0.1:9/latest.json");
+        return JSON.stringify({ version: "0.40.1" });
+      },
+    });
+    expect(result).toEqual({ version: "0.40.1", error: null });
+    const bad = await fetchLatestPiVersion({
+      env: { MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
+      fetchText: async () => "not-json",
+    });
+    expect(bad.version).toBeNull();
+    expect(bad.error).toMatch(/无法解析/);
   });
 
   it("rejects non-https remote script URLs and allows localhost http", () => {

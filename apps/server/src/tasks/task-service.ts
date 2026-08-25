@@ -444,8 +444,9 @@ export class TaskService {
     try {
       await this.supervisor.rpcData(taskId, payload);
     } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
       const text = humanizeUserFacingError(error);
-      const authHint = isMissingCredentialError(text);
+      const authHint = isMissingCredentialError(raw);
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint

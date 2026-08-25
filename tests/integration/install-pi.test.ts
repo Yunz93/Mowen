@@ -176,4 +176,122 @@ describe("POST /api/setup/install-pi", () => {
       counting.close();
     }
   });
+
+  it("reports a newer Pi version from the npm latest document", async () => {
+    const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
+    const home = path.join(root.current, "home-latest");
+    await mkdir(home);
+    const registry = http.createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ version: "9.9.9" }));
+    });
+    await new Promise<void>((resolve) => registry.listen(0, "127.0.0.1", () => resolve()));
+    const latestUrl = `http://127.0.0.1:${(registry.address() as AddressInfo).port}/latest`;
+    const ctx = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(home, "data"),
+      MOWEN_HOME_DIR: home,
+      MOWEN_ALLOWED_ROOTS: home,
+      MOWEN_PI_NPM_LATEST_URL: latestUrl,
+    });
+    try {
+      const cookie = await sessionCookie(ctx.base);
+      const response = await fetch(`${ctx.base}/api/setup/pi-latest`, { headers: { cookie } });
+      const json = (await response.json()) as {
+        current: string | null;
+        latest: string | null;
+        updateAvailable: boolean;
+        canUpdate: boolean;
+        error: string | null;
+      };
+      expect(response.ok).toBe(true);
+      expect(json.current).toBe("0.0.0-fake");
+      expect(json.latest).toBe("9.9.9");
+      expect(json.updateAvailable).toBe(true);
+      expect(json.canUpdate).toBe(true);
+      expect(json.error).toBeNull();
+    } finally {
+      await ctx.close();
+      registry.close();
+    }
+  });
+
+  it("re-runs the installer when force is set", async () => {
+    const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
+    const home = path.join(root.current, "home-force");
+    await mkdir(home);
+    let hits = 0;
+    const counting = http.createServer((_request, response) => {
+      hits += 1;
+      response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      response.end(FAKE_INSTALL_SH);
+    });
+    await new Promise<void>((resolve) => counting.listen(0, "127.0.0.1", () => resolve()));
+    const countingUrl = `http://127.0.0.1:${(counting.address() as AddressInfo).port}/install.sh`;
+    const ctx = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(home, "data"),
+      MOWEN_HOME_DIR: home,
+      MOWEN_ALLOWED_ROOTS: home,
+      MOWEN_PI_INSTALL_SCRIPT_URL: countingUrl,
+    });
+    try {
+      const cookie = await sessionCookie(ctx.base);
+      const installed = await fetch(`${ctx.base}/api/setup/install-pi`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ force: true }),
+      });
+      const json = (await installed.json()) as { piAvailable: boolean; error?: string; log?: string };
+      expect(installed.ok, json.error ?? json.log).toBe(true);
+      expect(json.piAvailable).toBe(true);
+      expect(hits).toBe(1);
+    } finally {
+      await ctx.close();
+      counting.close();
+    }
+  });
+
+  it("saves and then updates an API key", async () => {
+    const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
+    const home = path.join(root.current, "home-key");
+    await mkdir(home);
+    const ctx = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(home, "data"),
+      MOWEN_HOME_DIR: home,
+      MOWEN_ALLOWED_ROOTS: home,
+    });
+    try {
+      const cookie = await sessionCookie(ctx.base);
+      const saved = await fetch(`${ctx.base}/api/setup/api-key`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ provider: "anthropic", apiKey: "sk-ant-first-key-123456" }),
+      });
+      const first = (await saved.json()) as { authEntries?: Array<{ id: string; kind: string }> };
+      expect(saved.ok).toBe(true);
+      expect(first.authEntries?.some((entry) => entry.id === "anthropic" && entry.kind === "api_key")).toBe(true);
+
+      const updated = await fetch(`${ctx.base}/api/setup/api-key`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ provider: "openai", apiKey: "sk-openai-second-key" }),
+      });
+      const second = (await updated.json()) as { configuredProviders?: string[] };
+      expect(updated.ok).toBe(true);
+      expect(second.configuredProviders).toEqual(expect.arrayContaining(["anthropic", "openai"]));
+    } finally {
+      await ctx.close();
+    }
+  });
 });
