@@ -234,6 +234,24 @@ async function handlePrompt(message, mode) {
   }
 
   try {
+    if (message.trim() === "FAIL401") {
+      send({
+        type: "message_start",
+        message: { role: "assistant", content: [], timestamp: now() },
+      });
+      process.stderr.write("HTTP 401 Unauthorized: authentication_error invalid x-api-key\n");
+      send({
+        type: "auto_retry_end",
+        success: false,
+        attempt: 1,
+        finalError: "HTTP 401 Unauthorized",
+      });
+      send({
+        type: "message_end",
+        message: { role: "assistant", content: [], timestamp: now() },
+      });
+      return;
+    }
     const writeAt = message.indexOf("WRITE:");
     const bashAt = message.indexOf("BASH:");
     if (writeAt >= 0) {

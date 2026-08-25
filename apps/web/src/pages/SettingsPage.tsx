@@ -6,6 +6,17 @@ import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/
 import { useTheme } from "../hooks/useTheme";
 import { socketClient } from "../transport/socket-client";
 
+type ProviderOption = { id: string; label: string; hint: string };
+
+type PiLatest = {
+  current: string | null;
+  latest: string | null;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  piBundled: boolean;
+  error: string | null;
+};
+
 export function SettingsPage() {
   const piVersion = useAgentStore((state) => state.piVersion);
   const piError = useAgentStore((state) => state.piError);
@@ -23,15 +34,41 @@ export function SettingsPage() {
   const [installBusy, setInstallBusy] = useState(false);
   const [installError, setInstallError] = useState("");
   const [canInstallPi, setCanInstallPi] = useState(false);
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [provider, setProvider] = useState("anthropic");
+  const [apiKey, setApiKey] = useState("");
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState("");
+  const [keyNotice, setKeyNotice] = useState("");
+  const [piLatest, setPiLatest] = useState<PiLatest | null>(null);
+  const [checkBusy, setCheckBusy] = useState(false);
+
+  function applySetup(setup: SetupStatus) {
+    setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
+    setCanInstallPi(setup.canInstallPi !== false && !setup.piBundled);
+    if (setup.providers?.length) {
+      setProviders(setup.providers);
+      setProvider((current) =>
+        setup.providers.some((item) => item.id === current) ? current : (setup.providers[0]?.id ?? "anthropic"),
+      );
+    }
+    useAgentStore.getState().setSetupState(setupStorePayload(setup));
+  }
 
   useEffect(() => {
     void fetch("/api/setup", { credentials: "same-origin" })
       .then((response) => (response.ok ? response.json() : null))
       .then((setup: SetupStatus | null) => {
         if (!setup) return;
-        setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
-        setCanInstallPi(setup.canInstallPi !== false && !setup.piBundled);
-        useAgentStore.getState().setSetupState(setupStorePayload(setup));
+        applySetup(setup);
+      });
+    void fetch("/api/setup/pi-latest", { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json: PiLatest | null) => {
+        if (json) setPiLatest(json);
+      })
+      .catch(() => {
+        /* 打开设置页时检查失败不挡操作，可再点「检查更新」。 */
       });
   }, []);
 
@@ -46,33 +83,113 @@ export function SettingsPage() {
       });
       if (!response.ok) return;
       const setup = (await response.json()) as SetupStatus;
-      useAgentStore.getState().setSetupState(setupStorePayload(setup));
+      applySetup(setup);
     } finally {
       setTrustBusy(false);
     }
   }
 
-  async function installPi() {
+  async function installPi(force = false) {
     setInstallBusy(true);
     setInstallError("");
     try {
       const response = await fetch("/api/setup/install-pi", {
         method: "POST",
         credentials: "same-origin",
+        headers: force ? { "content-type": "application/json" } : undefined,
+        body: force ? JSON.stringify({ force: true }) : undefined,
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
         setInstallError(json.error ?? "安装 Pi 失败。");
         return;
       }
-      setCanInstallPi(json.canInstallPi !== false && !json.piBundled);
-      useAgentStore.getState().setSetupState(setupStorePayload(json));
+      applySetup(json);
       void socketClient.send("snapshot.request");
+      await checkPiUpdate();
     } catch {
-      setInstallError("安装 Pi 失败。");
+      setInstallError(force ? "更新 Pi 失败。" : "安装 Pi 失败。");
     } finally {
       setInstallBusy(false);
     }
+  }
+
+  async function checkPiUpdate() {
+    setCheckBusy(true);
+    try {
+      const response = await fetch("/api/setup/pi-latest", { credentials: "same-origin" });
+      const json = (await response.json()) as PiLatest & { error?: string };
+      if (!response.ok) {
+        setPiLatest({
+          current: piVersion,
+          latest: null,
+          updateAvailable: false,
+          canUpdate: canInstallPi,
+          piBundled: !canInstallPi,
+          error: json.error ?? "检查更新失败。",
+        });
+        return;
+      }
+      setPiLatest(json);
+      if (json.current !== undefined) {
+        useAgentStore.getState().setSetupState({
+          ...useAgentStore.getState(),
+          piVersion: json.current,
+          piAvailable: Boolean(json.current),
+        });
+      }
+    } catch {
+      setPiLatest({
+        current: piVersion,
+        latest: null,
+        updateAvailable: false,
+        canUpdate: canInstallPi,
+        piBundled: !canInstallPi,
+        error: "检查更新失败。",
+      });
+    } finally {
+      setCheckBusy(false);
+    }
+  }
+
+  async function saveApiKey() {
+    setKeyBusy(true);
+    setKeyError("");
+    setKeyNotice("");
+    try {
+      const response = await fetch("/api/setup/api-key", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider, apiKey }),
+      });
+      const json = (await response.json()) as SetupStatus & { error?: string };
+      if (!response.ok) {
+        setKeyError(json.error ?? "密钥保存失败。");
+        return;
+      }
+      applySetup(json);
+      setApiKey("");
+      const label = providers.find((item) => item.id === provider)?.label ?? provider;
+      setKeyNotice(`已保存 ${label} 的密钥。`);
+      void socketClient.send("snapshot.request");
+    } catch {
+      setKeyError("密钥保存失败。");
+    } finally {
+      setKeyBusy(false);
+    }
+  }
+
+  const replacingKey = authEntries.some((entry) => entry.id === provider && entry.kind === "api_key");
+  const engineDetail = piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好");
+  let updateDetail: string | null = null;
+  if (piLatest?.error) updateDetail = piLatest.error;
+  else if (piLatest?.updateAvailable && piLatest.latest) {
+    updateDetail = piLatest.piBundled
+      ? `有新版本 ${piLatest.latest}。内置 Pi 会随墨问一起更新。`
+      : `有新版本 ${piLatest.latest}`;
+  } else if (piLatest && piVersion && !piLatest.updateAvailable && piLatest.latest) {
+    updateDetail = "已是最新版本";
   }
 
   return (
@@ -125,21 +242,44 @@ export function SettingsPage() {
               <div className="settings-row items-center">
                 <div className="min-w-0 pr-3">
                   <p className="text-[13px] text-ink">AI 引擎</p>
-                  <p className="mt-0.5 text-[12px] text-mute">
-                    {piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好")}
-                  </p>
+                  <p className="mt-0.5 text-[12px] text-mute">{engineDetail}</p>
+                  {updateDetail ? (
+                    <p className={`mt-1 text-[12px] ${piLatest?.error ? "text-danger" : "text-mute"}`}>{updateDetail}</p>
+                  ) : null}
                   {installError ? <p className="mt-1 text-[12px] text-danger">{installError}</p> : null}
                 </div>
-                {!piVersion && canInstallPi ? (
-                  <button
-                    type="button"
-                    className="pressable btn btn-primary shrink-0"
-                    disabled={installBusy}
-                    onClick={() => void installPi()}
-                  >
-                    {installBusy ? "正在安装…" : "安装 Pi"}
-                  </button>
-                ) : null}
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  {piVersion ? (
+                    <button
+                      type="button"
+                      className="pressable btn btn-ghost"
+                      disabled={checkBusy || installBusy}
+                      onClick={() => void checkPiUpdate()}
+                    >
+                      {checkBusy ? "正在检查…" : "检查更新"}
+                    </button>
+                  ) : null}
+                  {!piVersion && canInstallPi ? (
+                    <button
+                      type="button"
+                      className="pressable btn btn-primary"
+                      disabled={installBusy}
+                      onClick={() => void installPi(false)}
+                    >
+                      {installBusy ? "正在安装…" : "安装 Pi"}
+                    </button>
+                  ) : null}
+                  {piLatest?.updateAvailable && piLatest.canUpdate ? (
+                    <button
+                      type="button"
+                      className="pressable btn btn-primary"
+                      disabled={installBusy || checkBusy}
+                      onClick={() => void installPi(true)}
+                    >
+                      {installBusy ? "正在更新…" : "更新 Pi"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <div className="settings-row">
                 <div className="min-w-0">
@@ -159,9 +299,74 @@ export function SettingsPage() {
                     ) : authConfigured ? (
                       configuredProviders.length ? configuredProviders.join("、") : "已连接"
                     ) : (
-                      "还没有登录 — 打开向导，或在终端运行 pi 后输入 /login"
+                      "还没有登录。在下面粘贴 API Key，或在终端运行 pi 后输入 /login。"
                     )}
                   </div>
+                </div>
+              </div>
+              <div className="settings-row flex-col items-stretch gap-3">
+                <div>
+                  <p className="text-[13px] text-ink">更新 API Key</p>
+                  <p className="mt-0.5 text-[12px] leading-5 text-mute">
+                    粘贴新的密钥会覆盖该服务商已保存的钥匙。完整密钥不会显示在这里。
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-mute" htmlFor="settings-provider">
+                    服务商
+                  </label>
+                  <select
+                    id="settings-provider"
+                    className="field mt-1 w-full text-[13px] text-ink"
+                    value={provider}
+                    onChange={(event) => {
+                      setProvider(event.target.value);
+                      setKeyNotice("");
+                      setKeyError("");
+                    }}
+                  >
+                    {providers.map((item) => {
+                      const saved = authEntries.some((entry) => entry.id === item.id && entry.kind === "api_key");
+                      return (
+                        <option key={item.id} value={item.id}>
+                          {saved ? `${item.label} · 已保存` : item.label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-mute" htmlFor="settings-api-key">
+                    API Key
+                  </label>
+                  <input
+                    id="settings-api-key"
+                    type="password"
+                    autoComplete="off"
+                    className="field mt-1 w-full font-mono text-[13px] text-ink"
+                    value={apiKey}
+                    placeholder={
+                      replacingKey
+                        ? "粘贴新的密钥以替换"
+                        : (providers.find((item) => item.id === provider)?.hint ?? "API Key")
+                    }
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      setKeyNotice("");
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  {keyNotice ? <p className="mr-auto text-[12px] text-success">{keyNotice}</p> : null}
+                  {keyError ? <p className="mr-auto text-[12px] text-danger">{keyError}</p> : null}
+                  <button
+                    type="button"
+                    className="pressable btn btn-primary"
+                    disabled={keyBusy || apiKey.trim().length < 8}
+                    onClick={() => void saveApiKey()}
+                  >
+                    {keyBusy ? "正在保存…" : replacingKey ? "更新密钥" : "保存密钥"}
+                  </button>
                 </div>
               </div>
               <div className="settings-row">
@@ -227,8 +432,7 @@ export function SettingsPage() {
         <SetupWizard
           onCancel={() => setWizardOpen(false)}
           onFinished={(status: SetupStatus) => {
-            useAgentStore.getState().setSetupState(setupStorePayload(status));
-            setModels({ present: Boolean(status.hasModelsFile), count: status.modelCount ?? 0 });
+            applySetup(status);
             setWizardOpen(false);
           }}
         />

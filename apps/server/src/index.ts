@@ -15,6 +15,7 @@ import { SettingsStore } from "./setup/settings-store.js";
 import {
   applyPiBinToEnv,
   discoverPiExecutable,
+  fetchLatestPiVersion,
   InstallPiError,
   pathEnvKey,
   runOfficialPiInstall,
@@ -180,6 +181,8 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     },
     settings,
     getPi: () => ({ version: healthInfo.piVersion, error: healthInfo.piError }),
+    refreshPi: refreshPiState,
+    fetchLatestPi: () => fetchLatestPiVersion({ env }),
     installPi,
     onSetupChanged: () => {
       const nextTrust = settings.get().trustProject;

@@ -101,6 +101,22 @@ test("keyboard and viewports", async ({ page }) => {
   }
 });
 
+test("macOS traffic lights leave room for the sidebar title", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.documentElement.classList.add("desktop");
+    document.documentElement.dataset.platform = "darwin";
+  });
+  const sidebar = page.getByRole("complementary", { name: "会话" });
+  await expect(sidebar).toBeVisible();
+  const header = sidebar.locator(".traffic-inline");
+  const paddingLeft = await header.evaluate((el) => getComputedStyle(el).paddingLeft);
+  expect(Number.parseFloat(paddingLeft)).toBeGreaterThanOrEqual(80);
+  const titleLeft = await sidebar.locator("p", { hasText: /^会话$/ }).evaluate((el) => el.getBoundingClientRect().left);
+  expect(titleLeft).toBeGreaterThanOrEqual(80);
+});
+
 test("reduced motion disables the status ring spin", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
@@ -118,6 +134,14 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByText("本机 Pi 登录")).toBeVisible();
   await expect(page.getByText("GitHub Copilot")).toBeVisible();
   await expect(page.getByText("订阅 / 登录")).toBeVisible();
+  await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByText("更新 API Key")).toBeVisible();
+  await page.getByLabel("服务商").selectOption("anthropic");
+  await page.getByLabel("API Key").fill("sk-ant-e2e-updated-key-123456");
+  await page.getByRole("button", { name: "保存密钥" }).click();
+  await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: "Anthropic (Claude)" })).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();
@@ -200,6 +224,15 @@ async function createTask(page: import("@playwright/test").Page, title: string):
   await page.getByRole("button", { name: "创建对话" }).click();
   await expect(page.getByRole("banner").getByText(title)).toBeVisible();
 }
+
+test("HTTP 401 shows a red error instead of failing silently", async ({ page }) => {
+  await createTask(page, "Auth 401 task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.getByLabel("输入消息").fill("FAIL401");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("alert").getByText(/登录已失效|HTTP 401/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("还没有 AI 密钥")).toHaveCount(0);
+});
 
 test("reload during a run keeps the agent going", async ({ page }) => {
   await createTask(page, "Reload task");

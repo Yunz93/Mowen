@@ -5,8 +5,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { saveApiKey } from "../../apps/server/src/setup/auth-status.ts";
 import {
   humanizeAuthAccessError,
+  humanizeAuthHttpError,
+  humanizeUserFacingError,
+  isAuthHttpError,
   isMissingCredentialError,
   resolvePiAgentDir,
+  shouldSurfacePiStderr,
 } from "../../apps/server/src/setup/pi-agent-dir.ts";
 
 describe("Pi agent dir and auth errors", () => {
@@ -26,7 +30,24 @@ describe("Pi agent dir and auth errors", () => {
     expect(message).toMatch(/登录文件/);
     expect(message).toMatch(/chown/);
     expect(isMissingCredentialError(error.message)).toBe(false);
-    expect(isMissingCredentialError("Invalid API key")).toBe(true);
+    expect(isMissingCredentialError("No API key configured")).toBe(true);
+    expect(isMissingCredentialError("missing key")).toBe(true);
+  });
+
+  it("humanizes HTTP 401/403 and does not treat them as a missing API key", () => {
+    expect(isAuthHttpError("HTTP 401 Unauthorized")).toBe(true);
+    expect(isAuthHttpError('{"type":"authentication_error","message":"invalid x-api-key"}')).toBe(true);
+    expect(isAuthHttpError("Invalid API key")).toBe(true);
+    expect(isAuthHttpError("403 Forbidden")).toBe(true);
+    expect(isMissingCredentialError("HTTP 401 Unauthorized")).toBe(false);
+    expect(isMissingCredentialError("Invalid API key")).toBe(false);
+    expect(isMissingCredentialError("403 Forbidden")).toBe(false);
+    expect(humanizeAuthHttpError("HTTP 401 Unauthorized")).toMatch(/登录已失效/);
+    expect(humanizeUserFacingError(new Error("HTTP 401 Unauthorized"))).toMatch(/HTTP 401/);
+    expect(humanizeUserFacingError(new Error("403 Forbidden"))).toMatch(/HTTP 403/);
+    expect(shouldSurfacePiStderr("HTTP 401: authentication_error")).toBe(true);
+    expect(shouldSurfacePiStderr("EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'")).toBe(true);
+    expect(shouldSurfacePiStderr("fd not found. Downloading...")).toBe(false);
   });
 
   it("keeps ~/.pi/agent when it is writable", async () => {
