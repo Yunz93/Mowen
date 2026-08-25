@@ -201,6 +201,15 @@ async function createTask(page: import("@playwright/test").Page, title: string):
   await expect(page.getByRole("banner").getByText(title)).toBeVisible();
 }
 
+test("HTTP 401 shows a red error instead of failing silently", async ({ page }) => {
+  await createTask(page, "Auth 401 task");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+  await page.getByLabel("输入消息").fill("FAIL401");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByRole("alert").getByText(/登录已失效|HTTP 401/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("还没有 AI 密钥")).toHaveCount(0);
+});
+
 test("reload during a run keeps the agent going", async ({ page }) => {
   await createTask(page, "Reload task");
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
