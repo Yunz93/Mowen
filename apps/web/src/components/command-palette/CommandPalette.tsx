@@ -7,9 +7,11 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onNewTask: () => void;
+  onRenameSession?: () => void;
+  onFindInConversation?: () => void;
 };
 
-export function CommandPalette({ open, onClose, onNewTask }: Props) {
+export function CommandPalette({ open, onClose, onNewTask, onRenameSession, onFindInConversation }: Props) {
   const tasks = useAgentStore((state) => state.tasks);
   const activeTaskId = useAgentStore((state) => state.activeTaskId);
   const navigate = useNavigate();
@@ -35,6 +37,12 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
     const commands = [
       { id: "new", label: "新对话", run: onNewTask },
       { id: "settings", label: "打开设置", run: () => navigate("/settings") },
+      ...(onRenameSession && activeTaskId
+        ? [{ id: "rename", label: "重命名会话", run: onRenameSession }]
+        : []),
+      ...(onFindInConversation && activeTaskId
+        ? [{ id: "find", label: "在对话中查找", run: onFindInConversation }]
+        : []),
       {
         id: "compact",
         label: "压缩上下文",
@@ -58,7 +66,7 @@ export function CommandPalette({ open, onClose, onNewTask }: Props) {
     }));
     const q = query.trim().toLowerCase();
     return [...commands, ...taskItems].filter((item) => item.label.toLowerCase().includes(q));
-  }, [activeTaskId, navigate, onNewTask, query, tasks]);
+  }, [activeTaskId, navigate, onFindInConversation, onNewTask, onRenameSession, query, tasks]);
 
   if (!open) return null;
 

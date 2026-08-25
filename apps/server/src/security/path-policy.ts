@@ -1,11 +1,73 @@
 import { lstat, realpath } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 export class PathPolicyError extends Error {
-  constructor(message: string) {
+  readonly status: number;
+
+  constructor(message: string, status = 403) {
     super(message);
     this.name = "PathPolicyError";
+    this.status = status;
   }
+}
+
+export function exportAllowedRoots(input: {
+  homeDir: string;
+  dataDir: string;
+  allowedRoots: string[];
+  tmpDir?: string;
+}): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const root of [...input.allowedRoots, input.homeDir, input.dataDir, input.tmpDir ?? os.tmpdir()]) {
+    const resolved = path.resolve(root);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    unique.push(resolved);
+  }
+  return unique;
+}
+
+export async function resolveReadableExportPath(inputPath: string, roots: string[]): Promise<string> {
+  const trimmed = inputPath.trim();
+  if (!trimmed) {
+    throw new PathPolicyError("Missing export path", 400);
+  }
+  const absolute = path.resolve(trimmed);
+  if (path.extname(absolute).toLowerCase() !== ".html") {
+    throw new PathPolicyError("Only HTML exports can be opened", 400);
+  }
+
+  let resolved: string;
+  try {
+    resolved = await realpath(absolute);
+  } catch {
+    throw new PathPolicyError("Export file not found", 404);
+  }
+
+  if (path.extname(resolved).toLowerCase() !== ".html") {
+    throw new PathPolicyError("Only HTML exports can be opened", 400);
+  }
+
+  const stats = await lstat(resolved);
+  if (!stats.isFile()) {
+    throw new PathPolicyError("Export path is not a file", 400);
+  }
+
+  const realRoots = await Promise.all(
+    roots.map(async (root) => {
+      try {
+        return await realpath(root);
+      } catch {
+        return path.resolve(root);
+      }
+    }),
+  );
+  if (!realRoots.some((root) => isInsideRoot(resolved, root))) {
+    throw new PathPolicyError("Export path is outside allowed roots", 403);
+  }
+  return resolved;
 }
 
 export function isInsideRoot(candidate: string, root: string): boolean {

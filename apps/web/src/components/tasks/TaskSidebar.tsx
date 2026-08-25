@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { Archive, Plus, Search, X } from "lucide-react";
 import type { TaskRecord } from "@mowen/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
@@ -10,6 +11,7 @@ type Props = {
   onQuery: (value: string) => void;
   onSelect: (taskId: string) => void;
   onArchive: (taskId: string) => void;
+  onRename?: (taskId: string, title: string) => void;
   onNew?: () => void;
   onClose?: () => void;
 };
@@ -32,9 +34,33 @@ export function TaskSidebar({
   onQuery,
   onSelect,
   onArchive,
+  onRename,
   onNew,
   onClose,
 }: Props) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const skipCommitRef = useRef(false);
+
+  function startRename(task: TaskRecord) {
+    if (!onRename) return;
+    skipCommitRef.current = false;
+    setEditingId(task.id);
+    setDraft(task.title);
+  }
+
+  function commitRename(task: TaskRecord) {
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      setEditingId(null);
+      return;
+    }
+    const title = draft.trim().slice(0, 200);
+    setEditingId(null);
+    if (!title || title === task.title) return;
+    onRename?.(task.id, title);
+  }
+
   const filtered = tasks.filter((task) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -96,24 +122,53 @@ export function TaskSidebar({
                       <div
                         className={`source-item group flex items-start gap-1 px-1 ${active ? "source-item-active" : "hover-fill"}`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => onSelect(task.id)}
-                          className="pressable flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
-                        >
-                          <PiStatusRing status={task.status} size={14} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] text-ink">{task.title}</span>
-                            <span className="block truncate text-[11px] text-mute">
-                              {taskStatusLabel(task.status)}
+                        {editingId === task.id ? (
+                          <form
+                            className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              commitRename(task);
+                            }}
+                          >
+                            <PiStatusRing status={task.status} size={14} />
+                            <input
+                              autoFocus
+                              value={draft}
+                              onChange={(event) => setDraft(event.target.value)}
+                              onBlur={() => commitRename(task)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  skipCommitRef.current = true;
+                                  setEditingId(null);
+                                }
+                              }}
+                              aria-label="重命名会话"
+                              className="h-7 min-w-0 flex-1 rounded-md bg-fill-strong px-1.5 text-[13px] text-ink"
+                            />
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onSelect(task.id)}
+                            onDoubleClick={() => startRename(task)}
+                            className="pressable flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+                          >
+                            <PiStatusRing status={task.status} size={14} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13px] text-ink">{task.title}</span>
+                              <span className="block truncate text-[11px] text-mute">
+                                {taskStatusLabel(task.status)}
+                              </span>
                             </span>
-                          </span>
-                          {task.unreadCount > 0 && !active ? (
-                            <span className="rounded-pill bg-accent px-1.5 text-[10px] leading-4 text-snow">
-                              {task.unreadCount}
-                            </span>
-                          ) : null}
-                        </button>
+                            {task.unreadCount > 0 && !active ? (
+                              <span className="rounded-pill bg-accent px-1.5 text-[10px] leading-4 text-snow">
+                                {task.unreadCount}
+                              </span>
+                            ) : null}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="pressable source-item-accessory mt-0.5 flex h-7 w-7 items-center justify-center rounded-md text-mute hover:text-ink"

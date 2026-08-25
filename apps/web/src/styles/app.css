@@ -593,6 +593,11 @@ html.dark {
     line-height: 1.4;
   }
 
+  .conversation-search-hit {
+    outline: 2px solid color-mix(in oklch, var(--color-accent) 75%, transparent);
+    outline-offset: 3px;
+  }
+
   .composer-well {
     border-radius: 18px;
     background: var(--color-elevated);

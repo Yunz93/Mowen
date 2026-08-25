@@ -1,8 +1,15 @@
-import { useLayoutEffect, useRef, useState, memo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from "react";
 import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 import { AssistantMarkdown } from "./AssistantMarkdown";
+import { ConversationSearchBar } from "./ConversationSearchBar";
 import { findScrollParent, isNearBottom } from "../../lib/stick-to-bottom";
+import {
+  conversationMessageDomId,
+  matchConversationMessages,
+  OPEN_CONVERSATION_SEARCH_EVENT,
+  stepSearchIndex,
+} from "../../lib/conversation-search";
 
 type Props = {
   messages: TimelineMessage[];
@@ -12,6 +19,28 @@ type Props = {
   onRetry?: (messageId: string, text: string) => void;
   onClone?: () => void;
 };
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.left = "-9999px";
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 function ThinkingBlock({ message }: { message: TimelineMessage }) {
   const [open, setOpen] = useState(false);
@@ -39,16 +68,21 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
 function UserMessage({
   message,
   canRewrite,
+  highlighted,
   onRetry,
 }: {
   message: TimelineMessage;
   canRewrite?: boolean;
+  highlighted?: boolean;
   onRetry?: (messageId: string, text: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stripModePrefix(message.text));
   return (
-    <article className="flex w-fit max-w-[78%] shrink-0 flex-col self-end rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink">
+    <article
+      id={conversationMessageDomId(message.id)}
+      className={`flex w-fit max-w-[78%] shrink-0 flex-col self-end rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink ${highlighted ? "conversation-search-hit" : ""}`}
+    >
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -94,19 +128,55 @@ function UserMessage({
   );
 }
 
-const AssistantMessage = memo(function AssistantMessage({ message }: { message: TimelineMessage }) {
+const AssistantMessage = memo(function AssistantMessage({
+  message,
+  highlighted,
+}: {
+  message: TimelineMessage;
+  highlighted?: boolean;
+}) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   return (
-    <article className="mr-auto w-full max-w-[90%] shrink-0 self-start">
+    <article
+      id={conversationMessageDomId(message.id)}
+      className={`mr-auto w-full max-w-[90%] shrink-0 self-start ${highlighted ? "conversation-search-hit" : ""}`}
+    >
       <ThinkingBlock message={message} />
       <AssistantMarkdown text={message.text} streaming={message.streaming} />
+      {message.text ? (
+        <button
+          type="button"
+          className="pressable mt-2 h-7 text-[12px] text-mute"
+          aria-label="复制回复"
+          onClick={() => {
+            void copyText(message.text).then((ok) => {
+              setCopyState(ok ? "copied" : "failed");
+              window.setTimeout(() => setCopyState("idle"), 1600);
+            });
+          }}
+        >
+          {copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制"}
+        </button>
+      ) : null}
     </article>
   );
 });
 
 export function ConversationTimeline({ messages, tools, canRewrite, error, onRetry, onClone }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const pinnedRef = useRef(true);
   const userCountRef = useRef(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const hits = useMemo(
+    () => (searchOpen ? matchConversationMessages(messages, searchQuery) : []),
+    [messages, searchOpen, searchQuery],
+  );
+  const safeIndex = hits.length === 0 ? 0 : Math.min(activeIndex, hits.length - 1);
+  const activeMessageId = hits[safeIndex];
 
   useLayoutEffect(() => {
     const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
@@ -128,6 +198,10 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
   }, []);
 
   useLayoutEffect(() => {
+    if (searchOpen) {
+      pinnedRef.current = false;
+      return;
+    }
     const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
     if (!scroller) return;
     const userCount = messages.reduce((count, message) => count + (message.role === "user" ? 1 : 0), 0);
@@ -136,13 +210,70 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
     userCountRef.current = userCount;
     if (!pinnedRef.current) return;
     scroller.scrollTop = scroller.scrollHeight;
-  }, [messages, tools]);
+  }, [messages, tools, searchOpen]);
+
+  useEffect(() => {
+    if (!searchOpen || !activeMessageId) return;
+    pinnedRef.current = false;
+    document.getElementById(conversationMessageDomId(activeMessageId))?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+  }, [activeMessageId, searchOpen, searchQuery]);
+
+  useEffect(() => {
+    const focusSearch = () => {
+      setSearchOpen(true);
+      window.requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        focusSearch();
+      }
+      if (event.key === "Escape" && searchOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSearchOpen(false);
+        setSearchQuery("");
+      }
+    };
+    const onOpen = () => focusSearch();
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener(OPEN_CONVERSATION_SEARCH_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener(OPEN_CONVERSATION_SEARCH_EVENT, onOpen);
+    };
+  }, [searchOpen]);
 
   const toolById = new Map(tools.map((tool) => [tool.toolCallId, tool]));
   const renderedTools = new Set<string>();
 
   return (
     <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6">
+      {searchOpen ? (
+        <ConversationSearchBar
+          query={searchQuery}
+          current={hits.length === 0 ? 0 : safeIndex + 1}
+          total={hits.length}
+          inputRef={searchInputRef}
+          onQueryChange={(value) => {
+            setSearchQuery(value);
+            setActiveIndex(0);
+          }}
+          onPrev={() => setActiveIndex((index) => stepSearchIndex(index, hits.length, -1))}
+          onNext={() => setActiveIndex((index) => stepSearchIndex(index, hits.length, 1))}
+          onClose={() => {
+            setSearchOpen(false);
+            setSearchQuery("");
+          }}
+        />
+      ) : null}
       {messages.length === 0 ? (
         <div className="pt-20 text-center">
           <p className="text-[13px] leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
@@ -156,9 +287,16 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
         </div>
       ) : null}
       {messages.map((message) => {
+        const highlighted = searchOpen && Boolean(searchQuery.trim()) && message.id === activeMessageId;
         if (message.role === "user") {
           return (
-            <UserMessage key={message.id} message={message} canRewrite={canRewrite} onRetry={onRetry} />
+            <UserMessage
+              key={message.id}
+              message={message}
+              canRewrite={canRewrite}
+              highlighted={highlighted}
+              onRetry={onRetry}
+            />
           );
         }
         if (message.role === "toolResult") {
@@ -172,7 +310,7 @@ export function ConversationTimeline({ messages, tools, canRewrite, error, onRet
         if (message.role === "assistant" && !message.text && !message.thinking) {
           return null;
         }
-        return <AssistantMessage key={message.id} message={message} />;
+        return <AssistantMessage key={message.id} message={message} highlighted={highlighted} />;
       })}
       {tools
         .filter((tool) => !renderedTools.has(tool.toolCallId))

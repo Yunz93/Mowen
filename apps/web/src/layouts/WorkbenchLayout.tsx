@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
@@ -16,6 +16,8 @@ import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
 import { folderName, nextHint } from "../copy";
+import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
+import { openExportedFile } from "../lib/open-export";
 
 export function WorkbenchLayout() {
   const tasks = useAgentStore((state) => state.tasks);
@@ -55,6 +57,10 @@ export function WorkbenchLayout() {
   const [taskOpen, setTaskOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [lastExportPath, setLastExportPath] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const skipTitleCommitRef = useRef(false);
 
   useEffect(() => {
     const preferred = workspaceRoot ?? allowedRoots[0];
@@ -73,11 +79,21 @@ export function WorkbenchLayout() {
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
 
   useEffect(() => {
+    setEditingTitle(false);
+  }, [task?.id]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (creating) {
           event.preventDefault();
           setCreating(false);
+          return;
+        }
+        if (editingTitle) {
+          event.preventDefault();
+          skipTitleCommitRef.current = true;
+          setEditingTitle(false);
           return;
         }
         if (paletteOpen) {
@@ -116,7 +132,22 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [approval, creating, inspectorOpen, paletteOpen, task, taskOpen]);
+  }, [approval, creating, editingTitle, inspectorOpen, paletteOpen, task, taskOpen]);
+
+  async function renameTask(taskId: string, title: string) {
+    const next = title.trim().slice(0, 200);
+    const current = tasks.find((item) => item.id === taskId);
+    if (!next || next === current?.title) return;
+    await socketClient.send("task.rename", { title: next }, taskId);
+  }
+
+  async function openExport(filePath: string) {
+    try {
+      await openExportedFile(filePath);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "无法打开导出文件");
+    }
+  }
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
@@ -164,6 +195,7 @@ export function WorkbenchLayout() {
       onQuery={setQuery}
       onSelect={(id) => void selectTask(id)}
       onArchive={(id) => void socketClient.send("task.archive", {}, id)}
+      onRename={(id, title) => void renameTask(id, title)}
       onNew={() => {
         setTaskOpen(false);
         setCreating(true);
@@ -196,8 +228,48 @@ export function WorkbenchLayout() {
             <Plus size={15} />
           </button>
           <PiStatusRing status={status} size={18} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium tracking-tight text-ink">{task?.title ?? "还没有对话"}</p>
+          <div className="app-no-drag min-w-0 flex-1">
+            {editingTitle && task ? (
+              <input
+                autoFocus
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={() => {
+                  const skip = skipTitleCommitRef.current;
+                  skipTitleCommitRef.current = false;
+                  setEditingTitle(false);
+                  if (!skip) void renameTask(task.id, titleDraft);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    skipTitleCommitRef.current = false;
+                    setEditingTitle(false);
+                    void renameTask(task.id, titleDraft);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    skipTitleCommitRef.current = true;
+                    setEditingTitle(false);
+                  }
+                }}
+                aria-label="会话标题"
+                className="h-7 w-full max-w-[min(100%,360px)] rounded-md bg-fill-strong px-1.5 text-[13px] font-medium tracking-tight text-ink"
+              />
+            ) : (
+              <p
+                className="truncate text-[13px] font-medium tracking-tight text-ink"
+                title={task ? "双击重命名" : undefined}
+                onDoubleClick={() => {
+                  if (!task) return;
+                  setTitleDraft(task.title);
+                  setEditingTitle(true);
+                }}
+              >
+                {task?.title ?? "还没有对话"}
+              </p>
+            )}
             <p className="hidden truncate text-[11px] text-mute sm:block">
               {task ? `${folderName(task.cwd)} · ${nextHint(status, true)}` : nextHint(status, false)}
             </p>
@@ -267,7 +339,18 @@ export function WorkbenchLayout() {
             还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。
           </div>
         ) : notice ? (
-          <div className="banner-note text-mute">{notice}</div>
+          <div className="banner-note text-mute">
+            <span className="min-w-0 truncate">{notice}</span>
+            {lastExportPath ? (
+              <button
+                type="button"
+                className="pressable app-no-drag shrink-0 text-accent"
+                onClick={() => void openExport(lastExportPath)}
+              >
+                打开
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {otherApproval ? (
           <div className="banner-note text-ink">
@@ -380,6 +463,7 @@ export function WorkbenchLayout() {
               onQuery={setQuery}
               onSelect={(id) => void selectTask(id)}
               onArchive={(id) => void socketClient.send("task.archive", {}, id)}
+              onRename={(id, title) => void renameTask(id, title)}
               onNew={() => {
                 setTaskOpen(false);
                 setCreating(true);
@@ -424,11 +508,16 @@ export function WorkbenchLayout() {
               onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
               onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
               onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
+              lastExportPath={lastExportPath}
+              onOpenExport={(filePath) => void openExport(filePath)}
               onExport={() => {
                 if (!task) return;
                 void socketClient
                   .send<{ path: string }>("session.export", {}, task.id)
-                  .then((result) => setNotice(`已导出到 ${result.path}`))
+                  .then((result) => {
+                    setLastExportPath(result.path);
+                    setNotice(`已导出到 ${result.path}`);
+                  })
                   .catch((error: unknown) =>
                     setNotice(error instanceof Error ? error.message : "导出失败"),
                   );
@@ -442,7 +531,22 @@ export function WorkbenchLayout() {
       ) : null}
 
       {paletteOpen ? (
-        <CommandPalette open onClose={() => setPaletteOpen(false)} onNewTask={() => setCreating(true)} />
+        <CommandPalette
+          open
+          onClose={() => setPaletteOpen(false)}
+          onNewTask={() => setCreating(true)}
+          onRenameSession={
+            task
+              ? () => {
+                  setTitleDraft(task.title);
+                  setEditingTitle(true);
+                }
+              : undefined
+          }
+          onFindInConversation={() => {
+            window.dispatchEvent(new Event(OPEN_CONVERSATION_SEARCH_EVENT));
+          }}
+        />
       ) : null}
       {creating ? (
         <NewTaskDialog

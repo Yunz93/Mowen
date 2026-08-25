@@ -268,6 +268,48 @@ test("reload during a run keeps the agent going", async ({ page }) => {
   await expect(page.getByText("please stream this slowly").first()).toBeVisible();
 });
 
+test("copy reply, rename session, find in conversation, and open export", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await createTask(page, "Copy rename search");
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+
+  await page.getByLabel("输入消息").fill("unique copy phrase 92af");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByText("Echo: unique copy phrase 92af").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "复制回复" }).click();
+  await expect(page.getByRole("button", { name: "复制回复" })).toHaveText("已复制");
+  await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toContain(
+    "Echo: unique copy phrase 92af",
+  );
+
+  await page.getByRole("banner").getByText("Copy rename search").dblclick();
+  await page.getByLabel("会话标题").fill("Renamed search task");
+  await page.getByLabel("会话标题").press("Enter");
+  await expect(page.getByRole("banner").getByText("Renamed search task")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "会话" }).getByText("Renamed search task")).toBeVisible();
+
+  await page.keyboard.press("ControlOrMeta+f");
+  const search = page.getByTestId("conversation-search-input");
+  await expect(search).toBeVisible();
+  await search.fill("unique copy phrase");
+  await expect(page.getByText("1 / 2")).toBeVisible();
+  await expect(page.locator(".conversation-search-hit")).toHaveCount(1);
+  await page.getByRole("button", { name: "下一个匹配" }).click();
+  await expect(page.getByText("2 / 2")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(search).toHaveCount(0);
+
+  await page.getByRole("button", { name: "详情" }).click();
+  await page.getByRole("button", { name: "导出 HTML" }).click();
+  await expect(page.getByText(/已导出到/)).toBeVisible();
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "打开" }).click();
+  const popup = await popupPromise;
+  await expect(popup.locator("body")).toContainText("messages");
+});
+
 test("scrolling up during stream is not yanked back down", async ({ page }) => {
   await createTask(page, "Scroll task");
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });

@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AppRouter } from "./router";
 import { socketClient } from "../transport/socket-client";
 import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
+import { DesktopMenuBridge } from "../components/desktop/DesktopMenuBridge";
 import { useAgentStore } from "../stores/agent-store";
 import { applyTheme, readTheme } from "../lib/theme";
 import { getDesktop } from "../desktop-bridge";
@@ -50,6 +51,7 @@ export function App() {
 
   return (
     <BrowserRouter>
+      <DesktopMenuBridge />
       <AppRouter />
       {checked && (showWizard || needsSetup) ? (
         <SetupWizard
