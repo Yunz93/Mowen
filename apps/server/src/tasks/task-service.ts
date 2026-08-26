@@ -25,9 +25,9 @@ import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-a
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
-import { commitGit, readGitDiff, readGitStatus } from "./git-status.js";
+import { commitGit, initGit, readGitDiff, readGitStatus } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
-import { scanPiResources } from "./pi-resources.js";
+import { scanPiResources, createProjectAgentsFile } from "./pi-resources.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -206,8 +206,12 @@ export class TaskService {
         return this.emitGitDiff(command.taskId);
       case "git.commit":
         return this.commitTaskGit(command.taskId, command.payload.message);
+      case "git.init":
+        return this.initTaskGit(command.taskId);
       case "resources.reload":
         return this.reloadResources(command.taskId);
+      case "resources.createAgents":
+        return this.createAgentsFile(command.taskId);
       case "files.open":
         return this.openFile(command.taskId, command.payload.path);
       case "interaction.respond":
@@ -660,7 +664,7 @@ export class TaskService {
   private async emitGitStatus(taskId: string): Promise<{ git: Awaited<ReturnType<typeof readGitStatus>> }> {
     const task = this.requireTask(taskId);
     const git = await readGitStatus(task.cwd);
-    if (git) this.emit(taskId, "git.status", git);
+    this.emit(taskId, "git.status", git);
     return { git };
   }
 
@@ -680,6 +684,14 @@ export class TaskService {
     return { ok: true };
   }
 
+  private async initTaskGit(taskId: string): Promise<{ git: Awaited<ReturnType<typeof readGitStatus>> }> {
+    const task = this.requireTask(taskId);
+    const git = await initGit(task.cwd);
+    this.emit(taskId, "git.status", git);
+    await this.emitGitDiff(taskId);
+    return { git };
+  }
+
   private async reloadResources(taskId: string): Promise<PiResources> {
     this.requireTask(taskId);
     if (this.supervisor.has(taskId)) {
@@ -692,6 +704,14 @@ export class TaskService {
     const resources = await this.emitResources(taskId);
     await this.emitCommands(taskId);
     return resources;
+  }
+
+  private async createAgentsFile(taskId: string): Promise<{ path: string; resources: PiResources }> {
+    const task = this.requireTask(taskId);
+    const relative = await createProjectAgentsFile(task.cwd);
+    const resources = await this.reloadResources(taskId);
+    await this.filePreview(taskId, relative);
+    return { path: relative, resources };
   }
 
   private async openFile(taskId: string, relativePath: string): Promise<{ path: string }> {

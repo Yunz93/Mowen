@@ -38,7 +38,6 @@ export function WorkbenchLayout() {
   const commands = useAgentStore((state) => state.commands);
   const git = useAgentStore((state) => state.git);
   const gitDiff = useAgentStore((state) => state.gitDiff);
-  const checkpoints = useAgentStore((state) => state.checkpoints);
   const runtime = useAgentStore((state) => state.runtime);
   const resources = useAgentStore((state) => state.resources);
   const sessionTree = useAgentStore((state) => state.sessionTree);
@@ -623,7 +622,6 @@ export function WorkbenchLayout() {
               preview={preview}
               git={git}
               gitDiff={gitDiff}
-              checkpoints={checkpoints}
               sessionTree={sessionTree}
               sessionLeafId={sessionLeafId}
               resources={resources}
@@ -633,7 +631,6 @@ export function WorkbenchLayout() {
               onLoadGit={() => {
                 if (!task) return;
                 void socketClient.send("git.status", {}, task.id);
-                void socketClient.send("checkpoint.list", {}, task.id);
               }}
               onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
               onGitCommit={(message) =>
@@ -642,13 +639,31 @@ export function WorkbenchLayout() {
                   setNotice(error instanceof Error ? error.message : "提交失败");
                 })
               }
-              onRestore={(checkpointId) =>
-                task && void socketClient.send("checkpoint.restore", { checkpointId }, task.id)
-              }
+              onGitInit={() => {
+                if (!task) return;
+                void socketClient
+                  .send("git.init", {}, task.id)
+                  .then(() => setNotice("已初始化 Git 仓库"))
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "git init 失败");
+                  });
+              }}
               onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
               onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
               onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
               onReloadResources={() => task && void socketClient.send("resources.reload", {}, task.id)}
+              onCreateAgents={() => {
+                if (!task) return;
+                void socketClient
+                  .send<{ path: string }>("resources.createAgents", {}, task.id)
+                  .then((result) => {
+                    setNotice(`已创建 ${result.path}`);
+                    setInspectorOpen(true);
+                  })
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "创建 AGENTS.md 失败");
+                  });
+              }}
               onOpenFile={(filePath) => void openProjectFile(filePath)}
               onUndoFile={(filePath) => void undoProjectFile(filePath)}
               lastExportPath={lastExportPath}

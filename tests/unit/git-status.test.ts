@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { commitGit, readGitDiff, readGitStatus } from "../../apps/server/src/tasks/git-status.ts";
+import { commitGit, initGit, readGitDiff, readGitStatus } from "../../apps/server/src/tasks/git-status.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,13 +17,29 @@ describe("git helpers", () => {
     });
     await writeFile(path.join(root, "note.txt"), "hello");
     const status = await readGitStatus(root);
-    expect(status?.dirty).toBe(true);
-    expect(status?.entries.some((entry) => entry.path.includes("note.txt"))).toBe(true);
+    expect(status.isRepo).toBe(true);
+    expect(status.dirty).toBe(true);
+    expect(status.entries.some((entry) => entry.path.includes("note.txt"))).toBe(true);
+    expect(status.remoteUrl).toBeNull();
     const diffBefore = await readGitDiff(root);
     expect(diffBefore).toBeTypeOf("string");
     await commitGit(root, "add note");
     const after = await readGitStatus(root);
-    expect(after?.dirty).toBe(false);
+    expect(after.dirty).toBe(false);
     await expect(commitGit(root, "nothing")).rejects.toThrow(/没有可提交的改动|提交失败/);
+  });
+
+  it("initializes a non-repo folder and reports remote when configured", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-git-init-"));
+    const before = await readGitStatus(root);
+    expect(before.isRepo).toBe(false);
+
+    const initialized = await initGit(root);
+    expect(initialized.isRepo).toBe(true);
+    expect(initialized.remoteUrl).toBeNull();
+
+    await execFileAsync("git", ["remote", "add", "origin", "https://example.com/demo.git"], { cwd: root });
+    const withRemote = await readGitStatus(root);
+    expect(withRemote.remoteUrl).toBe("https://example.com/demo.git");
   });
 });

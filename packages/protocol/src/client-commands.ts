@@ -150,7 +150,19 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("git.init"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("resources.reload"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.createAgents"),
     taskId: z.string().min(1),
     payload: z.object({}).optional(),
   }),

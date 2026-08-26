@@ -1,32 +1,28 @@
-import { useEffect, useState } from "react";
-import type { PiResources, SessionStats, SessionTreeNode, ToolExecution } from "@mowen/protocol";
+import { useEffect, useMemo, useState } from "react";
+import { gitPatchForPath, parseGitPatch, type PiResources, type SessionStats, type SessionTreeNode, type ToolExecution } from "@mowen/protocol";
 import hljs from "highlight.js";
 import { branchRoleLabel, visibleBranchNodes } from "../../copy";
+import { ancestorDirs, buildFileTree, type InspectorFileEntry } from "../../lib/inspector-files";
+import { FileTree } from "./FileTree";
 import { ToolExecutionRow } from "../timeline/ToolExecutionRow";
 import { DiffView } from "../diff/DiffView";
 
-type Tab = "changes" | "files" | "activity" | "git" | "branch" | "skills";
+type Tab = "files" | "activity" | "git" | "branch" | "skills";
 
-type FileEntry = { path: string; name: string; kind: "file" | "dir" };
+type FileEntry = InspectorFileEntry;
 type GitSnapshot = {
+  isRepo?: boolean;
   branch: string | null;
   dirty: boolean;
   entries: Array<{ path: string; status: string }>;
+  remoteUrl?: string | null;
 };
-type CheckpointRecord = {
-  id: string;
-  path: string;
-  createdAt: string;
-  toolName?: string;
-};
-
 type Props = {
   tools: ToolExecution[];
   stats: SessionStats | null;
   files: FileEntry[];
   preview: { path: string; content: string; truncated: boolean; language?: string } | null;
   git: GitSnapshot | null;
-  checkpoints: CheckpointRecord[];
   sessionTree?: SessionTreeNode[];
   sessionLeafId?: string | null;
   resources?: PiResources | null;
@@ -34,15 +30,16 @@ type Props = {
   onReadFile: (path: string) => void;
   onLoadTree: () => void;
   onLoadGit: () => void;
-  onRestore: (checkpointId: string) => void;
   onLoadBranch?: () => void;
   onBranch?: (entryId: string) => void;
   onLoadResources?: () => void;
   onReloadResources?: () => void;
+  onCreateAgents?: () => void;
   onOpenFile?: (path: string) => void;
   onUndoFile?: (path: string) => void;
   onGitDiff?: () => void;
   onGitCommit?: (message: string) => void;
+  onGitInit?: () => void;
   onExport?: () => void;
   lastExportPath?: string | null;
   onOpenExport?: (path: string) => void;
@@ -50,6 +47,14 @@ type Props = {
   drawer?: boolean;
   onClose?: () => void;
 };
+
+function gitStatusTone(status: string): string {
+  const mark = status.trim();
+  if (mark.includes("D")) return "text-danger";
+  if (mark.includes("A") || mark === "??") return "text-accent";
+  if (mark.includes("M")) return "text-warn";
+  return "text-mute";
+}
 
 function highlight(content: string, language?: string): string {
   if (language && hljs.getLanguage(language)) {
@@ -64,7 +69,6 @@ export function InspectorPanel({
   files,
   preview,
   git,
-  checkpoints,
   sessionTree = [],
   sessionLeafId = null,
   resources = null,
@@ -72,15 +76,16 @@ export function InspectorPanel({
   onReadFile,
   onLoadTree,
   onLoadGit,
-  onRestore,
   onLoadBranch,
   onBranch,
   onLoadResources,
   onReloadResources,
+  onCreateAgents,
   onOpenFile,
   onUndoFile,
   onGitDiff,
   onGitCommit,
+  onGitInit,
   onExport,
   lastExportPath = null,
   onOpenExport,
@@ -90,16 +95,43 @@ export function InspectorPanel({
 }: Props) {
   const [tab, setTab] = useState<Tab>("activity");
   const [commitMessage, setCommitMessage] = useState("");
+  const [selectedGitPath, setSelectedGitPath] = useState<string | null>(null);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
   const branchNodes = visibleBranchNodes(sessionTree);
+  const fileTree = useMemo(() => buildFileTree(files), [files]);
+  const gitPatches = useMemo(() => parseGitPatch(gitDiff ?? ""), [gitDiff]);
+  const selectedGitPatch = selectedGitPath ? gitPatchForPath(gitPatches, selectedGitPath) : undefined;
+
+  useEffect(() => {
+    if (!git?.entries.length) {
+      setSelectedGitPath(null);
+      return;
+    }
+    setSelectedGitPath((current) =>
+      current && git.entries.some((entry) => entry.path === current) ? current : (git.entries[0]?.path ?? null),
+    );
+  }, [git?.entries]);
 
   useEffect(() => {
     if (preview?.path) setTab("files");
   }, [preview?.path]);
-  const changed = tools.filter((tool) => tool.toolName === "write" || tool.toolName === "edit");
-  const sortedFiles = [...files].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
-    return a.path.localeCompare(b.path);
-  });
+
+  useEffect(() => {
+    if (fileTree.length === 0) return;
+    setExpandedDirs((current) => {
+      if (current.size > 0) return current;
+      return new Set(fileTree.filter((node) => node.kind === "dir").map((node) => node.path));
+    });
+  }, [fileTree]);
+
+  useEffect(() => {
+    if (!preview?.path) return;
+    setExpandedDirs((current) => {
+      const next = new Set(current);
+      for (const dir of ancestorDirs(preview.path)) next.add(dir);
+      return next;
+    });
+  }, [preview?.path]);
 
   return (
     <aside
@@ -108,7 +140,7 @@ export function InspectorPanel({
     >
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {(["changes", "files", "git", "activity", "branch", "skills"] as const).map((item) => (
+          {(["files", "git", "activity", "branch", "skills"] as const).map((item) => (
             <button
               key={item}
               type="button"
@@ -124,17 +156,15 @@ export function InspectorPanel({
                 if (item === "skills") onLoadResources?.();
               }}
             >
-              {item === "changes"
-                ? "改动"
-                : item === "files"
-                  ? "文件"
-                  : item === "git"
-                    ? "Git"
-                    : item === "activity"
-                      ? "动态"
-                      : item === "branch"
-                        ? "分支"
-                        : "技能"}
+              {item === "files"
+                ? "文件"
+                : item === "git"
+                  ? "Git"
+                  : item === "activity"
+                    ? "动态"
+                    : item === "branch"
+                      ? "分支"
+                      : "技能"}
             </button>
           ))}
         </div>
@@ -182,140 +212,131 @@ export function InspectorPanel({
             ))}
           </div>
         ) : null}
-        {tab === "changes" ? (
-          <div className="space-y-4">
-            {changed.length === 0 ? <p className="text-sm text-mute">这次对话还没有改文件。</p> : null}
-            {changed.map((tool) => {
-              const args = tool.args as Record<string, unknown> | undefined;
-              return (
-                <div key={tool.toolCallId}>
-                  <p className="font-mono text-xs text-accent">{tool.target}</p>
-                  <div className="mt-1">
-                    <DiffView
-                      oldText={typeof args?.oldText === "string" ? args.oldText : undefined}
-                      newText={typeof args?.newText === "string" ? args.newText : undefined}
-                      content={typeof args?.content === "string" ? args.content : undefined}
-                      fallback={tool.resultText ?? "还没有差异。"}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            {checkpoints.length > 0 ? (
-              <div className="border-t border-line pt-3">
-                <p className="mb-2 text-sm text-ink">检查点</p>
-                <ul className="space-y-2">
-                  {checkpoints.map((item) => (
-                    <li key={item.id} className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 break-all font-mono text-[11px] text-mute">
-                        {item.path}
-                        <span className="block">{new Date(item.createdAt).toLocaleTimeString()}</span>
-                      </span>
-                      <button
-                        type="button"
-                        className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-                        onClick={() => onRestore(item.id)}
-                      >
-                        还原
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
         {tab === "files" ? (
-          <div className="grid grid-rows-[auto_1fr] gap-3">
-            <ul className="max-h-48 overflow-auto font-mono text-xs">
-              {sortedFiles.map((entry) => (
-                <li key={entry.path}>
-                  {entry.kind === "file" ? (
-                    <button
-                      type="button"
-                      className="pressable block h-8 w-full truncate px-1 text-left text-ink"
-                      onClick={() => onReadFile(entry.path)}
-                    >
-                      {entry.path}
-                    </button>
-                  ) : (
-                    <span className="block px-1 py-2 text-mute">{entry.path}/</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+          <div className="space-y-3">
+            {fileTree.length === 0 ? (
+              <p className="text-sm text-mute">这个文件夹里还没有可预览的文件。</p>
+            ) : (
+              <div className="max-h-56 overflow-auto rounded-md bg-fill/40">
+                <FileTree
+                  nodes={fileTree}
+                  expanded={expandedDirs}
+                  selectedPath={preview?.path}
+                  onToggleDir={(path) => {
+                    setExpandedDirs((current) => {
+                      const next = new Set(current);
+                      if (next.has(path)) next.delete(path);
+                      else next.add(path);
+                      return next;
+                    });
+                  }}
+                  onOpenFile={onReadFile}
+                />
+              </div>
+            )}
             {preview ? (
               <pre
-                className="overflow-auto rounded-md bg-canvas p-2 font-mono text-[12px] leading-5 text-ink"
+                className="max-h-[min(28rem,50vh)] overflow-auto rounded-md bg-canvas p-2 font-mono text-[12px] leading-5 text-ink"
                 dangerouslySetInnerHTML={{
                   __html: highlight(preview.content, preview.language),
                 }}
               />
-            ) : (
+            ) : fileTree.length > 0 ? (
               <p className="text-sm text-mute">点一个文件预览。这里只能看，不能直接编辑。</p>
-            )}
+            ) : null}
           </div>
         ) : null}
         {tab === "git" ? (
           <div className="space-y-3">
-            {git ? (
+            {git?.isRepo !== false && git ? (
               <>
                 <p className="text-sm text-ink">
                   {git.branch ?? "（无分支）"}
                   <span className="ml-2 text-mute">{git.dirty ? "有未提交改动" : "工作区干净"}</span>
                 </p>
+                <p className="break-all font-mono text-[11px] text-mute">
+                  {git.remoteUrl ? `remote · ${git.remoteUrl}` : "还没有配置 remote"}
+                </p>
                 {git.entries.length === 0 ? <p className="text-sm text-mute">没有改动。</p> : null}
-                <ul className="space-y-1 font-mono text-xs">
+                <ul className="max-h-48 space-y-0.5 overflow-auto font-mono text-xs">
                   {git.entries.map((entry) => (
-                    <li key={entry.path} className="flex gap-2">
-                      <span className="w-8 shrink-0 text-mute">{entry.status}</span>
-                      <span className="min-w-0 break-all text-ink">{entry.path}</span>
+                    <li key={entry.path}>
+                      <button
+                        type="button"
+                        className={`pressable flex min-h-8 w-full items-start gap-2 rounded-md px-1.5 py-1 text-left ${
+                          selectedGitPath === entry.path ? "bg-accent-soft text-ink" : "hover-fill text-ink"
+                        }`}
+                        onClick={() => setSelectedGitPath(entry.path)}
+                      >
+                        <span className={`w-6 shrink-0 pt-0.5 ${gitStatusTone(entry.status)}`}>{entry.status.trim()}</span>
+                        <span className="min-w-0 break-all">{entry.path}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
               </>
             ) : (
-              <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
-            )}
-            {gitDiff ? (
-              <pre className="max-h-64 overflow-auto rounded-md bg-canvas p-2 font-mono text-[11px] leading-5 text-mute">
-                {gitDiff}
-              </pre>
-            ) : git ? (
-              <p className="text-sm text-mute">没有 diff，或还没加载。</p>
-            ) : null}
-            {onGitCommit ? (
-              <div className="space-y-2 border-t border-line pt-3">
-                <label className="block text-[12px] text-mute" htmlFor="git-commit-message">
-                  提交说明
-                </label>
-                <input
-                  id="git-commit-message"
-                  className="field w-full text-[13px] text-ink"
-                  value={commitMessage}
-                  placeholder="简述这次改动"
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                />
-                <button
-                  type="button"
-                  className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
-                  disabled={!commitMessage.trim()}
-                  onClick={() => {
-                    const message = commitMessage.trim();
-                    if (!message) return;
-                    onGitCommit(message);
-                    setCommitMessage("");
-                  }}
-                >
-                  提交
-                </button>
+              <div className="space-y-2">
+                <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
+                {onGitInit ? (
+                  <button
+                    type="button"
+                    className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                    onClick={() => onGitInit()}
+                  >
+                    git init
+                  </button>
+                ) : null}
               </div>
+            )}
+            {git?.isRepo !== false && git ? (
+              <>
+                {selectedGitPatch?.binary ? (
+                  <p className="text-sm text-mute">这是二进制文件，无法预览差异。</p>
+                ) : selectedGitPatch && selectedGitPatch.lines.length > 0 ? (
+                  <div className="max-h-80 overflow-auto">
+                    <DiffView lines={selectedGitPatch.lines} fallback="还没有差异。" />
+                  </div>
+                ) : gitDiff ? (
+                  <p className="text-sm text-mute">
+                    {selectedGitPath ? "这个文件没有文本 diff，可能是未跟踪或重命名。" : "点上面的文件看差异。"}
+                  </p>
+                ) : (
+                  <p className="text-sm text-mute">没有 diff，或还没加载。</p>
+                )}
+                {onGitCommit ? (
+                  <div className="space-y-2 border-t border-line pt-3">
+                    <label className="block text-[12px] text-mute" htmlFor="git-commit-message">
+                      提交说明
+                    </label>
+                    <input
+                      id="git-commit-message"
+                      className="field w-full text-[13px] text-ink"
+                      value={commitMessage}
+                      placeholder="简述这次改动"
+                      onChange={(event) => setCommitMessage(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                      disabled={!commitMessage.trim()}
+                      onClick={() => {
+                        const message = commitMessage.trim();
+                        if (!message) return;
+                        onGitCommit(message);
+                        setCommitMessage("");
+                      }}
+                    >
+                      提交
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}
         {tab === "branch" ? (
           <div className="space-y-2">
-            <p className="text-sm leading-5 text-mute">这是 Pi 的会话树。可以从任意一条用户消息重新分叉。</p>
             {branchNodes.length === 0 ? <p className="text-sm text-mute">还没有分支记录。</p> : null}
             <ul className="space-y-1">
               {branchNodes.map((node) => (
@@ -361,7 +382,17 @@ export function InspectorPanel({
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-mute">没有找到 AGENTS.md 或同类文件。</p>
+                <div className="space-y-2">
+                  {onCreateAgents ? (
+                    <button
+                      type="button"
+                      className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
+                      onClick={() => onCreateAgents()}
+                    >
+                      创建 AGENTS.md
+                    </button>
+                  ) : null}
+                </div>
               )}
             </div>
             <div>
@@ -369,9 +400,9 @@ export function InspectorPanel({
               {resources?.skills.length ? (
                 <ul className="space-y-1 text-sm text-ink">
                   {resources.skills.map((skill) => (
-                    <li key={skill.path}>
-                      {skill.name}
-                      <span className="ml-2 text-[11px] text-mute">{skill.scope === "user" ? "用户" : "项目"}</span>
+                    <li key={skill.path} className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate">{skill.name}</span>
+                      <span className="shrink-0 text-[11px] text-mute">{skill.scope === "user" ? "用户" : "项目"}</span>
                     </li>
                   ))}
                 </ul>

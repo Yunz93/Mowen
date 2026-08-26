@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { listAuthEntries, removeAuth } from "../../apps/server/src/setup/auth-status.ts";
-import { scanPiResources } from "../../apps/server/src/tasks/pi-resources.ts";
+import { scanPiResources, createProjectAgentsFile, PROJECT_AGENTS_TEMPLATE } from "../../apps/server/src/tasks/pi-resources.ts";
 import { listPiSessions } from "../../apps/server/src/tasks/pi-sessions.ts";
 import { flattenSessionTree } from "../../apps/server/src/tasks/session-tree.ts";
 
@@ -55,6 +55,15 @@ describe("pi mvp helpers", () => {
 
     const trusted = await scanPiResources(cwd, home, true);
     expect(trusted.skills.map((item) => item.name).sort()).toEqual(["review", "user-skill"]);
+  });
+
+  it("creates project AGENTS.md once and refuses to overwrite", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "mowen-create-agents-"));
+    const relative = await createProjectAgentsFile(cwd);
+    expect(relative).toBe("AGENTS.md");
+    const content = await readFile(path.join(cwd, "AGENTS.md"), "utf8");
+    expect(content).toBe(PROJECT_AGENTS_TEMPLATE);
+    await expect(createProjectAgentsFile(cwd)).rejects.toThrow("AGENTS.md 已存在");
   });
 
   it("lists Pi session files and can filter by cwd", async () => {
