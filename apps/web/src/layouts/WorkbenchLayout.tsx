@@ -439,7 +439,7 @@ export function WorkbenchLayout() {
           </div>
         ) : authHint ? (
           <div className="banner-note text-mute">
-            还没有 AI 密钥。打开设置粘贴 API Key，密钥只会保存在这台电脑上。
+            还没有连接 AI。打开设置登录或粘贴密钥，凭证只会保存在这台电脑上。
           </div>
         ) : notice ? (
           <div className="banner-note text-mute">

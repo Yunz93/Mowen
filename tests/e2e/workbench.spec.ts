@@ -133,7 +133,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "认证" })).toBeVisible();
   await expect(page.getByText("GitHub Copilot")).toBeVisible();
-  await expect(page.getByText("订阅 / 登录")).toBeVisible();
+  await expect(page.getByText("已登录")).toBeVisible();
   await expect(page.locator("li").filter({ hasText: /^OpenAI/ }).getByRole("button", { name: "登录" })).toBeVisible();
   await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
@@ -141,7 +141,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await anthropic.getByLabel("Anthropic (Claude) API Key").fill("sk-ant-e2e-updated-key-123456");
   await anthropic.getByRole("button", { name: "保存密钥" }).click();
   await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
-  await expect(anthropic.getByText("API Key · 已保存")).toBeVisible();
+  await expect(anthropic.getByText("已保存密钥")).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();
@@ -252,7 +252,7 @@ test("HTTP 401 shows a red error instead of failing silently", async ({ page }) 
   await page.getByLabel("输入消息").fill("FAIL401");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("alert").getByText(/登录已失效|HTTP 401/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("还没有 AI 密钥")).toHaveCount(0);
+  await expect(page.getByText("还没有连接 AI")).toHaveCount(0);
 });
 
 test("reload during a run keeps the agent going", async ({ page }) => {
@@ -407,7 +407,7 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   await page.getByRole("button", { name: "刷新登录状态" }).click();
   await expect(page.getByText("已刷新登录状态。")).toBeVisible();
   await expect(
-    page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("订阅 / 登录"),
+    page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("已登录"),
   ).toBeVisible();
 });
 

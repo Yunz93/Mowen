@@ -61,9 +61,22 @@ export function mergeAuthCatalog(
   return [...preferred, ...rest].map((id) => items.get(id)!);
 }
 
-export function authStatusLabel(kind: "api_key" | "oauth" | "other" | undefined): string {
-  if (kind === "oauth") return "订阅 / 登录";
-  if (kind === "api_key") return "API Key · 已保存";
+export function authStatusLabel(
+  kind: "api_key" | "oauth" | "other" | undefined,
+  capabilities: { oauth?: boolean; apiKey?: boolean } = {},
+): string {
+  if (kind === "oauth") return "已登录";
+  if (kind === "api_key") return "已保存密钥";
   if (kind === "other") return "已连接";
-  return "未连接";
+  if (capabilities.oauth && capabilities.apiKey) return "订阅登录或粘贴密钥";
+  if (capabilities.oauth) return "未登录";
+  return "未配置密钥";
+}
+
+export function oauthButtonLabel(kind: "api_key" | "oauth" | "other" | undefined): string {
+  return kind === "api_key" ? "改用订阅登录" : "订阅登录";
+}
+
+export function logoutNotice(kind: "api_key" | "oauth" | "other" | undefined): string {
+  return kind === "api_key" ? "已移除密钥。" : "已退出登录。";
 }
