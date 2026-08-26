@@ -5,6 +5,7 @@ import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
 import { socketClient } from "../transport/socket-client";
+import { authStatusLabel, logoutNotice, mergeAuthCatalog, oauthButtonLabel } from "../lib/settings-auth";
 
 type ProviderOption = { id: string; label: string; hint: string };
 
@@ -22,8 +23,6 @@ export function SettingsPage() {
   const piError = useAgentStore((state) => state.piError);
   const allowedRoots = useAgentStore((state) => state.allowedRoots);
   const dataDir = useAgentStore((state) => state.dataDir);
-  const authConfigured = useAgentStore((state) => state.authConfigured);
-  const configuredProviders = useAgentStore((state) => state.configuredProviders);
   const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
   const authEntries = useAgentStore((state) => state.authEntries);
   const trustProject = useAgentStore((state) => state.trustProject);
@@ -35,27 +34,27 @@ export function SettingsPage() {
   const [installError, setInstallError] = useState("");
   const [canInstallPi, setCanInstallPi] = useState(false);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
-  const [provider, setProvider] = useState("anthropic");
-  const [apiKey, setApiKey] = useState("");
-  const [keyBusy, setKeyBusy] = useState(false);
-  const [keyError, setKeyError] = useState("");
-  const [keyNotice, setKeyNotice] = useState("");
+  const [oauthProviders, setOauthProviders] = useState<Array<{ id: string; label: string }>>([
+    { id: "github", label: "GitHub Copilot" },
+    { id: "openai", label: "OpenAI" },
+  ]);
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  const [revealKey, setRevealKey] = useState<Record<string, boolean>>({});
+  const [keyBusy, setKeyBusy] = useState("");
   const [piLatest, setPiLatest] = useState<PiLatest | null>(null);
   const [checkBusy, setCheckBusy] = useState(false);
   const [authBusy, setAuthBusy] = useState("");
   const [refreshBusy, setRefreshBusy] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [authNotice, setAuthNotice] = useState("");
-  const oauthProviders = [{ id: "github", label: "GitHub Copilot" }];
+  const [flash, setFlash] = useState<{ id: string; tone: "ok" | "err"; text: string } | null>(null);
 
   function applySetup(setup: SetupStatus) {
     setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
     setCanInstallPi(setup.canInstallPi !== false && !setup.piBundled);
     if (setup.providers?.length) {
       setProviders(setup.providers);
-      setProvider((current) =>
-        setup.providers.some((item) => item.id === current) ? current : (setup.providers[0]?.id ?? "anthropic"),
-      );
+    }
+    if (setup.oauthProviders?.length) {
+      setOauthProviders(setup.oauthProviders);
     }
     useAgentStore.getState().setSetupState(setupStorePayload(setup));
   }
@@ -157,58 +156,58 @@ export function SettingsPage() {
     }
   }
 
-  async function saveApiKey() {
-    setKeyBusy(true);
-    setKeyError("");
-    setKeyNotice("");
+  async function saveApiKey(providerId: string) {
+    const apiKey = keyDrafts[providerId] ?? "";
+    setKeyBusy(providerId);
+    setFlash(null);
     try {
       const response = await fetch("/api/setup/api-key", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, apiKey }),
+        body: JSON.stringify({ provider: providerId, apiKey }),
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
-        setKeyError(json.error ?? "密钥保存失败。");
+        setFlash({ id: providerId, tone: "err", text: json.error ?? "密钥保存失败。" });
         return;
       }
       applySetup(json);
-      setApiKey("");
-      const label = providers.find((item) => item.id === provider)?.label ?? provider;
-      setKeyNotice(`已保存 ${label} 的密钥。`);
+      setKeyDrafts((current) => ({ ...current, [providerId]: "" }));
+      const label = providers.find((item) => item.id === providerId)?.label ?? providerId;
+      setFlash({ id: providerId, tone: "ok", text: `已保存 ${label} 的密钥。` });
       void socketClient.send("snapshot.request");
     } catch {
-      setKeyError("密钥保存失败。");
+      setFlash({ id: providerId, tone: "err", text: "密钥保存失败。" });
     } finally {
-      setKeyBusy(false);
+      setKeyBusy("");
     }
   }
 
   async function refreshAuth() {
     setRefreshBusy(true);
-    setAuthError("");
+    setFlash(null);
     try {
       const response = await fetch("/api/setup", { credentials: "same-origin" });
       const setup = (await response.json()) as SetupStatus;
       if (!response.ok) {
-        setAuthError("刷新登录状态失败。");
+        setFlash({ id: "sync", tone: "err", text: "刷新登录状态失败。" });
         return;
       }
       applySetup(setup);
       void socketClient.send("snapshot.request");
-      setAuthNotice("已刷新登录状态。");
+      setFlash({ id: "sync", tone: "ok", text: "已刷新登录状态。" });
     } catch {
-      setAuthError("刷新登录状态失败。");
+      setFlash({ id: "sync", tone: "err", text: "刷新登录状态失败。" });
     } finally {
       setRefreshBusy(false);
     }
   }
 
   async function logoutProvider(provider: string) {
+    const kind = authEntries.find((entry) => entry.id === provider)?.kind;
     setAuthBusy(provider);
-    setAuthError("");
-    setAuthNotice("");
+    setFlash(null);
     try {
       const response = await fetch("/api/setup/logout", {
         method: "POST",
@@ -218,14 +217,14 @@ export function SettingsPage() {
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
-        setAuthError(json.error ?? "退出失败。");
+        setFlash({ id: provider, tone: "err", text: json.error ?? "退出失败。" });
         return;
       }
       applySetup(json);
       void socketClient.send("snapshot.request");
-      setAuthNotice("已退出登录。");
+      setFlash({ id: provider, tone: "ok", text: logoutNotice(kind) });
     } catch {
-      setAuthError("退出失败。");
+      setFlash({ id: provider, tone: "err", text: "退出失败。" });
     } finally {
       setAuthBusy("");
     }
@@ -233,8 +232,7 @@ export function SettingsPage() {
 
   async function loginProvider(provider: string) {
     setAuthBusy(provider);
-    setAuthError("");
-    setAuthNotice("");
+    setFlash(null);
     try {
       const response = await fetch("/api/setup/login", {
         method: "POST",
@@ -244,19 +242,23 @@ export function SettingsPage() {
       });
       const json = (await response.json()) as SetupStatus & { error?: string; hint?: string };
       if (!response.ok) {
-        setAuthError(json.error ?? "无法打开登录。");
+        setFlash({ id: provider, tone: "err", text: json.error ?? "无法打开登录。" });
         return;
       }
       applySetup(json);
-      setAuthNotice(json.hint ?? "完成登录后点刷新。");
+      setFlash({
+        id: provider,
+        tone: "ok",
+        text: json.hint ?? "完成订阅登录后，点下面的刷新同步状态。",
+      });
     } catch {
-      setAuthError("无法打开登录。");
+      setFlash({ id: provider, tone: "err", text: "无法打开登录。" });
     } finally {
       setAuthBusy("");
     }
   }
 
-  const replacingKey = authEntries.some((entry) => entry.id === provider && entry.kind === "api_key");
+  const catalog = mergeAuthCatalog(oauthProviders, providers, authEntries);
   const engineDetail = piVersion ? `已就绪（Pi ${piVersion}）` : (piError ?? "还没准备好");
   let updateDetail: string | null = null;
   if (piLatest?.error) updateDetail = piLatest.error;
@@ -287,7 +289,7 @@ export function SettingsPage() {
       <main id="main-content" className="flex-1 overflow-y-auto px-5 py-8">
         <div className="settings-shell space-y-7">
           <p className="px-1 text-[13px] leading-6 text-mute">
-            墨问只在这台电脑上运行。API 密钥保存在本地，这里不会显示完整密钥。
+            墨问只在这台电脑上运行。每个服务商选一种方式：订阅登录，或粘贴密钥。完整密钥不会显示在这里。
           </p>
 
           <section>
@@ -313,7 +315,117 @@ export function SettingsPage() {
           </section>
 
           <section>
-            <h2 className="settings-label">账户与引擎</h2>
+            <h2 className="settings-label">认证</h2>
+            <ul className="settings-card m-0 list-none p-0">
+              {catalog.map((item) => {
+                const entry = authEntries.find((auth) => auth.id === item.id);
+                const draft = keyDrafts[item.id] ?? "";
+                const replacing = entry?.kind === "api_key";
+                const showKeyField = item.apiKey && (entry?.kind !== "oauth" || Boolean(revealKey[item.id]));
+                const rowFlash = flash?.id === item.id ? flash : null;
+                return (
+                  <li key={item.id} className="settings-row flex-col items-stretch gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[13px] text-ink">{item.label}</p>
+                        <p className="mt-0.5 text-[12px] text-mute">
+                          {authStatusLabel(entry?.kind, { oauth: item.oauth, apiKey: item.apiKey })}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                        {item.oauth && entry?.kind !== "oauth" ? (
+                          <button
+                            type="button"
+                            className="pressable btn btn-ghost"
+                            disabled={authBusy === item.id}
+                            onClick={() => void loginProvider(item.id)}
+                          >
+                            {authBusy === item.id ? "正在打开…" : oauthButtonLabel(entry?.kind)}
+                          </button>
+                        ) : null}
+                        {item.apiKey && entry?.kind === "oauth" && !revealKey[item.id] ? (
+                          <button
+                            type="button"
+                            className="pressable btn btn-ghost"
+                            onClick={() => setRevealKey((current) => ({ ...current, [item.id]: true }))}
+                          >
+                            改用 API Key
+                          </button>
+                        ) : null}
+                        {entry ? (
+                          <button
+                            type="button"
+                            className="pressable btn btn-ghost"
+                            disabled={authBusy === item.id}
+                            onClick={() => void logoutProvider(item.id)}
+                          >
+                            {authBusy === item.id ? "正在退出…" : entry.kind === "api_key" ? "移除密钥" : "退出"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {showKeyField ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="sr-only" htmlFor={`settings-api-key-${item.id}`}>
+                          {item.label} API Key
+                        </label>
+                        <input
+                          id={`settings-api-key-${item.id}`}
+                          type="password"
+                          autoComplete="off"
+                          className="field min-w-0 flex-1 font-mono text-[13px] text-ink"
+                          value={draft}
+                          placeholder={replacing ? "粘贴新的密钥以替换" : (item.hint ?? "API Key")}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setKeyDrafts((current) => ({ ...current, [item.id]: value }));
+                            setFlash(null);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="pressable btn btn-primary shrink-0"
+                          disabled={keyBusy === item.id || draft.trim().length < 8}
+                          onClick={() => void saveApiKey(item.id)}
+                        >
+                          {keyBusy === item.id ? "正在保存…" : replacing ? "更新密钥" : "保存密钥"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {rowFlash ? (
+                      <p className={`text-[12px] ${rowFlash.tone === "err" ? "text-danger" : "text-success"}`}>
+                        {rowFlash.text}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+              <li className="settings-row items-center">
+                <div className="min-w-0 pr-3">
+                  <p className="text-[13px] text-ink">同步订阅登录</p>
+                  <p className="mt-0.5 text-[12px] leading-5 text-mute">
+                    点「订阅登录」后若在浏览器或终端完成了授权，再点这里同步。保存密钥后不用刷新。
+                  </p>
+                  {flash?.id === "sync" ? (
+                    <p className={`mt-1 text-[12px] ${flash.tone === "err" ? "text-danger" : "text-success"}`}>
+                      {flash.text}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="pressable btn btn-ghost shrink-0"
+                  disabled={refreshBusy}
+                  onClick={() => void refreshAuth()}
+                >
+                  {refreshBusy ? "正在刷新…" : "刷新登录状态"}
+                </button>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="settings-label">引擎</h2>
             <div className="settings-card">
               <div className="settings-row items-center">
                 <div className="min-w-0 pr-3">
@@ -355,131 +467,6 @@ export function SettingsPage() {
                       {installBusy ? "正在更新…" : "更新 Pi"}
                     </button>
                   ) : null}
-                </div>
-              </div>
-              <div className="settings-row">
-                <div className="min-w-0">
-                  <p className="text-[13px] text-ink">本机 Pi 登录</p>
-                  <div className="mt-1 text-[12px] text-mute">
-                    {authEntries.length ? (
-                      <ul className="space-y-2">
-                        {authEntries.map((entry) => (
-                          <li key={entry.id} className="flex items-center justify-between gap-2 text-ink">
-                            <span>
-                              {entry.label}
-                              <span className="ml-2 text-mute">
-                                {entry.kind === "oauth" ? "订阅 / 登录" : entry.kind === "api_key" ? "API Key" : entry.kind}
-                              </span>
-                            </span>
-                            <button
-                              type="button"
-                              className="pressable btn btn-ghost shrink-0"
-                              disabled={authBusy === entry.id}
-                              onClick={() => void logoutProvider(entry.id)}
-                            >
-                              {authBusy === entry.id ? "正在退出…" : "退出"}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : authConfigured ? (
-                      configuredProviders.length ? configuredProviders.join("、") : "已连接"
-                    ) : (
-                      "还没有登录。在下面粘贴 API Key，或点登录。"
-                    )}
-                  </div>
-                  {oauthProviders
-                    .filter((item) => !authEntries.some((entry) => entry.id === item.id))
-                    .map((item) => (
-                      <div key={item.id} className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-[12px] text-ink">{item.label}</p>
-                        <button
-                          type="button"
-                          className="pressable btn btn-ghost"
-                          disabled={authBusy === item.id}
-                          onClick={() => void loginProvider(item.id)}
-                        >
-                          {authBusy === item.id ? "正在打开…" : "登录"}
-                        </button>
-                      </div>
-                    ))}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      className="pressable btn btn-ghost"
-                      disabled={refreshBusy}
-                      onClick={() => void refreshAuth()}
-                    >
-                      {refreshBusy ? "正在刷新…" : "刷新登录状态"}
-                    </button>
-                    {authNotice ? <p className="text-[12px] text-success">{authNotice}</p> : null}
-                    {authError ? <p className="text-[12px] text-danger">{authError}</p> : null}
-                  </div>
-                </div>
-              </div>
-              <div className="settings-row flex-col items-stretch gap-3">
-                <div>
-                  <p className="text-[13px] text-ink">更新 API Key</p>
-                  <p className="mt-0.5 text-[12px] leading-5 text-mute">
-                    粘贴新的密钥会覆盖该服务商已保存的钥匙。完整密钥不会显示在这里。
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-[12px] text-mute" htmlFor="settings-provider">
-                    服务商
-                  </label>
-                  <select
-                    id="settings-provider"
-                    className="field mt-1 w-full text-[13px] text-ink"
-                    value={provider}
-                    onChange={(event) => {
-                      setProvider(event.target.value);
-                      setKeyNotice("");
-                      setKeyError("");
-                    }}
-                  >
-                    {providers.map((item) => {
-                      const saved = authEntries.some((entry) => entry.id === item.id && entry.kind === "api_key");
-                      return (
-                        <option key={item.id} value={item.id}>
-                          {saved ? `${item.label} · 已保存` : item.label}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] text-mute" htmlFor="settings-api-key">
-                    API Key
-                  </label>
-                  <input
-                    id="settings-api-key"
-                    type="password"
-                    autoComplete="off"
-                    className="field mt-1 w-full font-mono text-[13px] text-ink"
-                    value={apiKey}
-                    placeholder={
-                      replacingKey
-                        ? "粘贴新的密钥以替换"
-                        : (providers.find((item) => item.id === provider)?.hint ?? "API Key")
-                    }
-                    onChange={(event) => {
-                      setApiKey(event.target.value);
-                      setKeyNotice("");
-                    }}
-                  />
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  {keyNotice ? <p className="mr-auto text-[12px] text-success">{keyNotice}</p> : null}
-                  {keyError ? <p className="mr-auto text-[12px] text-danger">{keyError}</p> : null}
-                  <button
-                    type="button"
-                    className="pressable btn btn-primary"
-                    disabled={keyBusy || apiKey.trim().length < 8}
-                    onClick={() => void saveApiKey()}
-                  >
-                    {keyBusy ? "正在保存…" : replacingKey ? "更新密钥" : "保存密钥"}
-                  </button>
                 </div>
               </div>
               <div className="settings-row">
@@ -533,7 +520,7 @@ export function SettingsPage() {
 
           <button
             type="button"
-            className="pressable btn btn-primary"
+            className="pressable btn btn-ghost"
             onClick={() => setWizardOpen(true)}
           >
             打开设置向导

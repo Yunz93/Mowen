@@ -14,7 +14,10 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-export const OAUTH_PROVIDERS = [{ id: "github", label: "GitHub Copilot" }] as const;
+export const OAUTH_PROVIDERS = [
+  { id: "github", label: "GitHub Copilot" },
+  { id: "openai", label: "OpenAI" },
+] as const;
 
 /** Providers we expose in the beginner setup wizard. */
 export const BEGINNER_PROVIDERS = [
