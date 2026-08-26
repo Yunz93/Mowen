@@ -411,6 +411,22 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   ).toBeVisible();
 });
 
+async function expectPreviewAboveInput(page: import("@playwright/test").Page): Promise<void> {
+  const preview = page.getByLabel(/^已添加 \d+ 张图$/);
+  const input = page.getByLabel("输入消息");
+  const well = page.locator(".composer-well");
+  await expect(preview).toBeVisible();
+  const previewBox = await preview.boundingBox();
+  const inputBox = await input.boundingBox();
+  const wellBox = await well.boundingBox();
+  expect(previewBox).toBeTruthy();
+  expect(inputBox).toBeTruthy();
+  expect(wellBox).toBeTruthy();
+  expect(previewBox!.y).toBeGreaterThanOrEqual(wellBox!.y);
+  expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(inputBox!.y + 2);
+  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(wellBox!.y + wellBox!.height);
+}
+
 const TINY_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
@@ -426,7 +442,8 @@ test("attached images show a thumbnail that can be removed", async ({ page }) =>
   });
   await expect(page.getByRole("img", { name: "shot.png" })).toBeVisible();
   await expect(page.getByRole("img", { name: "shot.png" })).toHaveCount(1);
-  await expect(page.getByLabel("已添加 1 张图")).toBeVisible();
+  await page.getByLabel("输入消息").fill("see this screenshot");
+  await expectPreviewAboveInput(page);
   await page.getByRole("button", { name: "移除 shot.png" }).click();
   await expect(page.getByRole("img", { name: "shot.png" })).toHaveCount(0);
 });
@@ -449,5 +466,6 @@ test("pasting one image attaches a single preview", async ({ page }) => {
     document.activeElement?.dispatchEvent(event);
   }, TINY_PNG.toString("base64"));
   await expect(page.getByRole("img", { name: "pasted.png" })).toHaveCount(1);
-  await expect(page.getByLabel("已添加 1 张图")).toBeVisible();
+  await page.getByLabel("输入消息").fill("pasted above this line");
+  await expectPreviewAboveInput(page);
 });
