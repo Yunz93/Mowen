@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PiResources } from "@mowen/protocol";
 import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
@@ -10,6 +10,15 @@ const CONTEXT_NAMES = [
   { name: "SYSTEM.md", kind: "system" as const },
   { name: "APPEND_SYSTEM.md", kind: "append" as const },
 ];
+
+export const PROJECT_AGENTS_TEMPLATE = `# AGENTS.md
+
+给在这个项目里工作的编程助手看的说明。
+
+## 约定
+
+-
+`;
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -107,4 +116,19 @@ export async function scanPiResources(
   }
 
   return { agentsFiles, skills, templates, trustProject };
+}
+
+/** Create project-root AGENTS.md once; returns the relative path. */
+export async function createProjectAgentsFile(cwd: string): Promise<string> {
+  const relative = "AGENTS.md";
+  const target = path.join(path.resolve(cwd), relative);
+  try {
+    await writeFile(target, PROJECT_AGENTS_TEMPLATE, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error("AGENTS.md 已存在");
+    }
+    throw error;
+  }
+  return relative;
 }

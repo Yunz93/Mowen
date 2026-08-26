@@ -51,7 +51,14 @@ export {
   rememberKey,
   stripModePrefix,
 } from "./interaction-policy.js";
-export { diffFromApproval, unifiedDiff, type DiffLine } from "./diff.js";
+export {
+  diffFromApproval,
+  gitPatchForPath,
+  parseGitPatch,
+  unifiedDiff,
+  type DiffLine,
+  type GitPatchFile,
+} from "./diff.js";
 export { extractAtMentions } from "./mentions.js";
 export {
   authEntrySchema,

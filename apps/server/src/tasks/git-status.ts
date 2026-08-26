@@ -10,12 +10,49 @@ const gitIdentity = ["-c", "user.name=Mowen", "-c", "user.email=mowen@local"];
 export type GitEntry = { path: string; status: string };
 
 export type GitSnapshot = {
+  isRepo: boolean;
   branch: string | null;
   dirty: boolean;
   entries: GitEntry[];
+  remoteUrl: string | null;
 };
 
-export async function readGitStatus(cwd: string): Promise<GitSnapshot | null> {
+const emptySnapshot = (): GitSnapshot => ({
+  isRepo: false,
+  branch: null,
+  dirty: false,
+  entries: [],
+  remoteUrl: null,
+});
+
+async function readRemoteUrl(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], {
+      cwd,
+      timeout: GIT_TIMEOUT_MS,
+    });
+    const url = stdout.trim();
+    return url || null;
+  } catch {
+    try {
+      const { stdout } = await execFileAsync("git", ["remote", "-v"], {
+        cwd,
+        timeout: GIT_TIMEOUT_MS,
+      });
+      const line = stdout
+        .split("\n")
+        .map((item) => item.trim())
+        .find((item) => item.length > 0);
+      if (!line) return null;
+      const parts = line.split(/\s+/);
+      return parts[1] ?? null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+export async function readGitStatus(cwd: string): Promise<GitSnapshot> {
   try {
     const { stdout } = await execFileAsync("git", ["status", "--porcelain=v1", "-b"], {
       cwd,
@@ -28,14 +65,28 @@ export async function readGitStatus(cwd: string): Promise<GitSnapshot | null> {
       status: line.slice(0, 2).trim() || line.slice(0, 2),
       path: line.slice(3),
     }));
+    const remoteUrl = await readRemoteUrl(cwd);
     return {
+      isRepo: true,
       branch: branchMatch?.[1] ?? null,
       dirty: entries.length > 0,
       entries: entries.slice(0, 200),
+      remoteUrl,
     };
   } catch {
-    return null;
+    return emptySnapshot();
   }
+}
+
+export async function initGit(cwd: string): Promise<GitSnapshot> {
+  try {
+    await execFileAsync("git", ["init"], { cwd, timeout: GIT_TIMEOUT_MS });
+  } catch {
+    throw new Error("git init 失败。确认当前文件夹可写，并且已安装 Git。");
+  }
+  const status = await readGitStatus(cwd);
+  if (!status.isRepo) throw new Error("git init 失败。确认当前文件夹可写，并且已安装 Git。");
+  return status;
 }
 
 export async function readGitDiff(cwd: string): Promise<string | null> {

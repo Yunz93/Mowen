@@ -287,9 +287,11 @@ export const serverEventSchema = z.discriminatedUnion("type", [
     ...eventBase,
     type: z.literal("git.status"),
     payload: z.object({
+      isRepo: z.boolean().default(true),
       branch: z.string().nullable(),
       dirty: z.boolean(),
       entries: z.array(z.object({ path: z.string(), status: z.string() })),
+      remoteUrl: z.string().nullable().optional(),
     }),
   }),
   z.object({

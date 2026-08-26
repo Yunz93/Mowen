@@ -21,9 +21,11 @@ import { emptyRuntime } from "@mowen/protocol";
 
 export type AgentCommand = { name: string; description?: string; source?: string };
 export type GitSnapshot = {
+  isRepo?: boolean;
   branch: string | null;
   dirty: boolean;
   entries: Array<{ path: string; status: string }>;
+  remoteUrl?: string | null;
 };
 export type CheckpointRecord = {
   id: string;

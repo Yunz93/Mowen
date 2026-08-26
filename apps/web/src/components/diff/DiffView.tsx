@@ -4,17 +4,19 @@ type Props = {
   oldText?: string;
   newText?: string;
   content?: string;
+  lines?: DiffLine[] | null;
   fallback?: string;
 };
 
-function lineClass(type: DiffLine["type"]): string {
-  if (type === "add") return "bg-success/15 text-ink";
-  if (type === "remove") return "bg-danger/15 text-ink";
+function lineClass(line: DiffLine): string {
+  if (line.type === "add") return "bg-success/15 text-ink";
+  if (line.type === "remove") return "bg-danger/15 text-ink";
+  if (line.text.startsWith("@@")) return "bg-accent-soft text-accent";
   return "text-mute";
 }
 
-export function DiffView({ oldText, newText, content, fallback }: Props) {
-  const lines = diffFromApproval({ oldText, newText, content });
+export function DiffView({ oldText, newText, content, lines: provided, fallback }: Props) {
+  const lines = provided ?? diffFromApproval({ oldText, newText, content });
   if (!lines || lines.length === 0) {
     return <p className="text-sm text-mute">{fallback ?? "还没有差异。"}</p>;
   }
@@ -22,7 +24,7 @@ export function DiffView({ oldText, newText, content, fallback }: Props) {
   return (
     <pre className="overflow-auto rounded-md bg-canvas p-2 font-mono text-[11px] leading-5">
       {visible.map((line, index) => (
-        <div key={`${line.type}-${index}`} className={lineClass(line.type)}>
+        <div key={`${line.type}-${index}`} className={lineClass(line)}>
           {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "} {line.text}
         </div>
       ))}
