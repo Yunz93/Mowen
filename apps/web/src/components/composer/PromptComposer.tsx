@@ -153,16 +153,47 @@ export function PromptComposer({
     submit();
   };
 
-  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const images = filesFromClipboard(event.clipboardData);
-    if (images.length === 0) return;
+  const onPaste = (event: ClipboardEvent<HTMLElement>) => {
+    const pasted = filesFromClipboard(event.clipboardData);
+    if (pasted.length === 0) return;
     event.preventDefault();
-    onImages(images);
+    event.stopPropagation();
+    onImages(pasted);
   };
 
   return (
     <div className="px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-1">
-      <div className="composer-well relative mx-auto max-w-[720px] px-3 py-2">
+      <div
+        className="composer-well relative mx-auto max-w-[720px] px-3 py-2"
+        onPaste={onPaste}
+        onMouseDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (disabled) return;
+          event.preventDefault();
+          ref.current?.focus();
+        }}
+      >
+        {images.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5 pt-0.5 pb-1" aria-label={`已添加 ${images.length} 张图`}>
+            {images.map((image) => (
+              <li key={image.id} className="relative">
+                <img
+                  src={image.previewUrl}
+                  alt={image.name}
+                  className="h-14 w-14 rounded-md bg-fill object-cover"
+                />
+                <button
+                  type="button"
+                  className="pressable absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-elevated text-mute shadow-dialog"
+                  aria-label={`移除 ${image.name}`}
+                  onClick={() => onRemoveImage(image.id)}
+                >
+                  <X size={10} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <textarea
           ref={ref}
           value={value}
@@ -288,27 +319,6 @@ export function PromptComposer({
               ))}
             </select>
           </div>
-        ) : null}
-        {images.length > 0 ? (
-          <ul className="flex flex-wrap gap-1.5 pb-2 pt-1" aria-label={`已添加 ${images.length} 张图`}>
-            {images.map((image) => (
-              <li key={image.id} className="relative">
-                <img
-                  src={image.previewUrl}
-                  alt={image.name}
-                  className="h-14 w-14 rounded-md bg-fill object-cover"
-                />
-                <button
-                  type="button"
-                  className="pressable absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-elevated text-mute shadow-dialog"
-                  aria-label={`移除 ${image.name}`}
-                  onClick={() => onRemoveImage(image.id)}
-                >
-                  <X size={10} />
-                </button>
-              </li>
-            ))}
-          </ul>
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5 pt-0.5">
           <button
