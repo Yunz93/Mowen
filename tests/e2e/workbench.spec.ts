@@ -131,17 +131,17 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 
 test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) => {
   await page.goto("/settings");
-  await expect(page.getByText("本机 Pi 登录")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "认证" })).toBeVisible();
   await expect(page.getByText("GitHub Copilot")).toBeVisible();
   await expect(page.getByText("订阅 / 登录")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: /^OpenAI/ }).getByRole("button", { name: "登录" })).toBeVisible();
   await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
-  await expect(page.getByText("更新 API Key")).toBeVisible();
-  await page.getByLabel("服务商").selectOption("anthropic");
-  await page.getByLabel("API Key").fill("sk-ant-e2e-updated-key-123456");
-  await page.getByRole("button", { name: "保存密钥" }).click();
+  const anthropic = page.locator("li").filter({ hasText: "Anthropic (Claude)" });
+  await anthropic.getByLabel("Anthropic (Claude) API Key").fill("sk-ant-e2e-updated-key-123456");
+  await anthropic.getByRole("button", { name: "保存密钥" }).click();
   await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
-  await expect(page.locator("li").filter({ hasText: "Anthropic (Claude)" })).toBeVisible();
+  await expect(anthropic.getByText("API Key · 已保存")).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();
@@ -399,7 +399,7 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
     const githubRow = page.locator("li").filter({ hasText: "GitHub Copilot" });
     await expect(githubRow.getByRole("button", { name: "退出" })).toBeVisible();
     await githubRow.getByRole("button", { name: "退出" }).click();
-    await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
+    await expect(githubRow.getByRole("button", { name: "登录" })).toBeVisible();
     await expect(page.getByText("已退出登录。")).toBeVisible();
   } finally {
     writeFileSync(authPath, backup);

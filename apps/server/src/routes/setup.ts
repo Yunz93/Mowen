@@ -40,6 +40,7 @@ export type SetupStatus = {
   authConfigured: boolean;
   configuredProviders: string[];
   providers: Array<{ id: string; label: string; hint: string }>;
+  oauthProviders: Array<{ id: string; label: string }>;
   workspaceRoot: string | null;
   setupCompleted: boolean;
   allowedRoots: string[];
@@ -79,6 +80,7 @@ export async function buildSetupStatus(
     authConfigured: effectiveAuth,
     configuredProviders,
     providers: BEGINNER_PROVIDERS.map(({ id, label, hint }) => ({ id, label, hint })),
+    oauthProviders: OAUTH_PROVIDERS.map(({ id, label }) => ({ id, label })),
     workspaceRoot: userSettings.workspaceRoot,
     setupCompleted,
     allowedRoots: config.allowedRoots,

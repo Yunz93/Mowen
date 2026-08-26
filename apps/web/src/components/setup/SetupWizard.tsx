@@ -11,6 +11,7 @@ export type SetupStatus = {
   authConfigured: boolean;
   configuredProviders: string[];
   providers: Array<{ id: string; label: string; hint: string }>;
+  oauthProviders?: Array<{ id: string; label: string }>;
   workspaceRoot: string | null;
   setupCompleted: boolean;
   allowedRoots: string[];
@@ -267,10 +268,46 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
           {step === "auth" ? (
             <>
               <p className="text-sm leading-6 text-mute">
-                墨问直接读取本机的 Pi 登录（~/.pi/agent/auth.json），不会再存一份密钥。订阅登录请在终端运行
+                可以用 GitHub Copilot 或 OpenAI 订阅登录，也可以粘贴 API Key。订阅登录请在终端运行
                 <code className="mx-1 font-mono text-ink">pi</code>
                 然后输入 <code className="font-mono text-ink">/login</code>，完成后点刷新。
               </p>
+              {(status?.oauthProviders ?? [
+                { id: "github", label: "GitHub Copilot" },
+                { id: "openai", label: "OpenAI" },
+              ]).map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-ink">{item.label}</p>
+                  <button
+                    type="button"
+                    className="pressable btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => {
+                      setBusy(true);
+                      setError("");
+                      void fetch("/api/setup/login", {
+                        method: "POST",
+                        credentials: "same-origin",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ provider: item.id }),
+                      })
+                        .then(async (response) => {
+                          const json = (await response.json()) as SetupStatus & { error?: string; hint?: string };
+                          if (!response.ok) {
+                            setError(json.error ?? "无法打开登录。");
+                            return;
+                          }
+                          setStatus(json);
+                          if (json.hint) setError("");
+                        })
+                        .catch(() => setError("无法打开登录。"))
+                        .finally(() => setBusy(false));
+                    }}
+                  >
+                    登录
+                  </button>
+                </div>
+              ))}
               {existingLogins.length ? (
                 <ul className="space-y-1 text-sm text-ink">
                   {existingLogins.map((entry) => (
