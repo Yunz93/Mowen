@@ -86,5 +86,19 @@ describe("InspectorPanel tabs", () => {
     expect(src).toMatch(/aria-label=\{treeOpen \? "隐藏文件树" : "显示文件树"\}/);
     expect(src).toMatch(/aria-label="文件树"/);
     expect(src).not.toMatch(/刷新技能/);
+    const header = src.slice(src.indexOf("tab === \"files\""), src.indexOf("tab === \"git\""));
+    expect(header.indexOf("preview?.path")).toBeGreaterThan(-1);
+    expect(header.indexOf("隐藏文件树")).toBeGreaterThan(header.indexOf("preview?.path"));
+  });
+});
+
+describe("FileTree expand control", () => {
+  it("places the directory chevron after the name, not before the folder icon", () => {
+    const src = readFileSync(path.resolve("apps/web/src/components/inspector/FileTree.tsx"), "utf8");
+    const name = src.indexOf("{node.name}");
+    const chevron = src.lastIndexOf("ChevronRight");
+    const folder = src.indexOf("<Folder");
+    expect(name).toBeGreaterThan(folder);
+    expect(chevron).toBeGreaterThan(name);
   });
 });
