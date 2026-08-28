@@ -37,17 +37,12 @@ export function FileTree({
           <li key={node.path} role="treeitem" aria-expanded={node.kind === "dir" ? open : undefined}>
             <button
               type="button"
-              className={`pressable flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left ${
+              className={`pressable flex h-7 w-full items-center gap-1.5 rounded-md pr-1.5 text-left ${
                 selected ? "bg-fill-strong text-ink" : "hover-fill text-ink"
               }`}
               style={{ paddingLeft: 8 + depth * 12 }}
               onClick={() => (node.kind === "dir" ? onToggleDir(node.path) : onOpenFile(node.path))}
             >
-              {node.kind === "dir" ? (
-                <ChevronRight size={12} className={`shrink-0 text-mute transition-transform ${open ? "rotate-90" : ""}`} />
-              ) : (
-                <span className="inline-block w-3 shrink-0" />
-              )}
               {node.kind === "dir" ? (
                 <Folder size={14} className="shrink-0 text-mute" />
               ) : (
@@ -62,6 +57,13 @@ export function FileTree({
                 <span className={`w-3 shrink-0 text-center font-mono text-[11px] ${toneClass[mark.tone]}`}>
                   {mark.letter}
                 </span>
+              ) : null}
+              {node.kind === "dir" ? (
+                <ChevronRight
+                  size={12}
+                  className={`shrink-0 text-mute transition-transform ${open ? "rotate-90" : ""}`}
+                  aria-hidden
+                />
               ) : null}
             </button>
             {node.kind === "dir" && open && node.children.length > 0 ? (

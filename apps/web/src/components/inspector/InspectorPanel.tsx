@@ -229,6 +229,10 @@ export function InspectorPanel({
             ) : (
               <>
                 <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line px-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink">
+                    {preview?.path.replaceAll("\\", "/").split("/").pop() || "文件"}
+                  </span>
+                  {preview?.truncated ? <span className="shrink-0 pr-1.5 text-[11px] text-mute">已截断</span> : null}
                   {fileTree.length > 0 ? (
                     <button
                       type="button"
@@ -241,10 +245,6 @@ export function InspectorPanel({
                       {treeOpen ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
                     </button>
                   ) : null}
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink">
-                    {preview?.path.replaceAll("\\", "/").split("/").pop() || "文件"}
-                  </span>
-                  {preview?.truncated ? <span className="shrink-0 pr-1.5 text-[11px] text-mute">已截断</span> : null}
                 </div>
                 <div className="relative min-h-0 flex-1 overflow-hidden">
                   {preview ? (
