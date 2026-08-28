@@ -132,7 +132,7 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "认证" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "订阅登录", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "订阅登录", pressed: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("服务商")).toHaveValue("github");
   await expect(page.getByText("已登录").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
@@ -413,17 +413,18 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   await expect.poll(() => readFileSync(path.join(project, "README.md"), "utf8")).toBe("e2e");
 
   const authPath = path.join(home, ".pi", "agent", "auth.json");
-  const backup = readFileSync(authPath, "utf8");
+  const oauthAuth = JSON.stringify({ github: { type: "oauth" } });
+  writeFileSync(authPath, oauthAuth);
   try {
     await page.goto("/settings");
-    await page.getByRole("button", { name: "订阅登录", exact: true }).click();
+    await page.getByRole("button", { name: "订阅登录", pressed: true }).click();
     await page.getByLabel("服务商").selectOption("github");
     await expect(page.getByRole("button", { name: "退出" }).first()).toBeVisible();
     await page.getByRole("button", { name: "退出" }).first().click();
     await expect(page.getByText("已退出登录。")).toBeVisible();
     await expect(page.getByText("未登录").first()).toBeVisible();
   } finally {
-    writeFileSync(authPath, backup);
+    writeFileSync(authPath, oauthAuth);
   }
   await page.getByRole("button", { name: "刷新状态" }).click();
   await expect(page.getByText("已刷新登录状态。")).toBeVisible();
