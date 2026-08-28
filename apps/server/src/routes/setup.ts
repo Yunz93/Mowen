@@ -21,6 +21,7 @@ import {
   InstallPiError,
   isPiUpdateAvailable,
 } from "../setup/install-pi.js";
+import { isDevSelfWorkspace } from "../setup/dev-self-workspace.js";
 import type { SettingsStore } from "../setup/settings-store.js";
 
 const apiKeyBodySchema = z.object({
@@ -53,6 +54,8 @@ export type SetupStatus = {
   modelCount: number;
   trustProject: boolean;
   canInstallPi: boolean;
+  /** True when workspace is this repo under `pnpm dev` watch — edits restart the server. */
+  devSelfWorkspace: boolean;
 };
 
 export async function buildSetupStatus(
@@ -93,6 +96,7 @@ export async function buildSetupStatus(
     modelCount: models.count,
     trustProject: userSettings.trustProject,
     canInstallPi: !config.piBundled,
+    devSelfWorkspace: isDevSelfWorkspace(userSettings.workspaceRoot),
   };
 }
 
@@ -169,10 +173,17 @@ export function registerSetupRoutes(
       extraEnv: config.piExtraEnv,
       provider: parsed.data.provider,
       homeDir: config.homeDir,
+      agentDir: config.piAgentDir,
     });
     await options.onSetupChanged?.();
     const setup = await buildSetupStatus(config, options.settings, options.getPi());
-    return { ...setup, loginStarted: result.started, hint: result.hint };
+    return {
+      ...setup,
+      loginStarted: result.started,
+      loginCompleted: result.completed,
+      openedUrl: result.openedUrl,
+      hint: result.hint,
+    };
   });
 
   app.post("/api/setup/workspace", async (request, reply) => {

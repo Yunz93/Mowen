@@ -146,7 +146,10 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     ...commandBase,
     type: z.literal("git.commit"),
     taskId: z.string().min(1),
-    payload: z.object({ message: z.string().min(1).max(400) }),
+    payload: z.object({
+      message: z.string().min(1).max(400),
+      push: z.boolean().optional(),
+    }),
   }),
   z.object({
     ...commandBase,
@@ -165,6 +168,30 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     type: z.literal("resources.createAgents"),
     taskId: z.string().min(1),
     payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.read"),
+    taskId: z.string().min(1),
+    payload: z.object({ path: z.string().min(1) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.write"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      path: z.string().min(1),
+      content: z.string().max(200_000),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.skill.set"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      path: z.string().min(1),
+      enabled: z.boolean(),
+    }),
   }),
   z.object({
     ...commandBase,
@@ -268,6 +295,18 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
       autoCompaction: z.boolean().optional(),
       autoRetry: z.boolean().optional(),
     }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.run"),
+    taskId: z.string().min(1),
+    payload: z.object({ command: z.string().min(1).max(8000) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.interrupt"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
   }),
 ]);
 

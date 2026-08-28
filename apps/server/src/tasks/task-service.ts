@@ -20,14 +20,15 @@ import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd, resolveAllowedPath } from "../security/path-policy.js";
+import { assertAllowedCwd, isInsideRoot, isProtectedWriteTarget, resolveAllowedPath } from "../security/path-policy.js";
 import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-agent-dir.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
-import { commitGit, initGit, readGitDiff, readGitStatus } from "./git-status.js";
+import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
-import { scanPiResources, createProjectAgentsFile } from "./pi-resources.js";
+import { TaskShells } from "./task-shell.js";
+import { scanPiResources, createProjectAgentsFile, setSkillEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -62,6 +63,7 @@ export class TaskService {
   };
   private readonly resources = new Map<string, PiResources>();
   private readonly gitDiffs = new Map<string, string>();
+  private readonly shells = new TaskShells();
 
   constructor(
     private config: AppConfig,
@@ -153,6 +155,10 @@ export class TaskService {
         return this.emitResources(command.taskId);
       case "runtime.set":
         return this.setRuntime(command.taskId, command.payload);
+      case "term.run":
+        return this.runTerm(command.taskId, command.payload.command);
+      case "term.interrupt":
+        return this.interruptTerm(command.taskId);
       case "task.activate":
         await this.activate(command.taskId);
         return { task: this.store.get(command.taskId) };
@@ -205,13 +211,19 @@ export class TaskService {
       case "git.diff":
         return this.emitGitDiff(command.taskId);
       case "git.commit":
-        return this.commitTaskGit(command.taskId, command.payload.message);
+        return this.commitTaskGit(command.taskId, command.payload.message, command.payload.push);
       case "git.init":
         return this.initTaskGit(command.taskId);
       case "resources.reload":
         return this.reloadResources(command.taskId);
       case "resources.createAgents":
         return this.createAgentsFile(command.taskId);
+      case "resources.read":
+        return this.readResourceFile(command.taskId, command.payload.path);
+      case "resources.write":
+        return this.writeResourceFile(command.taskId, command.payload.path, command.payload.content);
+      case "resources.skill.set":
+        return this.setResourceSkill(command.taskId, command.payload.path, command.payload.enabled);
       case "files.open":
         return this.openFile(command.taskId, command.payload.path);
       case "interaction.respond":
@@ -233,8 +245,13 @@ export class TaskService {
       case "session.stats":
         await this.refreshStats(command.taskId);
         return { ok: true };
-      case "snapshot.request":
-        return this.buildSnapshot(command.payload?.taskId ?? this.activeTaskId);
+      case "snapshot.request": {
+        const snapshotTaskId = command.payload?.taskId ?? this.activeTaskId;
+        if (snapshotTaskId && this.supervisor.has(snapshotTaskId)) {
+          await this.refreshAvailableModels(snapshotTaskId);
+        }
+        return this.buildSnapshot(snapshotTaskId);
+      }
       case "files.tree":
         return this.fileTree(command.taskId);
       case "files.read":
@@ -341,6 +358,7 @@ export class TaskService {
       await this.supervisor.stop(taskId);
     }
     this.removeQueued(taskId);
+    this.shells.dispose(taskId);
     const next = await this.store.upsert({
       ...task,
       status: "stopped",
@@ -364,6 +382,7 @@ export class TaskService {
       unreadCount: 0,
     });
     if (this.supervisor.has(taskId)) {
+      await this.refreshAvailableModels(taskId);
       void this.refreshStats(taskId);
       return;
     }
@@ -544,14 +563,13 @@ export class TaskService {
       updatedAt: new Date().toISOString(),
     });
     this.emit(taskId, "task.updated", { task: next });
-    const levels = (await this.supervisor.rpcData(taskId, { type: "get_available_thinking_levels" })) as {
-      levels?: TaskRecord["thinkingLevel"][];
-    };
-    const runtime = this.supervisor.snapshot(taskId);
-    this.emit(taskId, "models.updated", {
-      models: runtime?.models ?? [],
-      thinkingLevels: levels.levels ?? runtime?.thinkingLevels ?? ["off"],
-    });
+    await this.refreshAvailableModels(taskId);
+  }
+
+  private async refreshAvailableModels(taskId: string): Promise<void> {
+    if (!this.supervisor.has(taskId)) return;
+    const { models, thinkingLevels } = await this.supervisor.refreshAvailableModels(taskId);
+    this.emit(taskId, "models.updated", { models, thinkingLevels });
   }
 
   private async refreshStats(taskId: string): Promise<void> {
@@ -668,6 +686,23 @@ export class TaskService {
     return { git };
   }
 
+  private runTerm(taskId: string, command: string): { ok: true } {
+    const task = this.requireTask(taskId);
+    this.shells.run(taskId, {
+      cwd: task.cwd,
+      command,
+      onChunk: (text) => this.emit(taskId, "term.chunk", { text }),
+      onExit: (code, signal) => this.emit(taskId, "term.exit", { code, signal }),
+    });
+    return { ok: true };
+  }
+
+  private interruptTerm(taskId: string): { ok: true } {
+    this.requireTask(taskId);
+    this.shells.interrupt(taskId);
+    return { ok: true };
+  }
+
   private async emitGitDiff(taskId: string): Promise<{ diff: string }> {
     const task = this.requireTask(taskId);
     const diff = (await readGitDiff(task.cwd)) ?? "";
@@ -676,9 +711,10 @@ export class TaskService {
     return { diff };
   }
 
-  private async commitTaskGit(taskId: string, message: string): Promise<{ ok: true }> {
+  private async commitTaskGit(taskId: string, message: string, push?: boolean): Promise<{ ok: true }> {
     const task = this.requireTask(taskId);
     await commitGit(task.cwd, message);
+    if (push) await pushGit(task.cwd);
     await this.emitGitStatus(taskId);
     await this.emitGitDiff(taskId);
     return { ok: true };
@@ -712,6 +748,63 @@ export class TaskService {
     const resources = await this.reloadResources(taskId);
     await this.filePreview(taskId, relative);
     return { path: relative, resources };
+  }
+
+  private async resolveKnownContextFile(taskId: string, inputPath: string): Promise<string> {
+    const task = this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    const resolved = path.resolve(inputPath);
+    const known = resources.agentsFiles.some((item) => path.resolve(item.path) === resolved);
+    if (!known) throw new Error("只能打开已加载的约定文件");
+    if (isProtectedWriteTarget(resolved)) throw new Error("这个文件不能改");
+    const roots = [task.cwd, this.config.homeDir, this.config.piAgentDir, ...this.config.allowedRoots];
+    if (!roots.some((root) => isInsideRoot(resolved, path.resolve(root)))) {
+      throw new Error("约定文件超出允许范围");
+    }
+    return resolved;
+  }
+
+  private async readResourceFile(
+    taskId: string,
+    inputPath: string,
+  ): Promise<{ path: string; content: string; truncated: boolean }> {
+    this.requireTask(taskId);
+    const resolved = await this.resolveKnownContextFile(taskId, inputPath);
+    const preview = await readContextFile(resolved);
+    return { path: resolved, ...preview };
+  }
+
+  private async writeResourceFile(
+    taskId: string,
+    inputPath: string,
+    content: string,
+  ): Promise<{ ok: true }> {
+    this.requireTask(taskId);
+    const resolved = await this.resolveKnownContextFile(taskId, inputPath);
+    await writeContextFile(resolved, content);
+    await this.reloadResources(taskId);
+    return { ok: true };
+  }
+
+  private async setResourceSkill(
+    taskId: string,
+    skillMdPath: string,
+    enabled: boolean,
+  ): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    const skill = resources.skills.find((item) => path.resolve(item.path) === path.resolve(skillMdPath));
+    if (!skill) throw new Error("找不到这个技能");
+    await setSkillEnabled({
+      skillMdPath: skill.path,
+      enabled,
+      cwd: task.cwd,
+      homeDir: this.config.homeDir,
+      agentDir: this.config.piAgentDir,
+      scope: skill.scope,
+    });
+    await this.reloadResources(taskId);
+    return { ok: true };
   }
 
   private async openFile(taskId: string, relativePath: string): Promise<{ path: string }> {
@@ -1007,6 +1100,8 @@ export class TaskService {
       }
     }
     if (next.status === "error" && next.errorMessage) {
+      // Banner + toast: server.error sticks in the workbench; notification is OS/toast.
+      this.emit(taskId, "server.error", { code: "task.error", message: next.errorMessage });
       this.emit(taskId, "notification.shown", { message: next.errorMessage, notifyType: "error" });
     }
     return next;

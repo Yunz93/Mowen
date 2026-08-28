@@ -962,4 +962,5 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .hljs-comment {
   color: var(--color-mute);
+  font-style: italic;
 }

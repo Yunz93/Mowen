@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { ToolExecution } from "@mowen/protocol";
+import { sanitizeToolResultText, type ToolExecution } from "@mowen/protocol";
 import { Ban, Check, CircleAlert, LoaderCircle, Shield } from "lucide-react";
 import { toolNameLabel, toolStatusLabel } from "../../copy";
 
@@ -32,6 +32,7 @@ export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
   const target = tool.target?.trim() ?? "";
   const canOpen = Boolean(onOpen && target && FILE_TOOLS.has(tool.toolName));
   const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");
+  const displayResult = tool.resultText ? sanitizeToolResultText(tool.resultText) : "";
 
   return (
     <div className="overflow-hidden rounded-[10px] bg-fill">
@@ -81,9 +82,9 @@ export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
           ) : null}
         </div>
       ) : null}
-      {open && tool.resultText ? (
+      {open && displayResult ? (
         <pre className="max-h-64 overflow-auto border-t border-line bg-canvas px-3 py-2 font-mono text-xs leading-5 text-mute fade-in">
-          {tool.resultText}
+          {displayResult}
         </pre>
       ) : null}
     </div>

@@ -73,8 +73,11 @@ pnpm desktop:pack:win   # → apps/desktop/release/Mowen-win-*-setup.exe
 pnpm install
 cp .env.example .env
 pnpm dev                 # http://127.0.0.1:5173
+pnpm dev:stable          # 关闭热重载；用本仓库当工作区跑任务时用这个
 pnpm desktop:dev         # Electron + web
 ```
+
+不要把「正在 `pnpm dev` 的墨问源码目录」同时设成任务工作区：改文件会触发 Vite / `tsx watch` 重启，正在跑的会话会被打断。要么换一个工作文件夹，要么用 `pnpm dev:stable`。
 
 可选：不走桌面包时，把 Pi 装到 PATH。浏览器开发模式的设置向导也可以点「安装 Pi」，直接运行官方脚本：
 

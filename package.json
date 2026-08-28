@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @mowen/protocol build && pnpm --parallel --filter @mowen/server --filter @mowen/web dev",
+    "dev:stable": "pnpm --filter @mowen/protocol build && pnpm --parallel --filter @mowen/server --filter @mowen/web dev:stable",
     "typecheck": "pnpm --filter @mowen/protocol build && pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "vitest run --config vitest.unit.config.ts",

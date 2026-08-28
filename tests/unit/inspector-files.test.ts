@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   ancestorDirs,
   buildFileTree,
+  fileKindBadge,
+  gitMarksByPath,
   parentDir,
   previewableFileEntries,
 } from "../../apps/web/src/lib/inspector-files";
@@ -49,12 +51,40 @@ describe("buildFileTree", () => {
   });
 });
 
+describe("gitMarksByPath", () => {
+  it("maps porcelain status to explorer letters", () => {
+    const marks = gitMarksByPath([
+      { path: "README.md", status: " M" },
+      { path: "AGENTS.md", status: "??" },
+      { path: '"apps/web/package.json"', status: "M " },
+    ]);
+    expect(marks.get("README.md")).toEqual({ letter: "M", tone: "warn" });
+    expect(marks.get("AGENTS.md")).toEqual({ letter: "U", tone: "accent" });
+    expect(marks.get("apps/web/package.json")).toEqual({ letter: "M", tone: "warn" });
+  });
+});
+
+describe("fileKindBadge", () => {
+  it("labels common extensions for the explorer row", () => {
+    expect(fileKindBadge("note.ts").label).toBe("TS");
+    expect(fileKindBadge(".env.example").label).toBe("ENV");
+    expect(fileKindBadge("package.json").label).toBe("{}");
+  });
+});
+
 describe("InspectorPanel tabs", () => {
-  it("keeps 文件 Git 动态 分支 技能 and does not offer 改动", () => {
+  it("keeps 文件 Git 终端 浏览器 约定 技能 and does not offer 动态 or 分支", () => {
     const src = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorPanel.tsx"), "utf8");
-    expect(src).toMatch(/\(\["files", "git", "activity", "branch", "skills"\] as const\)/);
+    expect(src).toMatch(/\(\["files", "git", "term", "browser", "rules", "skills"\] as const\)/);
+    expect(src).not.toMatch(/"activity"/);
     expect(src).not.toMatch(/"changes"/);
     expect(src).not.toMatch(/\? "改动"/);
     expect(src).not.toMatch(/tab === "changes"/);
+    expect(src).not.toMatch(/\? "动态"/);
+    expect(src).not.toMatch(/\? "分支"/);
+    expect(src).not.toMatch(/flex-\[2\]/);
+    expect(src).toMatch(/aria-label=\{treeOpen \? "隐藏文件树" : "显示文件树"\}/);
+    expect(src).toMatch(/aria-label="文件树"/);
+    expect(src).not.toMatch(/刷新技能/);
   });
 });
