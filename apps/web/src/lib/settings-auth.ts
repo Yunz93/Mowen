@@ -6,7 +6,32 @@ export type AuthCatalogItem = {
   apiKey: boolean;
 };
 
+export type AuthMode = "oauth" | "api_key";
+
 const PREFERRED_ORDER = ["github", "openai"];
+
+/** auth.json keys that count as logged-in for a UI oauth provider. */
+export function oauthAuthIds(providerId: string): string[] {
+  if (providerId === "github" || providerId === "github-copilot") {
+    return ["github-copilot", "github"];
+  }
+  if (providerId === "openai" || providerId === "openai-codex") {
+    return ["openai-codex"];
+  }
+  return [providerId];
+}
+
+export function findAuthEntry(
+  entries: Array<{ id: string; label: string; kind: "api_key" | "oauth" | "other" }>,
+  providerId: string,
+  mode: AuthMode,
+): { id: string; label: string; kind: "api_key" | "oauth" | "other" } | undefined {
+  if (mode === "oauth") {
+    const ids = new Set(oauthAuthIds(providerId));
+    return entries.find((entry) => ids.has(entry.id) && entry.kind === "oauth");
+  }
+  return entries.find((entry) => entry.id === providerId && entry.kind === "api_key");
+}
 
 export function mergeAuthCatalog(
   oauthProviders: Array<{ id: string; label: string }>,
@@ -61,6 +86,21 @@ export function mergeAuthCatalog(
   return [...preferred, ...rest].map((id) => items.get(id)!);
 }
 
+/** Providers available in the current auth mode (login vs API key). */
+export function providersForMode(catalog: AuthCatalogItem[], mode: AuthMode): AuthCatalogItem[] {
+  return catalog.filter((item) => (mode === "oauth" ? item.oauth : item.apiKey));
+}
+
+export function pickDefaultProvider(
+  catalog: AuthCatalogItem[],
+  mode: AuthMode,
+  preferredId?: string | null,
+): string {
+  const list = providersForMode(catalog, mode);
+  if (preferredId && list.some((item) => item.id === preferredId)) return preferredId;
+  return list[0]?.id ?? "";
+}
+
 export function authStatusLabel(
   kind: "api_key" | "oauth" | "other" | undefined,
   capabilities: { oauth?: boolean; apiKey?: boolean } = {},
@@ -68,13 +108,12 @@ export function authStatusLabel(
   if (kind === "oauth") return "已登录";
   if (kind === "api_key") return "已保存密钥";
   if (kind === "other") return "已连接";
-  if (capabilities.oauth && capabilities.apiKey) return "订阅登录或粘贴密钥";
   if (capabilities.oauth) return "未登录";
   return "未配置密钥";
 }
 
 export function oauthButtonLabel(kind: "api_key" | "oauth" | "other" | undefined): string {
-  return kind === "api_key" ? "改用订阅登录" : "订阅登录";
+  return kind === "oauth" ? "重新登录" : "订阅登录";
 }
 
 export function logoutNotice(kind: "api_key" | "oauth" | "other" | undefined): string {

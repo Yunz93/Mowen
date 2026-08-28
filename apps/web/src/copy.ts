@@ -90,3 +90,9 @@ export function headerSubtitle(cwd: string | undefined, hasTask: boolean, status
   if (!hasTask || !cwd) return nextHint(status, false);
   return folderName(cwd);
 }
+
+/** Composer placeholder: steer/queue hints only while busy — do not repeat RunStatusBar progress copy. */
+export function composerPlaceholder(busy: boolean): string {
+  if (busy) return "回车补充，Shift+Enter 排队下一条。";
+  return "有什么想做的，直接说。用 @ 点文件，用 / 找技能";
+}

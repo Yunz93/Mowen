@@ -1,8 +1,6 @@
-import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import type { AuthEntry } from "@mowen/protocol";
 import {
   defaultPiAgentDir,
@@ -11,12 +9,11 @@ import {
   piAuthFile,
   tryRepairAgentDir,
 } from "./pi-agent-dir.js";
-
-const execFileAsync = promisify(execFile);
+import { oauthAuthIds, runPiOAuthLogin, type PiOAuthLoginResult } from "./pi-oauth-login.js";
 
 export const OAUTH_PROVIDERS = [
   { id: "github", label: "GitHub Copilot" },
-  { id: "openai", label: "OpenAI" },
+  { id: "openai", label: "OpenAI (ChatGPT)" },
 ] as const;
 
 /** Providers we expose in the beginner setup wizard. */
@@ -56,6 +53,7 @@ export const BEGINNER_PROVIDERS = [
 const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI",
+  "openai-codex": "OpenAI (ChatGPT)",
   google: "Google Gemini",
   openrouter: "OpenRouter",
   deepseek: "DeepSeek",
@@ -216,12 +214,14 @@ export async function removeAuth(
   const id = providerId.trim();
   if (!id) throw new Error("请选择要退出的登录");
   const authPath = piAuthPath(homeDir, agentDir);
+  const candidates = [...new Set([id, ...oauthAuthIds(id)])];
   const persist = async () => {
     const auth = await readAuthFile(homeDir, agentDir);
-    if (!(id in auth)) {
+    const key = candidates.find((candidate) => candidate in auth);
+    if (!key) {
       throw new Error("没有这条登录");
     }
-    delete auth[id];
+    delete auth[key];
     await mkdir(agentDir, { recursive: true, mode: 0o700 });
     await writeFile(authPath, `${JSON.stringify(auth, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   };
@@ -255,19 +255,31 @@ export async function tryPiLogin(options: {
   extraEnv?: NodeJS.ProcessEnv;
   provider: string;
   homeDir: string;
-}): Promise<{ started: boolean; hint: string }> {
-  const label = PROVIDER_LABELS[options.provider] ?? options.provider;
-  const hint = `在终端运行 pi，然后输入 /login 登录 ${label}。完成后点「刷新登录状态」。墨问不会代填登录令牌。`;
-  if (!options.piCommand.trim()) {
-    return { started: false, hint };
+  agentDir?: string;
+}): Promise<PiOAuthLoginResult> {
+  return runPiOAuthLogin({
+    provider: options.provider,
+    piCommand: options.piCommand,
+    prefixArgs: options.prefixArgs,
+    homeDir: options.homeDir,
+    agentDir: options.agentDir,
+  });
+}
+
+/** Find a saved auth entry that matches a UI provider id (incl. oauth aliases). */
+export function matchAuthEntry(
+  entries: AuthEntry[],
+  providerId: string,
+  mode: "oauth" | "api_key" | "any" = "any",
+): AuthEntry | undefined {
+  if (mode === "oauth") {
+    const ids = new Set(oauthAuthIds(providerId));
+    return entries.find((entry) => ids.has(entry.id) && entry.kind === "oauth");
   }
-  try {
-    await execFileAsync(options.piCommand, [...options.prefixArgs, "login", options.provider], {
-      timeout: 1200,
-      env: { ...process.env, ...options.extraEnv, HOME: options.homeDir },
-    });
-    return { started: true, hint: `如果浏览器已打开，完成 ${label} 登录后点「刷新登录状态」。` };
-  } catch {
-    return { started: false, hint };
+  if (mode === "api_key") {
+    return entries.find((entry) => entry.id === providerId && entry.kind === "api_key");
   }
+  const oauth = matchAuthEntry(entries, providerId, "oauth");
+  if (oauth) return oauth;
+  return entries.find((entry) => entry.id === providerId);
 }

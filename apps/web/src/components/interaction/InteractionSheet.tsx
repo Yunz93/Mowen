@@ -39,7 +39,7 @@ export function InteractionSheet({ interaction, onRespond }: Props) {
       </div>
       <div className="dialog-body">
         {interaction.method === "select" ? (
-          <ul className="space-y-1">
+          <ul className="max-h-64 space-y-1 overflow-auto">
             {(interaction.options ?? []).map((option) => (
               <li key={option}>
                 <button

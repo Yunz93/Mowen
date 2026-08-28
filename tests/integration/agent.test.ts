@@ -212,6 +212,13 @@ describe("integration fake-pi", () => {
       tick();
     });
     expect(crashed.payload?.status).toBe("error");
+    expect(String(crashed.payload?.errorMessage ?? "")).toMatch(/进程退出|Pi/);
+    const crashErrors = sock2.events.filter(
+      (event) => event.type === "server.error" && event.taskId === crashId,
+    );
+    expect(crashErrors.some((event) => String(event.payload?.message ?? "").match(/进程退出|Pi/))).toBe(
+      true,
+    );
     sock2.ws.close();
   }, 20_000);
 
@@ -552,6 +559,56 @@ describe("integration fake-pi", () => {
       await timed.app.close();
     }
   }, 15_000);
+
+  it("refreshes model list on warm activate without requiring a prompt", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-models-refresh"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "3",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
+    const project = path.join(root.current, "project");
+    try {
+      const sock = await openSocket(isolated.base);
+      await sock.waitFor("snapshot");
+      sock.send({
+        id: "c-models",
+        type: "task.create",
+        payload: { cwd: project, title: "Models" },
+      });
+      const created = await sock.waitForRequest("c-models");
+      const taskId = (created.payload?.data as { task?: { id: string } } | undefined)?.task?.id as string;
+      expect(taskId).toBeTruthy();
+
+      const firstModels = await sock.waitFor("models.updated");
+      expect(
+        ((firstModels.payload as { models?: unknown[] } | undefined)?.models ?? []).length,
+      ).toBeGreaterThan(0);
+
+      const beforeWarm = sock.events.length;
+      sock.send({ id: "act-warm", type: "task.activate", taskId, payload: {} });
+      await sock.waitForRequest("act-warm");
+      const warmModels = await new Promise<EventMsg>((resolve, reject) => {
+        const start = Date.now();
+        const tick = () => {
+          const match = sock.events.slice(beforeWarm).find((event) => event.type === "models.updated");
+          if (match) return resolve(match);
+          if (Date.now() - start > 8000) return reject(new Error("warm activate did not refresh models"));
+          setTimeout(tick, 25);
+        };
+        tick();
+      });
+      expect(((warmModels.payload as { models?: unknown[] } | undefined)?.models ?? []).length).toBeGreaterThan(0);
+      sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
+  }, 20_000);
 
   it("attaches @file contents, queues follow_up, and round-trips select/input/notify", async () => {
     const isolated = await listen({

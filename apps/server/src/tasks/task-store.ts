@@ -1,17 +1,30 @@
 import { copyFile, mkdir, open, readFile, rename } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord } from "@mowen/protocol";
+import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord, type TaskStatus } from "@mowen/protocol";
 
 export type PersistedState = {
   schemaVersion: number;
   tasks: TaskRecord[];
 };
 
+/** Shown when a busy run is demoted after the server process restarts. */
+export const SERVER_RESTART_INTERRUPT_MESSAGE = "服务已重启，上次运行被中断。请重新发送。";
+
 const emptyState = (): PersistedState => ({
   schemaVersion: TASK_SCHEMA_VERSION,
   tasks: [],
 });
+
+function wasInterruptedByRestart(status: TaskStatus): boolean {
+  return (
+    status === "booting" ||
+    status === "queued" ||
+    status === "running" ||
+    status === "waiting_approval" ||
+    status === "aborting"
+  );
+}
 
 export class TaskStore {
   private state: PersistedState = emptyState();
@@ -46,8 +59,17 @@ export class TaskStore {
         ? parsed.tasks.map((task) => {
             const restored = taskRecordSchema.parse({ ...task, schemaVersion: TASK_SCHEMA_VERSION });
             // Pi processes do not survive a server restart. Persisted runtime
-            // states must therefore return to a startable state.
-            return restored.status === "error" ? restored : { ...restored, status: "stopped" as const };
+            // states must therefore return to a startable state — but busy runs
+            // must keep a visible error so the UI is not silently "stopped".
+            if (restored.status === "error") return restored;
+            if (wasInterruptedByRestart(restored.status)) {
+              return {
+                ...restored,
+                status: "stopped" as const,
+                errorMessage: restored.errorMessage?.trim() || SERVER_RESTART_INTERRUPT_MESSAGE,
+              };
+            }
+            return { ...restored, status: "stopped" as const };
           })
         : [];
       this.state = { schemaVersion: TASK_SCHEMA_VERSION, tasks };

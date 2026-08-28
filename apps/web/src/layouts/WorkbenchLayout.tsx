@@ -40,8 +40,6 @@ export function WorkbenchLayout() {
   const gitDiff = useAgentStore((state) => state.gitDiff);
   const runtime = useAgentStore((state) => state.runtime);
   const resources = useAgentStore((state) => state.resources);
-  const sessionTree = useAgentStore((state) => state.sessionTree);
-  const sessionLeafId = useAgentStore((state) => state.sessionLeafId);
   const piSessions = useAgentStore((state) => state.piSessions);
   const piError = useAgentStore((state) => state.piError);
   const piAvailable = useAgentStore((state) => state.piAvailable);
@@ -53,6 +51,7 @@ export function WorkbenchLayout() {
   const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
   const pendingInteractions = useAgentStore((state) => state.pendingInteractions);
   const toast = useAgentStore((state) => state.toast);
+  const devSelfWorkspace = useAgentStore((state) => state.devSelfWorkspace);
 
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -81,6 +80,23 @@ export function WorkbenchLayout() {
     const preferred = workspaceRoot ?? allowedRoots[0];
     if (preferred && !cwd) setCwd(preferred);
   }, [allowedRoots, workspaceRoot, cwd]);
+
+  useEffect(() => {
+    if (connection !== "open" || !activeTaskId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await socketClient.send("task.activate", {}, activeTaskId);
+        if (cancelled) return;
+        await socketClient.send("snapshot.request", { taskId: activeTaskId }, activeTaskId);
+      } catch {
+        // Boot errors surface via task status / server.error.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, activeTaskId]);
 
   useEffect(() => {
     if (creating) void socketClient.send("sessions.list", {});
@@ -427,6 +443,12 @@ export function WorkbenchLayout() {
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
           </div>
         ) : null}
+        {devSelfWorkspace ? (
+          <div className="banner-note text-mute">
+            当前工作区是墨问源码目录，热重载会中断正在跑的任务。请换文件夹，或用{" "}
+            <code className="text-ink">pnpm dev:stable</code>。
+          </div>
+        ) : null}
         {connection !== "open" ? (
           <div className="banner-note text-mute">
             {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
@@ -475,7 +497,11 @@ export function WorkbenchLayout() {
           </div>
         ) : null}
         {toast?.message && toast.message !== "回复完成" ? (
-          <div className="banner-note text-mute">{toast.message}</div>
+          <div
+            className={`banner-note ${toast.notifyType === "error" ? "text-danger" : "text-mute"}`}
+          >
+            {toast.message}
+          </div>
         ) : null}
         <main id="main-content" data-conversation-scroll className="min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain">
           {task ? (
@@ -616,14 +642,12 @@ export function WorkbenchLayout() {
           <div className="slide-in-right absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">
             <InspectorPanel
               drawer
-              tools={tools}
-              stats={stats}
+              taskId={task?.id ?? null}
+              cwd={task?.cwd ?? null}
               files={files}
               preview={preview}
               git={git}
               gitDiff={gitDiff}
-              sessionTree={sessionTree}
-              sessionLeafId={sessionLeafId}
               resources={resources}
               onClose={() => setInspectorOpen(false)}
               onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
@@ -633,11 +657,14 @@ export function WorkbenchLayout() {
                 void socketClient.send("git.status", {}, task.id);
               }}
               onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
-              onGitCommit={(message) =>
+              onGitCommit={(message, push) =>
                 task &&
-                void socketClient.send("git.commit", { message }, task.id).catch((error: unknown) => {
-                  setNotice(error instanceof Error ? error.message : "提交失败");
-                })
+                void socketClient
+                  .send("git.commit", { message, push }, task.id)
+                  .then(() => setNotice(push ? "已提交并推送" : "已提交"))
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "提交失败");
+                  })
               }
               onGitInit={() => {
                 if (!task) return;
@@ -648,8 +675,6 @@ export function WorkbenchLayout() {
                     setNotice(error instanceof Error ? error.message : "git init 失败");
                   });
               }}
-              onLoadBranch={() => task && void socketClient.send("session.tree", {}, task.id)}
-              onBranch={(entryId) => task && void socketClient.send("session.branch", { entryId }, task.id)}
               onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
               onReloadResources={() => task && void socketClient.send("resources.reload", {}, task.id)}
               onCreateAgents={() => {
@@ -664,8 +689,27 @@ export function WorkbenchLayout() {
                     setNotice(error instanceof Error ? error.message : "创建 AGENTS.md 失败");
                   });
               }}
-              onOpenFile={(filePath) => void openProjectFile(filePath)}
-              onUndoFile={(filePath) => void undoProjectFile(filePath)}
+              onReadResource={(filePath) => {
+                if (!task) return Promise.reject(new Error("没有对话"));
+                return socketClient.send<{ path: string; content: string; truncated: boolean }>(
+                  "resources.read",
+                  { path: filePath },
+                  task.id,
+                );
+              }}
+              onWriteResource={async (filePath, content) => {
+                if (!task) throw new Error("没有对话");
+                await socketClient.send("resources.write", { path: filePath, content }, task.id);
+                setNotice("已保存约定");
+              }}
+              onToggleSkill={(filePath, enabled) => {
+                if (!task) return;
+                void socketClient
+                  .send("resources.skill.set", { path: filePath, enabled }, task.id)
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "技能开关失败");
+                  });
+              }}
               lastExportPath={lastExportPath}
               onOpenExport={(filePath) => void openExport(filePath)}
               onExport={() => {
@@ -680,9 +724,6 @@ export function WorkbenchLayout() {
                     setNotice(error instanceof Error ? error.message : "导出失败"),
                   );
               }}
-              onCompact={(customInstructions) =>
-                task && void socketClient.send("session.compact", { customInstructions }, task.id)
-              }
             />
           </div>
         </div>

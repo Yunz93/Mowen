@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { FolderPicker } from "./FolderPicker";
 import { isDesktopApp } from "../../desktop-bridge";
-import { authStatusLabel, mergeAuthCatalog, oauthButtonLabel } from "../../lib/settings-auth";
+import { authStatusLabel, findAuthEntry, mergeAuthCatalog, oauthButtonLabel, pickDefaultProvider, providersForMode, type AuthMode } from "../../lib/settings-auth";
 
 export type SetupStatus = {
   ready: boolean;
@@ -25,6 +25,7 @@ export type SetupStatus = {
   hasModelsFile?: boolean;
   modelCount?: number;
   trustProject?: boolean;
+  devSelfWorkspace?: boolean;
 };
 
 type Props = {
@@ -53,6 +54,7 @@ export function setupStorePayload(status: SetupStatus) {
     piVersion: status.piVersion,
     piAvailable: status.piAvailable,
     piError: status.piError,
+    devSelfWorkspace: status.devSelfWorkspace,
   };
 }
 
@@ -66,15 +68,20 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installLog, setInstallLog] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("oauth");
   const existingLogins = status?.authEntries ?? [];
   const hasExistingLogin = existingLogins.length > 0 || Boolean(status?.authConfigured);
-  const oauthCatalog = mergeAuthCatalog(
+  const catalog = mergeAuthCatalog(
     status?.oauthProviders ?? [
       { id: "github", label: "GitHub Copilot" },
-      { id: "openai", label: "OpenAI" },
+      { id: "openai", label: "OpenAI (ChatGPT)" },
     ],
-    [],
+    status?.providers ?? [],
   );
+  const modeProviders = providersForMode(catalog, authMode);
+  const activeProviderId = pickDefaultProvider(catalog, authMode, provider);
+  const activeItem = modeProviders.find((item) => item.id === activeProviderId) ?? modeProviders[0] ?? null;
+  const activeEntry = activeItem ? findAuthEntry(existingLogins, activeItem.id, authMode) : undefined;
 
   useEffect(() => {
     void fetchSetup()
@@ -99,6 +106,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
   }, [onCancel]);
 
   async function saveApiKey() {
+    const providerId = activeProviderId || provider;
     setBusy(true);
     setError("");
     try {
@@ -106,7 +114,7 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, apiKey }),
+        body: JSON.stringify({ provider: providerId, apiKey }),
       });
       const json = (await response.json()) as SetupStatus & { error?: string };
       if (!response.ok) {
@@ -133,12 +141,17 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: providerId }),
       });
-      const json = (await response.json()) as SetupStatus & { error?: string; hint?: string };
+      const json = (await response.json()) as SetupStatus & {
+        error?: string;
+        hint?: string;
+        loginCompleted?: boolean;
+      };
       if (!response.ok) {
         setError(json.error ?? "无法打开登录。");
         return;
       }
       setStatus(json);
+      if (!json.loginCompleted && json.hint) setError(json.hint);
     } catch {
       setError("无法打开登录。");
     } finally {
@@ -299,67 +312,101 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
           {step === "auth" ? (
             <>
               <p className="text-sm leading-6 text-mute">
-                选一种方式即可。GitHub Copilot 和 OpenAI 可以订阅登录；也可以给下面的服务商粘贴 API Key。若浏览器没打开，在终端运行
-                <code className="mx-1 font-mono text-ink">pi</code>
-                后输入 <code className="font-mono text-ink">/login</code>，再点刷新。
+                先选方式，再选服务商。订阅登录适合 GitHub Copilot / OpenAI；也可以给支持的服务商粘贴 API Key。
               </p>
-              {oauthCatalog.map((item) => {
-                const entry = existingLogins.find((auth) => auth.id === item.id);
-                return (
-                  <div key={item.id} className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ink">{item.label}</p>
-                      <p className="text-[12px] text-mute">
-                        {authStatusLabel(entry?.kind, { oauth: item.oauth, apiKey: item.apiKey })}
-                      </p>
-                    </div>
-                    {entry?.kind === "oauth" ? null : (
-                      <button
-                        type="button"
-                        className="pressable btn btn-ghost"
-                        disabled={busy}
-                        onClick={() => void loginProvider(item.id)}
-                      >
-                        {oauthButtonLabel(entry?.kind)}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              {status?.hasModelsFile ? (
-                <p className="text-sm text-mute">已找到 models.json{status.modelCount ? ` · ${status.modelCount} 个模型` : ""}</p>
-              ) : null}
+              <div className="seg w-full max-w-[240px]">
+                {([
+                  { id: "oauth" as const, label: "订阅登录" },
+                  { id: "api_key" as const, label: "API Key" },
+                ]).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`pressable btn ${authMode === item.id ? "seg-active" : "text-mute"}`}
+                    aria-pressed={authMode === item.id}
+                    onClick={() => {
+                      setAuthMode(item.id);
+                      const id = pickDefaultProvider(catalog, item.id);
+                      setProvider(id);
+                      setError("");
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <div>
                 <label className="block text-sm text-mute" htmlFor="provider">
-                  或其他服务商的 API Key
+                  服务商
                 </label>
                 <select
                   id="provider"
                   className="field mt-1 w-full text-sm text-ink"
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
+                  value={activeProviderId}
+                  disabled={modeProviders.length === 0}
+                  onChange={(event) => {
+                    setProvider(event.target.value);
+                    setError("");
+                  }}
                 >
-                  {(status?.providers ?? []).map((item) => (
+                  {modeProviders.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.label}
                     </option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm text-mute" htmlFor="api-key">
-                  API Key
-                </label>
-                <input
-                  id="api-key"
-                  type="password"
-                  autoComplete="off"
-                  className="field mt-1 w-full font-mono text-sm text-ink"
-                  value={apiKey}
-                  placeholder={status?.providers.find((item) => item.id === provider)?.hint ?? "API Key"}
-                  onChange={(event) => setApiKey(event.target.value)}
-                />
-              </div>
+              {activeItem ? (
+                <div className="space-y-3 rounded-md border border-line bg-canvas px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-ink">{activeItem.label}</p>
+                      <p className="text-[12px] text-mute">
+                        {authStatusLabel(activeEntry?.kind, {
+                          oauth: authMode === "oauth",
+                          apiKey: authMode === "api_key",
+                        })}
+                      </p>
+                    </div>
+                    {authMode === "oauth" && activeEntry?.kind !== "oauth" ? (
+                      <button
+                        type="button"
+                        className="pressable btn btn-ghost shrink-0"
+                        disabled={busy}
+                        onClick={() => void loginProvider(activeItem.id)}
+                      >
+                        {oauthButtonLabel(activeEntry?.kind)}
+                      </button>
+                    ) : null}
+                  </div>
+                  {authMode === "oauth" ? (
+                    <p className="text-[12px] leading-5 text-mute">
+                      点「订阅登录」会打开系统浏览器完成授权。若没打开，可在终端运行
+                      <code className="mx-1 font-mono text-ink">pi</code>
+                      后输入 <code className="font-mono text-ink">/login</code>
+                      ，再点刷新。
+                    </p>
+                  ) : (
+                    <div>
+                      <label className="block text-sm text-mute" htmlFor="api-key">
+                        API Key
+                      </label>
+                      <input
+                        id="api-key"
+                        type="password"
+                        autoComplete="off"
+                        className="field mt-1 w-full font-mono text-sm text-ink"
+                        value={apiKey}
+                        placeholder={activeItem.hint ?? "API Key"}
+                        onChange={(event) => setApiKey(event.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              {status?.hasModelsFile ? (
+                <p className="text-sm text-mute">已找到 models.json{status.modelCount ? ` · ${status.modelCount} 个模型` : ""}</p>
+              ) : null}
             </>
           ) : null}
 
@@ -445,14 +492,28 @@ export function SetupWizard({ onFinished, onCancel }: Props) {
               <button type="button" className="pressable btn btn-ghost" onClick={() => setStep("workspace")}>
                 {hasExistingLogin ? "使用已有登录" : "暂时跳过"}
               </button>
-              <button
-                type="button"
-                className="pressable btn btn-primary"
-                disabled={busy || apiKey.trim().length < 8}
-                onClick={() => void saveApiKey()}
-              >
-                保存密钥
-              </button>
+              {authMode === "api_key" ? (
+                <button
+                  type="button"
+                  className="pressable btn btn-primary"
+                  disabled={busy || apiKey.trim().length < 8 || !activeProviderId}
+                  onClick={() => {
+                    setProvider(activeProviderId);
+                    void saveApiKey();
+                  }}
+                >
+                  保存密钥
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="pressable btn btn-primary"
+                  disabled={busy || (!hasExistingLogin && activeEntry?.kind !== "oauth")}
+                  onClick={() => setStep("workspace")}
+                >
+                  继续
+                </button>
+              )}
             </>
           ) : null}
 

@@ -67,6 +67,60 @@ export type GitPatchFile = {
   binary?: boolean;
 };
 
+export type GitDiffBlock =
+  | { kind: "skip"; count: number }
+  | { kind: "line"; type: DiffLine["type"]; text: string; lineNo: number | null };
+
+const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+
+export function patchLineCounts(lines: DiffLine[]): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of lines) {
+    if (line.type === "add") added += 1;
+    if (line.type === "remove") removed += 1;
+  }
+  return { added, removed };
+}
+
+/** Turn parsed patch lines into Cursor-style rows: skip bars between hunks, numbered add/remove/context. */
+export function gitDiffBlocks(lines: DiffLine[]): GitDiffBlock[] {
+  const blocks: GitDiffBlock[] = [];
+  let newLine = 0;
+  let oldLine = 0;
+  let seenHunk = false;
+  for (const line of lines) {
+    const hunk = line.type === "equal" ? line.text.match(HUNK_HEADER) : null;
+    if (hunk) {
+      const nextOld = Number(hunk[1]);
+      const nextNew = Number(hunk[2]);
+      if (seenHunk && nextNew > newLine + 1) {
+        blocks.push({ kind: "skip", count: nextNew - newLine - 1 });
+      } else if (!seenHunk && nextNew > 1) {
+        blocks.push({ kind: "skip", count: nextNew - 1 });
+      }
+      oldLine = nextOld - 1;
+      newLine = nextNew - 1;
+      seenHunk = true;
+      continue;
+    }
+    if (line.type === "remove") {
+      oldLine += 1;
+      blocks.push({ kind: "line", type: "remove", text: line.text, lineNo: oldLine });
+      continue;
+    }
+    if (line.type === "add") {
+      newLine += 1;
+      blocks.push({ kind: "line", type: "add", text: line.text, lineNo: newLine });
+      continue;
+    }
+    oldLine += 1;
+    newLine += 1;
+    blocks.push({ kind: "line", type: "equal", text: line.text, lineNo: newLine });
+  }
+  return blocks;
+}
+
 function stripGitPathPrefix(value: string): string {
   const trimmed = value.trim().replace(/^"(.*)"$/u, "$1");
   if (trimmed === "/dev/null") return trimmed;

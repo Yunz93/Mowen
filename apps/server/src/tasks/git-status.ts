@@ -126,3 +126,26 @@ export async function commitGit(cwd: string, message: string): Promise<void> {
     throw new Error("提交失败。确认这是一个 Git 仓库，并且有可提交的改动。");
   }
 }
+
+const GIT_PUSH_TIMEOUT_MS = 60_000;
+
+export async function pushGit(cwd: string): Promise<void> {
+  try {
+    await execFileAsync("git", ["push", "-u", "origin", "HEAD"], {
+      cwd,
+      timeout: GIT_PUSH_TIMEOUT_MS,
+    });
+  } catch (error) {
+    const detail = [
+      error instanceof Error ? error.message : String(error),
+      error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "",
+    ].join("\n");
+    if (/no upstream|has no upstream|does not appear to be a git repository/i.test(detail)) {
+      throw new Error("推送失败。当前分支还没有 remote。");
+    }
+    if (/Could not read from remote|Authentication|could not find remote|Permission denied/i.test(detail)) {
+      throw new Error("推送失败。检查 remote 和登录。");
+    }
+    throw new Error("推送失败。");
+  }
+}

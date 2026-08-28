@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { listAuthEntries, removeAuth } from "../../apps/server/src/setup/auth-status.ts";
-import { scanPiResources, createProjectAgentsFile, PROJECT_AGENTS_TEMPLATE } from "../../apps/server/src/tasks/pi-resources.ts";
+import { scanPiResources, createProjectAgentsFile, setSkillEnabled, PROJECT_AGENTS_TEMPLATE } from "../../apps/server/src/tasks/pi-resources.ts";
 import { listPiSessions } from "../../apps/server/src/tasks/pi-sessions.ts";
 import { flattenSessionTree } from "../../apps/server/src/tasks/session-tree.ts";
 
@@ -37,7 +37,10 @@ describe("pi mvp helpers", () => {
     );
     await removeAuth("github", home);
     const remaining = await listAuthEntries(home);
-    expect(remaining.map((entry) => entry.id)).toEqual(["anthropic"]);
+    expect(remaining.some((entry) => entry.id === "github" || entry.id === "github-copilot")).toBe(false);
+    expect(remaining.some((entry) => entry.id === "anthropic" && entry.kind === "api_key")).toBe(true);
+    const raw = await readFile(path.join(home, ".pi", "agent", "auth.json"), "utf8");
+    expect(JSON.parse(raw)).toEqual({ anthropic: { type: "api_key", key: "sk-keep" } });
   });
 
   it("scans AGENTS.md and only project skills when trusted", async () => {
@@ -55,6 +58,30 @@ describe("pi mvp helpers", () => {
 
     const trusted = await scanPiResources(cwd, home, true);
     expect(trusted.skills.map((item) => item.name).sort()).toEqual(["review", "user-skill"]);
+    expect(trusted.skills.every((item) => item.enabled !== false)).toBe(true);
+  });
+
+  it("marks skills disabled from settings.json exclusions", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-skill-off-"));
+    const cwd = path.join(home, "project");
+    const agentDir = path.join(home, ".pi", "agent");
+    await mkdir(path.join(agentDir, "skills", "demo"), { recursive: true });
+    await writeFile(path.join(agentDir, "skills", "demo", "SKILL.md"), "# demo");
+    await writeFile(path.join(agentDir, "settings.json"), JSON.stringify({ skills: ["-skills/demo"] }));
+    const scanned = await scanPiResources(cwd, home, false, agentDir);
+    expect(scanned.skills).toEqual([
+      expect.objectContaining({ name: "demo", enabled: false, scope: "user" }),
+    ]);
+    await setSkillEnabled({
+      skillMdPath: path.join(agentDir, "skills", "demo", "SKILL.md"),
+      enabled: true,
+      cwd,
+      homeDir: home,
+      agentDir,
+      scope: "user",
+    });
+    const enabled = await scanPiResources(cwd, home, false, agentDir);
+    expect(enabled.skills[0]?.enabled).toBe(true);
   });
 
   it("creates project AGENTS.md once and refuses to overwrite", async () => {

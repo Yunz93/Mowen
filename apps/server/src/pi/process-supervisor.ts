@@ -14,7 +14,7 @@ import type {
   TimelineMessage,
   ToolExecution,
 } from "@mowen/protocol";
-import { emptyRuntime } from "@mowen/protocol";
+import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
@@ -194,6 +194,18 @@ export class ProcessSupervisor {
     runtime.commands = commands;
   }
 
+  /** Re-query Pi for models/thinking levels (e.g. after auth changes or warm activate). */
+  async refreshAvailableModels(taskId: string): Promise<{ models: ModelRef[]; thinkingLevels: ThinkingLevel[] }> {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return { models: [], thinkingLevels: ["off"] };
+    const models = await this.rpcData(taskId, { type: "get_available_models" });
+    const levels = await this.rpcData(taskId, { type: "get_available_thinking_levels" });
+    runtime.models = parseAvailableModels(models);
+    runtime.thinkingLevels = parseThinkingLevels(levels);
+    if (runtime.thinkingLevels.length === 0) runtime.thinkingLevels = ["off"];
+    return { models: runtime.models, thinkingLevels: runtime.thinkingLevels };
+  }
+
   snapshot(taskId: string): RuntimeSnapshot | null {
     const runtime = this.runtimes.get(taskId);
     if (!runtime) return null;
@@ -310,20 +322,8 @@ export class ProcessSupervisor {
     const stateData = (state ?? {}) as Record<string, unknown>;
     const messageData = (messages ?? {}) as { messages?: unknown[] };
     runtime.messages = piMessagesToTimeline(messageData.messages ?? []);
-    runtime.models = Array.isArray((models as { models?: unknown[] })?.models)
-      ? ((models as { models: Array<Record<string, unknown>> }).models).map((model) => ({
-          provider: String(model.provider ?? "unknown"),
-          id: String(model.id ?? "unknown"),
-          name: typeof model.name === "string" ? model.name : undefined,
-          reasoning: Boolean(model.reasoning),
-          contextWindow: typeof model.contextWindow === "number" ? model.contextWindow : undefined,
-        }))
-      : [];
-    runtime.thinkingLevels = Array.isArray((levels as { levels?: unknown[] })?.levels)
-      ? ((levels as { levels: string[] }).levels).filter((level): level is ThinkingLevel =>
-          ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(level),
-        )
-      : ["off"];
+    runtime.models = parseAvailableModels(models);
+    runtime.thinkingLevels = parseThinkingLevels(levels);
     if (runtime.thinkingLevels.length === 0) runtime.thinkingLevels = ["off"];
 
     runtime.runtime = {
@@ -515,8 +515,9 @@ export class ProcessSupervisor {
           normalized.message.role === "assistant" && runtime.liveAssistantId
             ? runtime.liveAssistantId
             : normalized.message.id;
-        const message = { ...normalized.message, id };
         const index = runtime.messages.findIndex((item) => item.id === id);
+        const existing = index >= 0 ? runtime.messages[index] : undefined;
+        const message = mergeCompletedTimelineMessage(existing, { ...normalized.message, id });
         if (index >= 0) {
           runtime.messages[index] = message;
         } else {
@@ -724,4 +725,27 @@ export class ProcessSupervisor {
       sequence,
     };
   }
+}
+
+function parseAvailableModels(raw: unknown): ModelRef[] {
+  const models = (raw as { models?: unknown[] } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  return models.map((model) => {
+    const item = model as Record<string, unknown>;
+    return {
+      provider: String(item.provider ?? "unknown"),
+      id: String(item.id ?? "unknown"),
+      name: typeof item.name === "string" ? item.name : undefined,
+      reasoning: Boolean(item.reasoning),
+      contextWindow: typeof item.contextWindow === "number" ? item.contextWindow : undefined,
+    };
+  });
+}
+
+function parseThinkingLevels(raw: unknown): ThinkingLevel[] {
+  const levels = (raw as { levels?: unknown[] } | null)?.levels;
+  if (!Array.isArray(levels)) return ["off"];
+  return levels.filter((level): level is ThinkingLevel =>
+    ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(String(level)),
+  );
 }

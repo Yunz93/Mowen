@@ -34,7 +34,7 @@ test("workbench core loop", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: "新对话" }).click();
-  await page.getByRole("button", { name: "输入路径" }).click();
+  await chooseTypePath(page);
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill("E2E task");
   await page.getByRole("button", { name: "创建对话" }).click();
@@ -132,16 +132,17 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "认证" })).toBeVisible();
-  await expect(page.getByText("GitHub Copilot")).toBeVisible();
-  await expect(page.getByText("已登录")).toBeVisible();
-  await expect(page.locator("li").filter({ hasText: /^OpenAI/ }).getByRole("button", { name: "登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "订阅登录", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("服务商")).toHaveValue("github");
+  await expect(page.getByText("已登录").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /检查更新|正在检查/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
-  const anthropic = page.locator("li").filter({ hasText: "Anthropic (Claude)" });
-  await anthropic.getByLabel("Anthropic (Claude) API Key").fill("sk-ant-e2e-updated-key-123456");
-  await anthropic.getByRole("button", { name: "保存密钥" }).click();
+  await page.getByRole("button", { name: "API Key", exact: true }).click();
+  await page.getByLabel("服务商").selectOption("anthropic");
+  await page.getByLabel("Anthropic (Claude) API Key").fill("sk-ant-e2e-updated-key-123456");
+  await page.getByRole("button", { name: "保存密钥" }).click();
   await expect(page.getByText("已保存 Anthropic (Claude) 的密钥。")).toBeVisible();
-  await expect(anthropic.getByText("已保存密钥")).toBeVisible();
+  await expect(page.getByText("已保存密钥").first()).toBeVisible();
   await expect(page.getByText(/models\.json/)).toBeVisible();
   await expect(page.getByText("已找到")).toBeVisible();
   await expect(page.getByText("信任当前项目")).toBeVisible();
@@ -155,7 +156,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await page.getByRole("button", { name: "新对话" }).click();
   await expect(page.getByText("继续本机上的 Pi 会话")).toBeVisible();
   await expect(page.getByText("resume from e2e")).toBeVisible();
-  await page.getByRole("button", { name: "输入路径" }).click();
+  await chooseTypePath(page);
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill("MVP task");
   await page.getByRole("button", { name: "创建对话" }).click();
@@ -163,10 +164,10 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByText("已加载 AGENTS.md")).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "详情" }).click();
+  await page.getByRole("button", { name: "约定" }).click();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" })).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText(/agents ·/)).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
-  await page.getByRole("button", { name: "动态" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
@@ -181,7 +182,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
 test("visual workbench at required viewports", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "新对话" }).click();
-  await page.getByRole("button", { name: "输入路径" }).click();
+  await chooseTypePath(page);
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill("Visual task");
   await page.getByRole("button", { name: "创建对话" }).click();
@@ -201,6 +202,10 @@ test("visual workbench at required viewports", async ({ page }) => {
   }
 });
 
+async function chooseTypePath(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByRole("button", { name: "输入路径" }).click();
+}
+
 async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
   await page.goto("/");
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
@@ -218,7 +223,7 @@ async function createTask(page: import("@playwright/test").Page, title: string):
     await expect(list).toHaveCount(count - 1);
   }
   await page.getByRole("button", { name: "新对话" }).click();
-  await page.getByRole("button", { name: "输入路径" }).click();
+  await chooseTypePath(page);
   await page.getByLabel("工作文件夹").fill(project);
   await page.getByLabel("标题").fill(title);
   await page.getByRole("button", { name: "创建对话" }).click();
@@ -302,6 +307,7 @@ test("copy reply, rename session, find in conversation, and open export", async 
   await expect(search).toHaveCount(0);
 
   await page.getByRole("button", { name: "详情" }).click();
+  await page.getByRole("button", { name: "技能" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
   const popupPromise = page.waitForEvent("popup");
@@ -341,7 +347,11 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
   await expect(page.locator("header.titlebar")).not.toContainText("回车补充");
   await expect(page.getByLabel("输入消息")).toHaveAttribute(
     "placeholder",
-    "正在处理。回车补充，Shift+Enter 排队下一条。",
+    "回车补充，Shift+Enter 排队下一条。",
+  );
+  await expect(page.getByLabel("输入消息")).not.toHaveAttribute(
+    "placeholder",
+    /正在处理/,
   );
   await page.getByLabel("输入消息").fill("queued next");
   await page.getByRole("button", { name: "排队" }).click();
@@ -368,7 +378,8 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   await page.getByLabel("输入消息").fill("SELECT:alpha|beta");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: "alpha" }).click();
+  await page.getByLabel("选项").selectOption("alpha");
+  await page.getByRole("button", { name: "确定" }).click();
   await expect(page.getByText("Selected: alpha").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
@@ -396,19 +407,18 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   const backup = readFileSync(authPath, "utf8");
   try {
     await page.goto("/settings");
-    const githubRow = page.locator("li").filter({ hasText: "GitHub Copilot" });
-    await expect(githubRow.getByRole("button", { name: "退出" })).toBeVisible();
-    await githubRow.getByRole("button", { name: "退出" }).click();
-    await expect(githubRow.getByRole("button", { name: "登录" })).toBeVisible();
+    await page.getByRole("button", { name: "订阅登录", exact: true }).click();
+    await page.getByLabel("服务商").selectOption("github");
+    await expect(page.getByRole("button", { name: "退出" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "退出" }).first().click();
     await expect(page.getByText("已退出登录。")).toBeVisible();
+    await expect(page.getByText("未登录").first()).toBeVisible();
   } finally {
     writeFileSync(authPath, backup);
   }
-  await page.getByRole("button", { name: "刷新登录状态" }).click();
+  await page.getByRole("button", { name: "刷新状态" }).click();
   await expect(page.getByText("已刷新登录状态。")).toBeVisible();
-  await expect(
-    page.locator("li").filter({ hasText: "GitHub Copilot" }).getByText("已登录"),
-  ).toBeVisible();
+  await expect(page.getByText("已登录").first()).toBeVisible();
 });
 
 async function expectPreviewAboveInput(page: import("@playwright/test").Page): Promise<void> {
