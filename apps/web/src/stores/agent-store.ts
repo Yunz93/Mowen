@@ -17,7 +17,7 @@ import type {
   TimelineMessage,
   ToolExecution,
 } from "@mowen/protocol";
-import { emptyRuntime } from "@mowen/protocol";
+import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
 
 export type AgentCommand = { name: string; description?: string; source?: string };
 export type GitSnapshot = {
@@ -36,6 +36,22 @@ export type CheckpointRecord = {
 };
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
+export type TermSession = { text: string; running: boolean };
+
+const TERM_BUFFER_MAX = 200_000;
+const emptyTerm: TermSession = { text: "", running: false };
+
+function patchTerm(
+  sessions: Record<string, TermSession>,
+  taskId: string,
+  patch: { append?: string; text?: string; running?: boolean },
+): Record<string, TermSession> {
+  const prev = sessions[taskId] ?? emptyTerm;
+  let text = patch.text ?? prev.text;
+  if (patch.append) text += patch.append;
+  if (text.length > TERM_BUFFER_MAX) text = text.slice(text.length - TERM_BUFFER_MAX);
+  return { ...sessions, [taskId]: { text, running: patch.running ?? prev.running } };
+}
 
 const WORKBENCH_CACHE_KEY = "mowen.workbench";
 
@@ -119,6 +135,9 @@ type AgentState = {
   pendingInteractions: InteractionRequest[];
   gitDiff: string | null;
   toast: { message: string; notifyType?: "info" | "warning" | "error" } | null;
+  termByTask: Record<string, TermSession>;
+  /** True when workspace is this repo under watched `pnpm dev`. */
+  devSelfWorkspace: boolean;
   serverInstanceId: string | null;
   // Per-task last processed sequence, used to drop replayed events after a
   // reconnect or duplicate broadcast. Single WS channel is ordered, so keeping
@@ -128,6 +147,8 @@ type AgentState = {
   applySnapshot: (payload: SnapshotPayload, taskId?: string) => void;
   setConnection: (status: ConnectionStatus) => void;
   setActiveTask: (taskId: string | null) => void;
+  echoTerm: (taskId: string, command: string) => void;
+  clearTerm: (taskId: string) => void;
   clearRequestError: () => void;
   setSetupState: (payload: {
     needsSetup: boolean;
@@ -141,8 +162,22 @@ type AgentState = {
     piVersion?: string | null;
     piAvailable?: boolean;
     piError?: string | null;
+    devSelfWorkspace?: boolean;
   }) => void;
 };
+
+/** Matches server TaskStore demotion message after a process restart. */
+export const SERVER_RESTART_INTERRUPT_MESSAGE = "服务已重启，上次运行被中断。请重新发送。";
+
+function taskWasBusy(status: TaskStatus): boolean {
+  return (
+    status === "booting" ||
+    status === "queued" ||
+    status === "running" ||
+    status === "waiting_approval" ||
+    status === "aborting"
+  );
+}
 
 function upsertTask(tasks: TaskRecord[], task: TaskRecord): TaskRecord[] {
   const index = tasks.findIndex((item) => item.id === task.id);
@@ -195,6 +230,8 @@ export const useAgentStore = create<AgentState>((set, get) => {
   pendingInteractions: [],
   gitDiff: null,
   toast: null,
+  termByTask: {},
+  devSelfWorkspace: false,
   serverInstanceId: null,
   lastSeen: {},
   setConnection: (connection) => set({ connection }),
@@ -203,6 +240,21 @@ export const useAgentStore = create<AgentState>((set, get) => {
       activeTaskId,
       approval: get().pendingApprovals.find((item) => item.taskId === activeTaskId) ?? null,
     }),
+  echoTerm: (taskId, command) =>
+    set((state) => {
+      const prev = state.termByTask[taskId] ?? emptyTerm;
+      const prefix = prev.text && !prev.text.endsWith("\n") ? "\n" : "";
+      return {
+        termByTask: patchTerm(state.termByTask, taskId, {
+          append: `${prefix}$ ${command}\n`,
+          running: true,
+        }),
+      };
+    }),
+  clearTerm: (taskId) =>
+    set((state) => ({
+      termByTask: { ...state.termByTask, [taskId]: { ...emptyTerm } },
+    })),
   clearRequestError: () => set({ requestError: null, serverError: null }),
   setSetupState: (payload) =>
     set({
@@ -215,6 +267,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
       authHint: !payload.authConfigured,
       authEntries: payload.authEntries ?? get().authEntries,
       trustProject: payload.trustProject ?? get().trustProject,
+      devSelfWorkspace: payload.devSelfWorkspace ?? get().devSelfWorkspace,
       ...(payload.piVersion !== undefined ? { piVersion: payload.piVersion } : {}),
       ...(payload.piAvailable !== undefined ? { piAvailable: payload.piAvailable } : {}),
       ...(payload.piError !== undefined ? { piError: payload.piError } : {}),
@@ -262,7 +315,18 @@ export const useAgentStore = create<AgentState>((set, get) => {
   applyEvent: (event) => {
     let current = get();
     if (current.serverInstanceId !== event.serverInstanceId) {
-      set({ serverInstanceId: event.serverInstanceId, lastSeen: {} });
+      const interrupted =
+        Boolean(current.serverInstanceId) && current.tasks.some((task) => taskWasBusy(task.status));
+      set({
+        serverInstanceId: event.serverInstanceId,
+        lastSeen: {},
+        ...(interrupted
+          ? {
+              serverError: SERVER_RESTART_INTERRUPT_MESSAGE,
+              toast: { message: SERVER_RESTART_INTERRUPT_MESSAGE, notifyType: "error" as const },
+            }
+          : {}),
+      });
       current = get();
     }
     const last = current.lastSeen[event.taskId] ?? -1;
@@ -327,13 +391,17 @@ export const useAgentStore = create<AgentState>((set, get) => {
       case "task.updated":
         set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task) });
         break;
-      case "task.archived":
+      case "task.archived": {
+        const termByTask = { ...current.termByTask };
+        delete termByTask[event.payload.taskId];
         set({
           lastSeen,
           tasks: current.tasks.filter((task) => task.id !== event.payload.taskId),
           activeTaskId: current.activeTaskId === event.payload.taskId ? null : current.activeTaskId,
+          termByTask,
         });
         break;
+      }
       case "agent.status":
         set({
           lastSeen,
@@ -384,7 +452,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
           lastSeen,
           messages: current.messages.some((item) => item.id === event.payload.message.id)
             ? current.messages.map((item) =>
-                item.id === event.payload.message.id ? event.payload.message : item,
+                item.id === event.payload.message.id
+                  ? mergeCompletedTimelineMessage(item, event.payload.message)
+                  : item,
               )
             : [...current.messages, event.payload.message],
         });
@@ -528,6 +598,27 @@ export const useAgentStore = create<AgentState>((set, get) => {
           set({ lastSeen, gitDiff: event.payload.diff });
         } else set({ lastSeen });
         break;
+      case "term.chunk":
+        set({
+          lastSeen,
+          termByTask: patchTerm(current.termByTask, event.taskId, { append: event.payload.text }),
+        });
+        break;
+      case "term.exit": {
+        const extra = event.payload.signal
+          ? "已中断\n"
+          : event.payload.code != null && event.payload.code !== 0
+            ? `退出码 ${event.payload.code}\n`
+            : "";
+        set({
+          lastSeen,
+          termByTask: patchTerm(current.termByTask, event.taskId, {
+            append: extra,
+            running: false,
+          }),
+        });
+        break;
+      }
       default:
         set({ lastSeen });
     }

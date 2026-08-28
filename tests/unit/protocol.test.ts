@@ -60,6 +60,29 @@ describe("protocol", () => {
         payload: { path: "note.txt" },
       }).payload,
     ).toEqual({ path: "note.txt" });
+    expect(
+      clientCommandSchema.parse({
+        id: "7",
+        type: "term.run",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { command: "echo hi" },
+      }).payload,
+    ).toEqual({ command: "echo hi" });
+    expect(
+      clientCommandSchema.parse({
+        id: "8",
+        type: "term.interrupt",
+        taskId: "11111111-1111-4111-8111-111111111111",
+      }).type,
+    ).toBe("term.interrupt");
+    expect(
+      clientCommandSchema.parse({
+        id: "9",
+        type: "resources.skill.set",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { path: "/tmp/SKILL.md", enabled: false },
+      }).payload,
+    ).toEqual({ path: "/tmp/SKILL.md", enabled: false });
   });
 
   it("accepts partial Pi session stats and fills context usage", () => {

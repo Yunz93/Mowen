@@ -1,7 +1,8 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PiResources } from "@mowen/protocol";
 import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
+import { isInsideRoot } from "../security/path-policy.js";
 
 const CONTEXT_NAMES = [
   { name: "AGENTS.override.md", kind: "override" as const },
@@ -10,6 +11,8 @@ const CONTEXT_NAMES = [
   { name: "SYSTEM.md", kind: "system" as const },
   { name: "APPEND_SYSTEM.md", kind: "append" as const },
 ];
+
+export const RESOURCE_CONTENT_MAX = 200_000;
 
 export const PROJECT_AGENTS_TEMPLATE = `# AGENTS.md
 
@@ -49,7 +52,7 @@ async function listSkillDirs(dir: string, scope: "user" | "project"): Promise<Pi
     const skills: PiResources["skills"] = [];
     for (const name of names) {
       const skillMd = path.join(dir, name, "SKILL.md");
-      if (await exists(skillMd)) skills.push({ name, path: skillMd, scope });
+      if (await exists(skillMd)) skills.push({ name, path: skillMd, scope, enabled: true });
     }
     return skills;
   } catch {
@@ -66,6 +69,7 @@ async function listTemplates(dir: string, scope: "user" | "project"): Promise<Pi
         name: name.replace(/\.md$/i, ""),
         path: path.join(dir, name),
         scope,
+        enabled: true,
       }));
   } catch {
     return [];
@@ -115,6 +119,14 @@ export async function scanPiResources(
     templates.push(...(await listTemplates(path.join(cwd, ".pi", "prompts"), "project")));
   }
 
+  const excluded = new Set([
+    ...(await skillExclusions(path.join(agentDir, "settings.json"), agentDir, homeDir)),
+    ...(await skillExclusions(path.join(cwd, ".pi", "settings.json"), path.join(cwd, ".pi"), homeDir)),
+  ]);
+  for (const skill of skills) {
+    skill.enabled = !excluded.has(path.resolve(path.dirname(skill.path)));
+  }
+
   return { agentsFiles, skills, templates, trustProject };
 }
 
@@ -131,4 +143,99 @@ export async function createProjectAgentsFile(cwd: string): Promise<string> {
     throw error;
   }
   return relative;
+}
+
+async function readJsonObject(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`${path.basename(filePath)} 不是对象`);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+}
+
+function expandHome(value: string, homeDir: string): string {
+  if (value === "~") return homeDir;
+  if (value.startsWith("~/")) return path.join(homeDir, value.slice(2));
+  return value;
+}
+
+async function skillExclusions(settingsPath: string, baseDir: string, homeDir: string): Promise<string[]> {
+  let settings: Record<string, unknown>;
+  try {
+    settings = await readJsonObject(settingsPath);
+  } catch {
+    return [];
+  }
+  const skills = settings.skills;
+  if (!Array.isArray(skills)) return [];
+  const out: string[] = [];
+  for (const item of skills) {
+    if (typeof item !== "string" || !item.startsWith("-")) continue;
+    const rest = item.slice(1).trim();
+    if (!rest) continue;
+    out.push(path.resolve(baseDir, expandHome(rest, homeDir)));
+  }
+  return out;
+}
+
+function skillMarker(skillDir: string, baseDir: string): string {
+  const relative = path.relative(baseDir, skillDir);
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+    return `-${relative}`;
+  }
+  return `-${skillDir}`;
+}
+
+function isSameSkillMarker(item: string, skillDir: string, baseDir: string, homeDir: string): boolean {
+  if (!item.startsWith("-")) return false;
+  const rest = item.slice(1).trim();
+  if (!rest) return false;
+  return path.resolve(baseDir, expandHome(rest, homeDir)) === path.resolve(skillDir);
+}
+
+export async function setSkillEnabled(input: {
+  skillMdPath: string;
+  enabled: boolean;
+  cwd: string;
+  homeDir: string;
+  agentDir: string;
+  scope: "user" | "project";
+}): Promise<void> {
+  const skillDir = path.dirname(path.resolve(input.skillMdPath));
+  const settingsPath =
+    input.scope === "user"
+      ? path.join(input.agentDir, "settings.json")
+      : path.join(input.cwd, ".pi", "settings.json");
+  const baseDir = path.dirname(settingsPath);
+  const settingsRoot = input.scope === "user" ? input.homeDir : path.resolve(input.cwd);
+  if (!isInsideRoot(path.resolve(settingsPath), path.resolve(settingsRoot))) {
+    throw new Error("技能设置文件路径不合法");
+  }
+  await mkdir(baseDir, { recursive: true });
+  const settings = await readJsonObject(settingsPath);
+  const current = Array.isArray(settings.skills) ? settings.skills.filter((item) => typeof item === "string") : [];
+  const next = current.filter((item) => !isSameSkillMarker(item, skillDir, baseDir, input.homeDir));
+  if (!input.enabled) next.push(skillMarker(skillDir, baseDir));
+  settings.skills = next;
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+}
+
+export async function readContextFile(filePath: string): Promise<{ content: string; truncated: boolean }> {
+  const buffer = await readFile(filePath);
+  return {
+    content: buffer.subarray(0, RESOURCE_CONTENT_MAX).toString("utf8"),
+    truncated: buffer.byteLength > RESOURCE_CONTENT_MAX,
+  };
+}
+
+export async function writeContextFile(filePath: string, content: string): Promise<void> {
+  if (content.length > RESOURCE_CONTENT_MAX) {
+    throw new Error("文件太大，没法在这里保存。");
+  }
+  await writeFile(filePath, content, "utf8");
 }

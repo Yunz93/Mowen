@@ -53,13 +53,24 @@ export {
 } from "./interaction-policy.js";
 export {
   diffFromApproval,
+  gitDiffBlocks,
   gitPatchForPath,
   parseGitPatch,
+  patchLineCounts,
   unifiedDiff,
   type DiffLine,
+  type GitDiffBlock,
   type GitPatchFile,
 } from "./diff.js";
 export { extractAtMentions } from "./mentions.js";
+export {
+  looksLikeBinaryToolOutput,
+  sanitizeToolResultText,
+} from "./tool-result-text.js";
+export {
+  mergeCompletedTimelineMessage,
+  preferAccumulatedThinking,
+} from "./timeline-message.js";
 export {
   authEntrySchema,
   interactionRequestSchema,

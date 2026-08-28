@@ -51,6 +51,8 @@ export const serverEventTypeSchema = z.enum([
   "interaction.resolved",
   "notification.shown",
   "git.diff",
+  "term.chunk",
+  "term.exit",
 ]);
 
 export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
@@ -358,6 +360,19 @@ export const serverEventSchema = z.discriminatedUnion("type", [
     ...eventBase,
     type: z.literal("git.diff"),
     payload: z.object({ diff: z.string() }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("term.chunk"),
+    payload: z.object({ text: z.string() }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("term.exit"),
+    payload: z.object({
+      code: z.number().int().nullable(),
+      signal: z.string().nullable().optional(),
+    }),
   }),
 ]);
 

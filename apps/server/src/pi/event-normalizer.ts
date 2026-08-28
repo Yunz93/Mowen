@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { TimelineMessage, ToolExecution } from "@mowen/protocol";
+import { sanitizeToolResultText, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import type { RpcEvent } from "./rpc-client.js";
 
 export type NormalizedPiEvent =
@@ -82,12 +82,15 @@ function targetFromArgs(toolName: string, args: unknown): string | undefined {
 
 export function resultTextFromPi(result: unknown): string {
   if (!result) return "";
-  if (typeof result === "string") return result;
-  if (typeof result !== "object") return String(result);
-  const record = result as Record<string, unknown>;
-  if (Array.isArray(record.content)) return textFromContent(record.content);
-  if (typeof record.text === "string") return record.text;
-  return "";
+  let raw = "";
+  if (typeof result === "string") raw = result;
+  else if (typeof result !== "object") raw = String(result);
+  else {
+    const record = result as Record<string, unknown>;
+    if (Array.isArray(record.content)) raw = textFromContent(record.content);
+    else if (typeof record.text === "string") raw = record.text;
+  }
+  return sanitizeToolResultText(raw);
 }
 
 export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {

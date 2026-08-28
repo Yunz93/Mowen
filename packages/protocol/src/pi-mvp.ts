@@ -28,6 +28,7 @@ export const piSkillSchema = z.object({
   name: z.string(),
   path: z.string(),
   scope: z.enum(["user", "project"]),
+  enabled: z.boolean().default(true),
 });
 
 export const piResourcesSchema = z.object({

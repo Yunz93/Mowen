@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { commitGit, initGit, readGitDiff, readGitStatus } from "../../apps/server/src/tasks/git-status.ts";
+import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "../../apps/server/src/tasks/git-status.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,5 +41,14 @@ describe("git helpers", () => {
     await execFileAsync("git", ["remote", "add", "origin", "https://example.com/demo.git"], { cwd: root });
     const withRemote = await readGitStatus(root);
     expect(withRemote.remoteUrl).toBe("https://example.com/demo.git");
+  });
+
+  it("push without a remote fails clearly", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-git-push-"));
+    await execFileAsync("git", ["init"], { cwd: root });
+    await execFileAsync("git", ["-c", "user.name=T", "-c", "user.email=t@t", "commit", "--allow-empty", "-m", "init"], {
+      cwd: root,
+    });
+    await expect(pushGit(root)).rejects.toThrow(/推送失败/);
   });
 });

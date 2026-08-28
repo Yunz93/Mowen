@@ -3,6 +3,7 @@ import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from 
 import { approvalPolicies, extractAtMentions, interactionModes } from "@mowen/protocol";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
+import { composerPlaceholder } from "../../copy";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type CommandItem = { name: string; description?: string; source?: string };
@@ -212,11 +213,7 @@ export function PromptComposer({
               composingRef.current = false;
             }, 0);
           }}
-          placeholder={
-            running
-              ? "正在处理。回车补充，Shift+Enter 排队下一条。"
-              : "有什么想做的，直接说。用 @ 点文件，用 / 找技能"
-          }
+          placeholder={composerPlaceholder(running)}
           aria-label="输入消息"
           disabled={disabled}
           className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 text-[15px] leading-6 text-ink placeholder:text-mute"
@@ -259,7 +256,7 @@ export function PromptComposer({
             </label>
             <select
               id="mode-select"
-              className="field h-7 rounded-md bg-fill px-2 text-[12px] text-ink"
+              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
               value={mode}
               onChange={(event) => onPolicy(event.target.value as InteractionMode, approvalPolicy)}
             >
@@ -274,7 +271,7 @@ export function PromptComposer({
             </label>
             <select
               id="policy-select"
-              className="field h-7 rounded-md bg-fill px-2 text-[12px] text-ink"
+              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
               value={approvalPolicy}
               disabled={mode !== "agent"}
               onChange={(event) => onPolicy(mode, event.target.value as ApprovalPolicy)}
@@ -285,30 +282,45 @@ export function PromptComposer({
                 </option>
               ))}
             </select>
-            <label className="sr-only" htmlFor="model-select">
-              模型
-            </label>
-            <select
-              id="model-select"
-              className="field h-7 max-w-[200px] rounded-md bg-fill px-2 text-[12px] text-ink"
-              value={modelId ?? ""}
-              onChange={(event) => {
-                const [provider, ...rest] = event.target.value.split("/");
-                onModel(provider ?? "", rest.join("/"));
-              }}
-            >
-              {models.map((model) => (
-                <option key={`${model.provider}/${model.id}`} value={`${model.provider}/${model.id}`}>
-                  {model.name ?? model.id}
-                </option>
-              ))}
-            </select>
+            {models.length === 0 ? (
+              <span
+                id="model-select"
+                className="field inline-flex h-7 min-w-[9rem] max-w-[200px] shrink-0 items-center rounded-md bg-fill px-2 text-[12px] text-mute"
+                aria-live="polite"
+              >
+                暂无模型
+              </span>
+            ) : (
+              <>
+                <label className="sr-only" htmlFor="model-select">
+                  模型
+                </label>
+                <select
+                  id="model-select"
+                  className="field h-7 min-w-[9rem] max-w-[200px] shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
+                  value={models.some((model) => `${model.provider}/${model.id}` === modelId) ? (modelId ?? "") : ""}
+                  onChange={(event) => {
+                    const [provider, ...rest] = event.target.value.split("/");
+                    onModel(provider ?? "", rest.join("/"));
+                  }}
+                >
+                  {!models.some((model) => `${model.provider}/${model.id}` === modelId) ? (
+                    <option value="">选择模型</option>
+                  ) : null}
+                  {models.map((model) => (
+                    <option key={`${model.provider}/${model.id}`} value={`${model.provider}/${model.id}`}>
+                      {model.name ?? model.id}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <label className="sr-only" htmlFor="thinking-select">
               思考深度
             </label>
             <select
               id="thinking-select"
-              className="field h-7 rounded-md bg-fill px-2 text-[12px] text-ink"
+              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
               value={thinkingLevel}
               onChange={(event) => onThinking(event.target.value as ThinkingLevel)}
             >

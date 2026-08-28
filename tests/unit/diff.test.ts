@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { diffFromApproval, gitPatchForPath, parseGitPatch, unifiedDiff } from "../../packages/protocol/src/diff.ts";
+import {
+  diffFromApproval,
+  gitDiffBlocks,
+  gitPatchForPath,
+  parseGitPatch,
+  patchLineCounts,
+  unifiedDiff,
+} from "../../packages/protocol/src/diff.ts";
 
 describe("unifiedDiff", () => {
   it("marks added and removed lines", () => {
@@ -42,5 +49,31 @@ Binary files a/logo.png and b/logo.png differ
     expect(files[1]?.path).toBe("logo.png");
     expect(files[1]?.binary).toBe(true);
     expect(gitPatchForPath(files, "note.txt")?.path).toBe("note.txt");
+  });
+});
+
+describe("gitDiffBlocks", () => {
+  it("numbers replacement lines the same and inserts skip bars between hunks", () => {
+    const files = parseGitPatch(`diff --git a/note.txt b/note.txt
+--- a/note.txt
++++ b/note.txt
+@@ -1,2 +1,2 @@
+ hello
+-world
++there
+@@ -10,1 +10,1 @@
+-old
++new
+`);
+    const blocks = gitDiffBlocks(files[0]?.lines ?? []);
+    expect(patchLineCounts(files[0]?.lines ?? [])).toEqual({ added: 2, removed: 2 });
+    expect(blocks).toEqual([
+      { kind: "line", type: "equal", text: "hello", lineNo: 1 },
+      { kind: "line", type: "remove", text: "world", lineNo: 2 },
+      { kind: "line", type: "add", text: "there", lineNo: 2 },
+      { kind: "skip", count: 7 },
+      { kind: "line", type: "remove", text: "old", lineNo: 10 },
+      { kind: "line", type: "add", text: "new", lineNo: 10 },
+    ]);
   });
 });

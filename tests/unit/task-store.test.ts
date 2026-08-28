@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { TaskStore } from "../../apps/server/src/tasks/task-store.ts";
+import { TaskStore, SERVER_RESTART_INTERRUPT_MESSAGE } from "../../apps/server/src/tasks/task-store.ts";
 import type { TaskRecord } from "@mowen/protocol";
 
 function sample(id: string): TaskRecord {
@@ -49,6 +49,27 @@ describe("task store", () => {
 
     const restored = new TaskStore(dir);
     await restored.load();
-    expect(restored.get(task.id)?.status).toBe("stopped");
+    const next = restored.get(task.id);
+    expect(next?.status).toBe("stopped");
+    expect(next?.errorMessage).toBe(SERVER_RESTART_INTERRUPT_MESSAGE);
+  });
+
+  it("keeps idle→stopped quiet and preserves real error rows", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "mypi-store-idle-"));
+    const store = new TaskStore(dir);
+    await store.load();
+    await store.upsert({ ...sample("33333333-3333-4333-8333-333333333333"), status: "idle" });
+    await store.upsert({
+      ...sample("44444444-4444-4444-8444-444444444444"),
+      status: "error",
+      errorMessage: "Pi 进程退出",
+    });
+
+    const restored = new TaskStore(dir);
+    await restored.load();
+    expect(restored.get("33333333-3333-4333-8333-333333333333")?.status).toBe("stopped");
+    expect(restored.get("33333333-3333-4333-8333-333333333333")?.errorMessage ?? null).toBeNull();
+    expect(restored.get("44444444-4444-4444-8444-444444444444")?.status).toBe("error");
+    expect(restored.get("44444444-4444-4444-8444-444444444444")?.errorMessage).toBe("Pi 进程退出");
   });
 });
