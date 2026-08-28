@@ -15,6 +15,8 @@ import {
   type ServerEvent,
   type TaskRecord,
   type TimelineMessage,
+  workItemAppendPrompt,
+  workItemIsClosed,
   workItemMoveAbortsRun,
   workItemPrompt,
   type WorkItem,
@@ -173,10 +175,21 @@ export class TaskService {
         return this.openNativeTerm(command.taskId);
       case "workItem.list":
         return this.emitWorkItems();
+      case "workProject.create":
+        return this.createWorkProject(command.payload.name, command.payload.cwd);
+      case "workProject.select":
+        return this.selectWorkProject(command.payload.id);
       case "workItem.create":
-        return this.createWorkItem(command.payload.title, command.payload.description, command.payload.cwd);
+        return this.createWorkItem(
+          command.payload.title,
+          command.payload.description,
+          command.payload.cwd,
+          command.payload.projectId,
+        );
       case "workItem.update":
         return this.updateWorkItem(command.payload.id, command.payload.title, command.payload.description);
+      case "workItem.append":
+        return this.appendWorkItem(command.payload.id, command.payload.text);
       case "workItem.move":
         return this.moveWorkItem(command.payload.id, command.payload.column, command.payload.beforeId);
       case "task.activate":
@@ -327,6 +340,8 @@ export class TaskService {
       pendingInteractions: this.supervisor.listInteractions(),
       gitDiff: activeId ? (this.gitDiffs.get(activeId) ?? null) : null,
       workItems: this.workItems.list(),
+      workProjects: this.workItems.listProjects(),
+      activeProjectId: this.workItems.getActiveProjectId(),
     };
   }
 
@@ -1144,18 +1159,58 @@ export class TaskService {
     return task;
   }
 
-  private emitWorkItems(): { items: WorkItem[] } {
-    const items = this.workItems.list();
-    this.emit("", "workItems.updated", { items });
-    return { items };
+  private emitWorkItems(): {
+    items: WorkItem[];
+    projects: ReturnType<WorkItemStore["listProjects"]>;
+    activeProjectId: string | null;
+  } {
+    const payload = {
+      items: this.workItems.list(),
+      projects: this.workItems.listProjects(),
+      activeProjectId: this.workItems.getActiveProjectId(),
+    };
+    this.emit("", "workItems.updated", payload);
+    return payload;
   }
 
-  private async createWorkItem(title: string, description: string | undefined, cwd: string): Promise<{ item: WorkItem }> {
+  private async createWorkProject(name: string, cwd: string): Promise<{ project: ReturnType<WorkItemStore["listProjects"]>[number] }> {
     const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+    const project = await this.workItems.createProject({ name, cwd: resolved });
+    this.emitWorkItems();
+    return { project };
+  }
+
+  private async selectWorkProject(id: string): Promise<{ project: ReturnType<WorkItemStore["listProjects"]>[number] }> {
+    const project = await this.workItems.selectProject(id);
+    this.emitWorkItems();
+    return { project };
+  }
+
+  private async createWorkItem(
+    title: string,
+    description: string | undefined,
+    cwd: string | undefined,
+    projectId?: string,
+  ): Promise<{ item: WorkItem }> {
+    let project = projectId ? this.workItems.getProject(projectId) : undefined;
+    if (projectId && !project) throw new Error("找不到这个项目");
+    if (!project && cwd) {
+      const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+      project =
+        this.workItems.findProjectByCwd(resolved) ??
+        (await this.workItems.createProject({ name: path.basename(resolved) || resolved, cwd: resolved }));
+    }
+    if (!project) {
+      const activeId = this.workItems.getActiveProjectId();
+      project = activeId ? this.workItems.getProject(activeId) : undefined;
+    }
+    if (!project) throw new Error("请先启动一个项目");
+    const resolved = await assertAllowedCwd(project.cwd, this.config.allowedRoots);
     const item = await this.workItems.create({
       title,
       description,
       cwd: resolved,
+      projectId: project.id,
     });
     this.emitWorkItems();
     return { item };
@@ -1171,13 +1226,47 @@ export class TaskService {
     return { item };
   }
 
+  private async appendWorkItem(id: string, text: string): Promise<{ item: WorkItem }> {
+    const current = this.workItems.get(id);
+    if (!current) throw new Error("找不到这个任务");
+    if (workItemIsClosed(current.column)) throw new Error("这个任务已经闭环，不能再追加。");
+    const item = await this.workItems.appendNote(id, text);
+    this.emitWorkItems();
+    if (item.column === "todo") return { item: this.workItems.get(id) ?? item };
+    if (item.column === "review") {
+      await this.workItems.move(id, "doing");
+      this.emitWorkItems();
+    }
+    const latest = this.workItems.get(id) ?? item;
+    if (!latest.taskId) {
+      await this.scheduleWorkItem(id);
+      return { item: this.workItems.get(id) ?? latest };
+    }
+    const unsent = latest.notes.filter((note) => !note.sentAt);
+    const appendText = unsent.map((note) => note.text).join("\n\n") || text.trim();
+    try {
+      try {
+        await this.activate(latest.taskId);
+      } catch {
+        // Boot errors stay on the task; unsent notes retry after settle.
+      }
+      await this.prompt(latest.taskId, workItemAppendPrompt(latest, appendText), undefined, "follow_up");
+      await this.workItems.markNotesSent(id, unsent.map((note) => note.id));
+      await this.workItems.update(id, { lastRunAt: new Date().toISOString(), pendingRun: false });
+      this.emitWorkItems();
+    } catch {
+      // Leave notes unsent so tryStartWorkItemsForTask can send them when idle.
+    }
+    return { item: this.workItems.get(id) ?? latest };
+  }
+
   private async moveWorkItem(
     id: string,
     column: WorkItemColumn,
     beforeId?: string | null,
   ): Promise<{ item: WorkItem }> {
     const current = this.workItems.get(id);
-    if (!current) throw new Error("找不到这个工作项");
+    if (!current) throw new Error("找不到这个任务");
     const sameColumn = current.column === column;
     const item = await this.workItems.move(id, column, beforeId);
     this.emitWorkItems();
@@ -1230,11 +1319,32 @@ export class TaskService {
     for (const item of pending) {
       try {
         await this.prompt(taskId, workItemPrompt(item), undefined, "prompt");
+        await this.workItems.markNotesSent(item.id);
         await this.workItems.update(item.id, { pendingRun: false, lastRunAt: new Date().toISOString() });
         this.emitWorkItems();
       } catch (error) {
         const message = humanizeUserFacingError(error);
         this.emit(taskId, "server.error", { code: "workItem.run", message });
+      }
+    }
+    const appends = this.workItems
+      .findByTaskId(taskId)
+      .filter((item) => item.column === "doing" && !item.pendingRun && item.notes.some((note) => !note.sentAt));
+    for (const item of appends) {
+      const unsent = item.notes.filter((note) => !note.sentAt);
+      try {
+        await this.prompt(
+          taskId,
+          workItemAppendPrompt(item, unsent.map((note) => note.text).join("\n\n")),
+          undefined,
+          "prompt",
+        );
+        await this.workItems.markNotesSent(item.id, unsent.map((note) => note.id));
+        await this.workItems.update(item.id, { lastRunAt: new Date().toISOString() });
+        this.emitWorkItems();
+      } catch (error) {
+        const message = humanizeUserFacingError(error);
+        this.emit(taskId, "server.error", { code: "workItem.append", message });
       }
     }
   }

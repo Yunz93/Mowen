@@ -13,6 +13,7 @@ import { ContextMeter } from "../components/status/ContextMeter";
 import { RunStatusBar } from "../components/status/RunStatusBar";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
+import { ModeSwitcher } from "../components/app/ModeSwitcher";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
@@ -128,6 +129,12 @@ export function WorkbenchLayout() {
     () => (task ? workItems.find((item) => item.taskId === task.id) : undefined),
     [task, workItems],
   );
+  const conversationTasks = useMemo(() => {
+    const workTaskIds = new Set(
+      workItems.map((item) => item.taskId).filter((id): id is string => Boolean(id)),
+    );
+    return tasks.filter((entry) => !workTaskIds.has(entry.id) || entry.id === activeTaskId);
+  }, [activeTaskId, tasks, workItems]);
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
   const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
@@ -358,7 +365,7 @@ export function WorkbenchLayout() {
   function renderSidebar(onClose?: () => void) {
     return (
       <TaskSidebar
-        tasks={tasks}
+        tasks={conversationTasks}
         activeTaskId={activeTaskId}
         query={query}
         onQuery={setQuery}
@@ -492,6 +499,7 @@ export function WorkbenchLayout() {
           >
             <Plus size={15} />
           </button>
+          <ModeSwitcher />
           <PiStatusRing status={status} size={18} />
           <div className="app-no-drag min-w-0 flex-1">
             {editingTitle && task ? (
@@ -553,7 +561,7 @@ export function WorkbenchLayout() {
               className="chip app-no-drag hidden max-w-[200px] truncate text-accent lg:inline-flex"
               title={linkedWorkItem.title}
             >
-              看板 · {linkedWorkItem.title}
+              工作 · {linkedWorkItem.title}
             </Link>
           ) : null}
           {task ? (
@@ -574,12 +582,6 @@ export function WorkbenchLayout() {
           ) : null}
           <div className="app-no-drag flex items-center gap-0.5">
             <ThemeToggle />
-            <Link
-              to="/board"
-              className="pressable app-no-drag inline-flex h-7 items-center rounded-md px-1.5 text-[13px] text-mute"
-            >
-              看板
-            </Link>
             <button
               type="button"
               className="pressable icon-btn"
@@ -684,15 +686,20 @@ export function WorkbenchLayout() {
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
               <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是墨问</p>
               <p className="mt-3 text-[13px] leading-6 text-mute">
-                在这台电脑上和 AI 聊天。它可以帮助看文件、改代码，改之前会先问你。
+                对话是单次提问。长期项目请切换到「工作」，在项目里创建任务、追加，直到闭环。
               </p>
-              <button
-                type="button"
-                className="pressable btn btn-primary mt-7"
-                onClick={() => setCreating(true)}
-              >
-                开始对话
-              </button>
+              <div className="mt-7 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="pressable btn btn-primary"
+                  onClick={() => setCreating(true)}
+                >
+                  开始对话
+                </button>
+                <Link to="/board" className="pressable btn btn-secondary">
+                  去工作
+                </Link>
+              </div>
             </div>
           )}
         </main>

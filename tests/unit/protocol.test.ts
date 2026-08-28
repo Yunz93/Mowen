@@ -96,7 +96,7 @@ describe("protocol", () => {
         type: "workItem.create",
         payload: { title: "fix login", cwd: "/tmp/project", description: "handle 401" },
       }).payload,
-    ).toEqual({ title: "fix login", cwd: "/tmp/project", description: "handle 401" });
+    ).toMatchObject({ title: "fix login", cwd: "/tmp/project", description: "handle 401" });
     expect(
       clientCommandSchema.parse({
         id: "11",

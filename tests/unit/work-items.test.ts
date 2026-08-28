@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { workItemMoveAbortsRun, workItemMoveStartsRun, workItemPrompt, WORK_ITEM_COLUMNS } from "../../packages/protocol/src/work-items.ts";
+import {
+  workItemAppendPrompt,
+  workItemCanAppend,
+  workItemIsClosed,
+  workItemMoveAbortsRun,
+  workItemMoveCloses,
+  workItemMoveStartsRun,
+  workItemPrompt,
+  WORK_ITEM_COLUMNS,
+} from "../../packages/protocol/src/work-items.ts";
 
 describe("work item prompt", () => {
   it("uses the title when there is no description", () => {
@@ -29,5 +38,25 @@ describe("work item prompt", () => {
     expect(workItemMoveStartsRun("review", "doing")).toBe(true);
     expect(workItemMoveStartsRun("doing", "doing")).toBe(false);
     expect(workItemMoveStartsRun("todo", "review")).toBe(false);
+  });
+
+  it("closes a task when moving to 已完成", () => {
+    expect(workItemMoveCloses("doing", "done")).toBe(true);
+    expect(workItemMoveCloses("done", "done")).toBe(false);
+    expect(workItemIsClosed("done")).toBe(true);
+    expect(workItemIsClosed("archived")).toBe(true);
+    expect(workItemCanAppend("doing")).toBe(true);
+    expect(workItemCanAppend("done")).toBe(false);
+  });
+
+  it("builds an append prompt for extra instructions", () => {
+    expect(workItemAppendPrompt({ title: "fix login" }, "also handle 403")).toContain("fix login");
+    expect(workItemAppendPrompt({ title: "fix login" }, "also handle 403")).toContain("also handle 403");
+  });
+
+  it("includes notes in the first-run prompt", () => {
+    expect(
+      workItemPrompt({ title: "fix login", description: "handle 401", notes: [{ text: "and 403" }] }),
+    ).toContain("and 403");
   });
 });

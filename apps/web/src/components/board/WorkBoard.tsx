@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent } from "react";
+import type { DragEvent, FormEvent } from "react";
 import {
   WORK_ITEM_COLUMNS,
+  workItemCanAppend,
   type ApprovalRequest,
   type InteractionRequest,
   type TaskRecord,
   type WorkItem,
   type WorkItemColumn,
 } from "@mowen/protocol";
-import { folderName, taskStatusLabel } from "../../copy";
+import { taskStatusLabel } from "../../copy";
 import { PiStatusRing } from "../status/PiStatusRing";
 
 const WORK_ITEM_MIME = "application/x-mowen-work-item";
@@ -22,6 +23,7 @@ type Props = {
   focusItemId?: string | null;
   onMove: (id: string, column: WorkItemColumn, beforeId?: string | null) => void;
   onUpdate: (id: string, title: string, description: string) => void;
+  onAppend: (id: string, text: string) => void;
   onOpenConversation?: (item: WorkItem) => void;
 };
 
@@ -34,6 +36,7 @@ export function WorkBoard({
   focusItemId,
   onMove,
   onUpdate,
+  onAppend,
   onOpenConversation,
 }: Props) {
   const [overColumn, setOverColumn] = useState<WorkItemColumn | null>(null);
@@ -52,13 +55,13 @@ export function WorkBoard({
     : WORK_ITEM_COLUMNS.filter((column) => column.id !== "archived");
 
   return (
-    <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-4 pt-3" aria-label="工作项看板">
+    <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-4 pt-3" aria-label="项目任务">
       {columns.map((column) => {
         const cards = items.filter((item) => item.column === column.id);
         return (
           <section
             key={column.id}
-            className={`flex w-[240px] shrink-0 flex-col rounded-lg border bg-sidebar ${
+            className={`flex w-[260px] shrink-0 flex-col rounded-lg border bg-sidebar ${
               overColumn === column.id ? "border-accent" : "border-line"
             }`}
             aria-label={column.label}
@@ -84,12 +87,15 @@ export function WorkBoard({
               <span className="text-[11px] text-mute">{cards.length}</span>
             </header>
             {column.id === "doing" ? (
-              <p className="px-3 pb-2 text-[11px] leading-4 text-mute">拖到这里会开始执行（需确认）。</p>
+              <p className="px-3 pb-2 text-[11px] leading-4 text-mute">拖到这里开始执行。跑完后可继续追加。</p>
+            ) : null}
+            {column.id === "done" ? (
+              <p className="px-3 pb-2 text-[11px] leading-4 text-mute">闭环后不能再追加。</p>
             ) : null}
             <ul className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">
               {cards.length === 0 ? (
                 <li className="rounded-md border border-dashed border-line px-2 py-6 text-center text-[12px] text-mute">
-                  {column.id === "todo" ? "还没有工作项。" : "空"}
+                  {column.id === "todo" ? "还没有任务。" : "空"}
                 </li>
               ) : (
                 cards.map((item) => {
@@ -126,6 +132,7 @@ export function WorkBoard({
                         }
                         onMove={onMove}
                         onUpdate={onUpdate}
+                        onAppend={onAppend}
                         onOpenConversation={onOpenConversation}
                       />
                     </li>
@@ -148,6 +155,7 @@ function WorkItemCard({
   onToggleExpand,
   onMove,
   onUpdate,
+  onAppend,
   onOpenConversation,
 }: {
   item: WorkItem;
@@ -157,11 +165,13 @@ function WorkItemCard({
   onToggleExpand: () => void;
   onMove: (id: string, column: WorkItemColumn, beforeId?: string | null) => void;
   onUpdate: (id: string, title: string, description: string) => void;
+  onAppend: (id: string, text: string) => void;
   onOpenConversation?: (item: WorkItem) => void;
 }) {
   const dragged = useRef(false);
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description);
+  const [appendText, setAppendText] = useState("");
 
   useEffect(() => {
     setTitle(item.title);
@@ -174,10 +184,13 @@ function WorkItemCard({
       ? taskStatusLabel(task.status)
       : item.column === "doing"
         ? "等待调度"
-        : null;
+        : item.closedAt
+          ? "已闭环"
+          : null;
   const running = Boolean(
     task && (task.status === "running" || task.status === "queued" || task.status === "booting"),
   );
+  const canAppend = workItemCanAppend(item.column);
 
   function save() {
     const nextTitle = title.trim();
@@ -187,6 +200,14 @@ function WorkItemCard({
     }
     if (nextTitle === item.title && description === item.description) return;
     onUpdate(item.id, nextTitle, description);
+  }
+
+  function submitAppend(event: FormEvent) {
+    event.preventDefault();
+    const text = appendText.trim();
+    if (!text) return;
+    onAppend(item.id, text);
+    setAppendText("");
   }
 
   return (
@@ -230,9 +251,39 @@ function WorkItemCard({
               onBlur={save}
               className="field w-full px-1.5 text-[12px]"
               rows={3}
-              placeholder="可选。执行时会发给 AI。"
+              placeholder="任务说明。之后用追加补充，不要改掉已经发给 AI 的内容。"
             />
           </div>
+          {item.notes.length > 0 ? (
+            <ol className="space-y-1">
+              {item.notes.map((note, index) => (
+                <li key={note.id} className="rounded-md bg-fill px-1.5 py-1 text-[11px] leading-4 text-mute">
+                  追加 {index + 1}
+                  {note.sentAt ? "" : " · 待发送"}：{note.text}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          {canAppend ? (
+            <form onSubmit={submitAppend} className="space-y-1">
+              <label className="sr-only" htmlFor={`work-item-append-${item.id}`}>
+                追加内容
+              </label>
+              <textarea
+                id={`work-item-append-${item.id}`}
+                value={appendText}
+                onChange={(event) => setAppendText(event.target.value)}
+                className="field w-full px-1.5 text-[12px]"
+                rows={2}
+                placeholder={item.column === "todo" ? "追加到任务里，执行时一并发送。" : "追加并继续执行。"}
+              />
+              <button type="submit" className="pressable btn btn-secondary h-7 w-full text-[12px]" disabled={!appendText.trim()}>
+                追加
+              </button>
+            </form>
+          ) : (
+            <p className="text-[11px] text-mute">已闭环，不能再追加。</p>
+          )}
         </div>
       ) : (
         <div className="flex items-start gap-1">
@@ -248,7 +299,9 @@ function WorkItemCard({
             {item.description ? (
               <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-mute">{item.description}</p>
             ) : null}
-            <p className="mt-1 truncate text-[11px] text-mute">{folderName(item.cwd)}</p>
+            {item.notes.length > 0 ? (
+              <p className="mt-1 text-[11px] text-mute">{item.notes.length} 条追加</p>
+            ) : null}
           </button>
           {task ? <PiStatusRing status={task.status} size={14} /> : null}
         </div>
@@ -285,7 +338,7 @@ function WorkItemCard({
           className="pressable mt-1 text-[11px] text-accent"
           onClick={() => onOpenConversation?.(item)}
         >
-          去看对话
+          去看执行
         </button>
       ) : null}
       {expanded ? (
@@ -296,7 +349,7 @@ function WorkItemCard({
               className="pressable btn btn-secondary h-7 text-[12px]"
               onClick={() => onOpenConversation?.(item)}
             >
-              打开对话
+              查看执行
             </button>
           ) : null}
           <button type="button" className="pressable btn btn-ghost h-7 text-[12px]" onClick={onToggleExpand}>

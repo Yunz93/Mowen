@@ -74,13 +74,21 @@ export {
 export {
   WORK_ITEM_COLUMNS,
   WORK_ITEM_SCHEMA_VERSION,
+  workItemAppendPrompt,
+  workItemCanAppend,
   workItemColumnSchema,
+  workItemIsClosed,
   workItemMoveAbortsRun,
+  workItemMoveCloses,
   workItemMoveStartsRun,
+  workItemNoteSchema,
   workItemPrompt,
   workItemSchema,
+  workProjectSchema,
   type WorkItem,
   type WorkItemColumn,
+  type WorkItemNote,
+  type WorkProject,
 } from "./work-items.js";
 export {
   authEntrySchema,

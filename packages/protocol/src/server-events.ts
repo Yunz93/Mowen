@@ -7,7 +7,7 @@ import {
   runtimeStateSchema,
   sessionTreeNodeSchema,
 } from "./pi-mvp.js";
-import { workItemSchema } from "./work-items.js";
+import { workItemSchema, workProjectSchema } from "./work-items.js";
 import {
   approvalRequestSchema,
   modelRefSchema,
@@ -132,6 +132,8 @@ export const snapshotPayloadSchema = z.object({
   pendingInteractions: z.array(interactionRequestSchema).optional(),
   gitDiff: z.string().nullable().optional(),
   workItems: z.array(workItemSchema).default([]),
+  workProjects: z.array(workProjectSchema).default([]),
+  activeProjectId: z.string().uuid().nullable().optional(),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;
@@ -380,7 +382,11 @@ export const serverEventSchema = z.discriminatedUnion("type", [
   z.object({
     ...eventBase,
     type: z.literal("workItems.updated"),
-    payload: z.object({ items: z.array(workItemSchema) }),
+    payload: z.object({
+      items: z.array(workItemSchema),
+      projects: z.array(workProjectSchema).optional(),
+      activeProjectId: z.string().uuid().nullable().optional(),
+    }),
   }),
 ]);
 

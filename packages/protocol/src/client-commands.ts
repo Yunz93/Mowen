@@ -321,12 +321,32 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
-    type: z.literal("workItem.create"),
+    type: z.literal("workProject.create"),
     payload: z.object({
-      title: z.string().min(1).max(200),
-      description: z.string().max(20_000).optional(),
+      name: z.string().min(1).max(200),
       cwd: z.string().min(1),
     }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workProject.select"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.create"),
+    payload: z
+      .object({
+        title: z.string().min(1).max(200),
+        description: z.string().max(20_000).optional(),
+        cwd: z.string().min(1).optional(),
+        projectId: z.string().uuid().optional(),
+      })
+      .superRefine((value, ctx) => {
+        if (!value.cwd && !value.projectId) {
+          ctx.addIssue({ code: "custom", message: "需要项目或文件夹" });
+        }
+      }),
   }),
   z.object({
     ...commandBase,
@@ -335,6 +355,14 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
       id: z.string().uuid(),
       title: z.string().min(1).max(200).optional(),
       description: z.string().max(20_000).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.append"),
+    payload: z.object({
+      id: z.string().uuid(),
+      text: z.string().min(1).max(20_000),
     }),
   }),
   z.object({
