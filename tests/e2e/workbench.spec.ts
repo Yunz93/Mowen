@@ -209,6 +209,16 @@ async function chooseTypePath(page: import("@playwright/test").Page): Promise<vo
 async function createTask(page: import("@playwright/test").Page, title: string): Promise<void> {
   await page.goto("/");
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
+  const leftoverDialog = page.locator(".dialog-scrim");
+  if ((await leftoverDialog.count()) > 0) {
+    const dismiss = page.getByRole("button", { name: /^(取消|拒绝)$/ }).first();
+    if ((await dismiss.count()) > 0) {
+      await dismiss.click();
+    } else {
+      await page.keyboard.press("Escape");
+    }
+    await expect(leftoverDialog).toHaveCount(0);
+  }
   const list = page.getByRole("complementary", { name: "会话" }).locator("li");
   try {
     await expect.poll(async () => list.count(), { timeout: 2_000 }).toBeGreaterThan(0);
@@ -378,8 +388,7 @@ test("select dialog, undo a write, and logout then restore", async ({ page }) =>
   await page.getByLabel("输入消息").fill("SELECT:alpha|beta");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByTestId("interaction-dialog")).toBeVisible({ timeout: 15_000 });
-  await page.getByLabel("选项").selectOption("alpha");
-  await page.getByRole("button", { name: "确定" }).click();
+  await page.getByTestId("interaction-dialog").getByRole("button", { name: "alpha" }).click();
   await expect(page.getByText("Selected: alpha").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
