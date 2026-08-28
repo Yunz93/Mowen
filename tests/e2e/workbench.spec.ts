@@ -527,9 +527,9 @@ test("work board schedules items moved to 执行", async ({ page }) => {
   await page.getByLabel("说明").fill("echo from the board");
   await page.getByRole("button", { name: "创建工作项" }).click();
   const todo = page.getByRole("region", { name: "待办" });
-  await expect(todo.getByText("Board e2e job")).toBeVisible();
+  await expect(todo.getByText("Board e2e job", { exact: true })).toBeVisible();
   await todo.getByLabel("移动 Board e2e job").selectOption({ label: "执行" });
-  await expect(page.getByRole("region", { name: "待检视" }).getByText("Board e2e job")).toBeVisible({
+  await expect(page.getByRole("region", { name: "待检视" }).getByText("Board e2e job", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
 });
