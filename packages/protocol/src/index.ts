@@ -75,6 +75,8 @@ export {
   WORK_ITEM_COLUMNS,
   WORK_ITEM_SCHEMA_VERSION,
   workItemColumnSchema,
+  workItemMoveAbortsRun,
+  workItemMoveStartsRun,
   workItemPrompt,
   workItemSchema,
   type WorkItem,

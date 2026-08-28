@@ -43,7 +43,7 @@ export function NewWorkItemDialog({ defaultCwd, onCancel, onCreate }: Props) {
             <h2 id="new-work-item-title" className="dialog-title">
               新建工作项
             </h2>
-            <p className="dialog-copy">写清楚要做什么。拖到「执行」后会自动开始跑。</p>
+            <p className="dialog-copy">写清楚要做什么。拖到「执行」并确认后才会开始跑。</p>
           </div>
           <button type="button" className="pressable icon-btn -mr-1 -mt-1" aria-label="关闭" onClick={onCancel}>
             <X size={16} />

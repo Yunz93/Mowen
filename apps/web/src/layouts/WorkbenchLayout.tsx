@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { LayoutGrid, MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
+import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../components/composer/PromptComposer";
@@ -58,6 +58,7 @@ export function WorkbenchLayout() {
   const allowedRoots = useAgentStore((state) => state.allowedRoots);
   const workspaceRoot = useAgentStore((state) => state.workspaceRoot);
   const pendingInteractions = useAgentStore((state) => state.pendingInteractions);
+  const workItems = useAgentStore((state) => state.workItems);
   const toast = useAgentStore((state) => state.toast);
   const devSelfWorkspace = useAgentStore((state) => state.devSelfWorkspace);
 
@@ -122,6 +123,10 @@ export function WorkbenchLayout() {
   const task = useMemo(
     () => tasks.find((item) => item.id === activeTaskId),
     [tasks, activeTaskId],
+  );
+  const linkedWorkItem = useMemo(
+    () => (task ? workItems.find((item) => item.taskId === task.id) : undefined),
+    [task, workItems],
   );
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
@@ -542,6 +547,15 @@ export function WorkbenchLayout() {
               {resources.skills.length ? ` · ${resources.skills.length} 个技能` : ""}
             </p>
           ) : null}
+          {linkedWorkItem ? (
+            <Link
+              to={`/board?item=${linkedWorkItem.id}`}
+              className="chip app-no-drag hidden max-w-[200px] truncate text-accent lg:inline-flex"
+              title={linkedWorkItem.title}
+            >
+              看板 · {linkedWorkItem.title}
+            </Link>
+          ) : null}
           {task ? (
             <div className="app-no-drag hidden sm:block">
               <ContextMeter
@@ -560,8 +574,11 @@ export function WorkbenchLayout() {
           ) : null}
           <div className="app-no-drag flex items-center gap-0.5">
             <ThemeToggle />
-            <Link to="/board" aria-label="看板" className="pressable icon-btn" title="看板">
-              <LayoutGrid size={15} />
+            <Link
+              to="/board"
+              className="pressable app-no-drag inline-flex h-7 items-center rounded-md px-1.5 text-[13px] text-mute"
+            >
+              看板
             </Link>
             <button
               type="button"

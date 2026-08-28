@@ -8,6 +8,17 @@ describe("work board routes", () => {
     const layout = readFileSync(path.resolve("apps/web/src/layouts/WorkbenchLayout.tsx"), "utf8");
     expect(router).toMatch(/path="\/board"/);
     expect(layout).toMatch(/to="\/board"/);
-    expect(layout).toMatch(/aria-label="看板"/);
+    expect(layout).toMatch(/>\s*看板\s*</);
+    expect(layout).toMatch(/看板 · /);
+    const board = readFileSync(path.resolve("apps/web/src/pages/BoardPage.tsx"), "utf8");
+    expect(board).toMatch(/显示归档/);
+    const confirm = readFileSync(
+      path.resolve("apps/web/src/components/board/ConfirmStartWorkItemDialog.tsx"),
+      "utf8",
+    );
+    expect(confirm).toMatch(/开始执行/);
+    const cards = readFileSync(path.resolve("apps/web/src/components/board/WorkBoard.tsx"), "utf8");
+    expect(cards).toMatch(/打开对话/);
+    expect(cards).toMatch(/等待你确认 · 去处理/);
   });
 });

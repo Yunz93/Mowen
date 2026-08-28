@@ -15,6 +15,7 @@ import {
   type ServerEvent,
   type TaskRecord,
   type TimelineMessage,
+  workItemMoveAbortsRun,
   workItemPrompt,
   type WorkItem,
   type WorkItemColumn,
@@ -1180,13 +1181,15 @@ export class TaskService {
     const sameColumn = current.column === column;
     const item = await this.workItems.move(id, column, beforeId);
     this.emitWorkItems();
-    if (current.column === "doing" && column !== "doing" && current.taskId) {
-      const task = this.store.get(current.taskId);
-      if (task && isBusyStatus(task.status)) {
-        try {
-          await this.abort(current.taskId);
-        } catch {
-          // Leaving 执行 should still succeed even if abort is a no-op.
+    if (current.column === "doing" && column !== "doing") {
+      if (workItemMoveAbortsRun(current.column, column) && current.taskId) {
+        const task = this.store.get(current.taskId);
+        if (task && isBusyStatus(task.status)) {
+          try {
+            await this.abort(current.taskId);
+          } catch {
+            // Cancelling 执行 should still succeed even if abort is a no-op.
+          }
         }
       }
       if (item.pendingRun) await this.workItems.update(id, { pendingRun: false });
@@ -1239,13 +1242,7 @@ export class TaskService {
   private async onWorkItemSettled(taskId: string): Promise<void> {
     const task = this.store.get(taskId);
     if (!task || task.status === "error") return;
-    let changed = false;
-    for (const item of this.workItems.findByTaskId(taskId)) {
-      if (item.column !== "doing" || item.pendingRun || !item.lastRunAt) continue;
-      await this.workItems.move(item.id, "review");
-      changed = true;
-    }
-    if (changed) this.emitWorkItems();
+    // Stay in 执行 so the user can keep iterating; they move to 待检视 themselves.
     await this.tryStartWorkItemsForTask(taskId);
   }
 

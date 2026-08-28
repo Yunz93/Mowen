@@ -35,3 +35,13 @@ export function workItemPrompt(item: { title: string; description?: string }): s
   if (!description) return `请完成工作项：${item.title}`;
   return `请完成下面这个工作项。\n\n标题：${item.title}\n\n说明：\n${description}`;
 }
+
+/** Moving back to 待办 or 归档 cancels the run. 待检视 / 已完成 keep the conversation going. */
+export function workItemMoveAbortsRun(from: WorkItemColumn, to: WorkItemColumn): boolean {
+  if (from !== "doing" || to === "doing") return false;
+  return to === "todo" || to === "archived";
+}
+
+export function workItemMoveStartsRun(from: WorkItemColumn, to: WorkItemColumn): boolean {
+  return to === "doing" && from !== "doing";
+}

@@ -837,22 +837,29 @@ describe("integration fake-pi", () => {
       expect((moved.payload?.data as { item?: { column: string } } | undefined)?.item?.column).toBe("doing");
 
       const start = Date.now();
-      let reviewed = false;
+      let doingAfterRun = false;
       while (Date.now() - start < 12_000) {
-        if (JSON.stringify(sock.events).includes("请完成下面这个工作项") === false) {
-          await new Promise((r) => setTimeout(r, 50));
-          continue;
-        }
+        const hasPrompt = JSON.stringify(sock.events).includes("请完成下面这个工作项");
         const listed = sock.events.filter((event) => event.type === "workItems.updated");
-        const latest = listed.at(-1)?.payload as { items?: Array<{ id: string; column: string }> } | undefined;
-        if (latest?.items?.some((item) => item.id === itemId && item.column === "review")) {
-          reviewed = true;
+        const latest = listed.at(-1)?.payload as
+          | { items?: Array<{ id: string; column: string; lastRunAt: string | null; pendingRun: boolean }> }
+          | undefined;
+        const item = latest?.items?.find((entry) => entry.id === itemId);
+        const settled = sock.events.some(
+          (event) => event.type === "agent.status" && (event.payload as { status?: string } | undefined)?.status === "idle",
+        );
+        if (hasPrompt && item?.column === "doing" && item.lastRunAt && item.pendingRun === false && settled) {
+          doingAfterRun = true;
           break;
         }
         await new Promise((r) => setTimeout(r, 50));
       }
       expect(JSON.stringify(sock.events)).toMatch(/请完成下面这个工作项/);
-      expect(reviewed).toBe(true);
+      expect(doingAfterRun).toBe(true);
+      const listed = sock.events.filter((event) => event.type === "workItems.updated");
+      const latest = listed.at(-1)?.payload as { items?: Array<{ id: string; column: string }> } | undefined;
+      expect(latest?.items?.some((item) => item.id === itemId && item.column === "doing")).toBe(true);
+      expect(latest?.items?.some((item) => item.id === itemId && item.column === "review")).toBeFalsy();
       sock.ws.close();
     } finally {
       await isolated.app.close();
