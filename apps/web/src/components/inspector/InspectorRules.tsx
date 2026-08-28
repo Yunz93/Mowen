@@ -70,6 +70,8 @@ export function InspectorRules({ files, cwd, onRead, onWrite, onCreate }: Props)
     return () => {
       cancelled = true;
     };
+    // Reload when the selected path changes; `current` is derived from that path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.path]);
 
   async function save(): Promise<void> {

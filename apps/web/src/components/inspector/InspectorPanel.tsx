@@ -91,10 +91,14 @@ export function InspectorPanel({
   const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
   const [treeOpen, setTreeOpen] = useState(true);
+  const onLoadTreeRef = useRef(onLoadTree);
+  const onLoadGitRef = useRef(onLoadGit);
+  onLoadTreeRef.current = onLoadTree;
+  onLoadGitRef.current = onLoadGit;
 
   useEffect(() => {
-    onLoadTree();
-    onLoadGit();
+    onLoadTreeRef.current();
+    onLoadGitRef.current();
   }, []);
 
   const fileTree = useMemo(() => buildFileTree(files), [files]);
@@ -124,7 +128,7 @@ export function InspectorPanel({
   useEffect(() => {
     if (!preview?.path) return;
     setTab("files");
-    onLoadGit();
+    onLoadGitRef.current();
   }, [preview?.path]);
 
   useEffect(() => {

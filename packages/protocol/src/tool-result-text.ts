@@ -1,6 +1,11 @@
 /** CSI / OSC ANSI sequences commonly present in command output. */
-const ANSI_RE =
-  /\u001B(?:\[[0-9;?]*[ -/]*[@-~]|][^\u0007\u001B]*(?:\u0007|\u001B\\))/g;
+const ESC = "\u001B";
+const BEL = "\u0007";
+const ANSI_RE = new RegExp(
+  `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\))`,
+  "g",
+);
+const CONTROL_RE = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`, "g");
 
 const BINARY_PLACEHOLDER = "（输出包含无法显示的二进制内容，已省略）";
 
@@ -34,5 +39,5 @@ export function sanitizeToolResultText(text: string): string {
   if (!text) return "";
   const stripped = text.replace(ANSI_RE, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   if (looksLikeBinaryToolOutput(stripped)) return BINARY_PLACEHOLDER;
-  return stripped.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  return stripped.replace(CONTROL_RE, "");
 }
