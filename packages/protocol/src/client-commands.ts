@@ -308,6 +308,12 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     taskId: z.string().min(1),
     payload: z.object({}).optional(),
   }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.openNative"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
 ]);
 
 export type ClientCommand = z.infer<typeof clientCommandSchema>;

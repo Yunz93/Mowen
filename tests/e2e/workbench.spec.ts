@@ -489,3 +489,31 @@ test("pasting one image attaches a single preview", async ({ page }) => {
   await page.getByLabel("输入消息").fill("pasted above this line");
   await expectPreviewAboveInput(page);
 });
+
+test("sidebars can pin into the layout and the terminal tab opens zsh", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await createTask(page, "Pin term task");
+
+  const sessions = page.getByRole("complementary", { name: "会话" });
+  await expect(sessions).toBeVisible();
+  await sessions.getByRole("button", { name: "取消固定会话列表" }).click();
+  await expect(page.getByRole("button", { name: "会话" })).toBeVisible();
+  await expect(sessions).toHaveCount(0);
+
+  await page.getByRole("button", { name: "会话" }).click();
+  await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
+  await page.getByRole("button", { name: "固定会话列表" }).click();
+  await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "关闭会话列表" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "详情" }).click();
+  await expect(page.getByRole("complementary", { name: "详情" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "关闭详情" })).toBeVisible();
+  await page.getByRole("button", { name: "固定详情" }).click();
+  await expect(page.getByRole("button", { name: "关闭详情" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "详情" })).toBeVisible();
+
+  await page.getByRole("button", { name: "终端" }).click();
+  await expect(page.getByRole("button", { name: "打开 zsh 终端" })).toBeVisible();
+});
+

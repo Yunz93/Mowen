@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Archive, Plus, Search, X } from "lucide-react";
+import { Archive, Pin, PinOff, Plus, Search, X } from "lucide-react";
 import type { TaskRecord } from "@mowen/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
 import { folderName, taskStatusLabel } from "../../copy";
@@ -14,6 +14,8 @@ type Props = {
   onRename?: (taskId: string, title: string) => void;
   onNew?: () => void;
   onClose?: () => void;
+  pinned?: boolean;
+  onPinToggle?: () => void;
 };
 
 function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
@@ -37,6 +39,8 @@ export function TaskSidebar({
   onRename,
   onNew,
   onClose,
+  pinned = true,
+  onPinToggle,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -80,6 +84,18 @@ export function TaskSidebar({
             onClick={onNew}
           >
             <Plus size={15} />
+          </button>
+        ) : null}
+        {onPinToggle ? (
+          <button
+            type="button"
+            className="pressable app-no-drag icon-btn"
+            aria-label={pinned ? "取消固定会话列表" : "固定会话列表"}
+            aria-pressed={pinned}
+            title={pinned ? "取消固定" : "固定在左侧"}
+            onClick={onPinToggle}
+          >
+            {pinned ? <Pin size={14} /> : <PinOff size={14} />}
           </button>
         ) : null}
         {onClose ? (

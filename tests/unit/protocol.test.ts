@@ -77,6 +77,13 @@ describe("protocol", () => {
     ).toBe("term.interrupt");
     expect(
       clientCommandSchema.parse({
+        id: "8b",
+        type: "term.openNative",
+        taskId: "11111111-1111-4111-8111-111111111111",
+      }).type,
+    ).toBe("term.openNative");
+    expect(
+      clientCommandSchema.parse({
         id: "9",
         type: "resources.skill.set",
         taskId: "11111111-1111-4111-8111-111111111111",
