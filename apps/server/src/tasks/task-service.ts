@@ -15,6 +15,9 @@ import {
   type ServerEvent,
   type TaskRecord,
   type TimelineMessage,
+  workItemPrompt,
+  type WorkItem,
+  type WorkItemColumn,
 } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
@@ -33,6 +36,7 @@ import { scanPiResources, createProjectAgentsFile, setSkillEnabled, readContextF
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
+import { WorkItemStore } from "./work-item-store.js";
 
 export type SetupHints = {
   authConfigured: boolean;
@@ -66,12 +70,16 @@ export class TaskService {
   private readonly gitDiffs = new Map<string, string>();
   private readonly shells = new TaskShells();
 
+  private readonly workItems: WorkItemStore;
+
   constructor(
     private config: AppConfig,
     private readonly store: TaskStore,
     public piVersion: string | null,
     public piError: string | null,
+    workItems?: WorkItemStore,
   ) {
+    this.workItems = workItems ?? new WorkItemStore(config.dataDir);
     this.supervisor = new ProcessSupervisor(
       config,
       (taskId, generation, error) => {
@@ -162,6 +170,14 @@ export class TaskService {
         return this.interruptTerm(command.taskId);
       case "term.openNative":
         return this.openNativeTerm(command.taskId);
+      case "workItem.list":
+        return this.emitWorkItems();
+      case "workItem.create":
+        return this.createWorkItem(command.payload.title, command.payload.description, command.payload.cwd);
+      case "workItem.update":
+        return this.updateWorkItem(command.payload.id, command.payload.title, command.payload.description);
+      case "workItem.move":
+        return this.moveWorkItem(command.payload.id, command.payload.column, command.payload.beforeId);
       case "task.activate":
         await this.activate(command.taskId);
         return { task: this.store.get(command.taskId) };
@@ -309,6 +325,7 @@ export class TaskService {
       trustProject: this.config.trustProject,
       pendingInteractions: this.supervisor.listInteractions(),
       gitDiff: activeId ? (this.gitDiffs.get(activeId) ?? null) : null,
+      workItems: this.workItems.list(),
     };
   }
 
@@ -436,6 +453,7 @@ export class TaskService {
       }
       await this.emitResources(taskId);
       await this.refreshStats(taskId);
+      await this.tryStartWorkItemsForTask(taskId);
     } catch (error) {
       const message = humanizeUserFacingError(error);
       await this.apply(taskId, "spawn_failed", message);
@@ -1107,6 +1125,7 @@ export class TaskService {
       if (task.status === "running" || task.status === "waiting_approval") {
         this.emit(taskId, "notification.shown", { message: "回复完成", notifyType: "info" });
       }
+      void this.onWorkItemSettled(taskId);
     }
     if (next.status === "error" && next.errorMessage) {
       // Banner + toast: server.error sticks in the workbench; notification is OS/toast.
@@ -1122,6 +1141,112 @@ export class TaskService {
       throw new Error("找不到这个对话");
     }
     return task;
+  }
+
+  private emitWorkItems(): { items: WorkItem[] } {
+    const items = this.workItems.list();
+    this.emit("", "workItems.updated", { items });
+    return { items };
+  }
+
+  private async createWorkItem(title: string, description: string | undefined, cwd: string): Promise<{ item: WorkItem }> {
+    const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+    const item = await this.workItems.create({
+      title,
+      description,
+      cwd: resolved,
+    });
+    this.emitWorkItems();
+    return { item };
+  }
+
+  private async updateWorkItem(
+    id: string,
+    title?: string,
+    description?: string,
+  ): Promise<{ item: WorkItem }> {
+    const item = await this.workItems.update(id, { title, description });
+    this.emitWorkItems();
+    return { item };
+  }
+
+  private async moveWorkItem(
+    id: string,
+    column: WorkItemColumn,
+    beforeId?: string | null,
+  ): Promise<{ item: WorkItem }> {
+    const current = this.workItems.get(id);
+    if (!current) throw new Error("找不到这个工作项");
+    const sameColumn = current.column === column;
+    const item = await this.workItems.move(id, column, beforeId);
+    this.emitWorkItems();
+    if (current.column === "doing" && column !== "doing" && current.taskId) {
+      const task = this.store.get(current.taskId);
+      if (task && isBusyStatus(task.status)) {
+        try {
+          await this.abort(current.taskId);
+        } catch {
+          // Leaving 执行 should still succeed even if abort is a no-op.
+        }
+      }
+      if (item.pendingRun) await this.workItems.update(id, { pendingRun: false });
+    }
+    if (column === "doing" && !sameColumn) {
+      await this.scheduleWorkItem(id);
+    }
+    return { item: this.workItems.get(id) ?? item };
+  }
+
+  private async scheduleWorkItem(id: string): Promise<void> {
+    const item = this.workItems.get(id);
+    if (!item) return;
+    let taskId = item.taskId;
+    const existing = taskId ? this.store.get(taskId) : undefined;
+    if (!existing || existing.archivedAt) {
+      const created = await this.createTask(item.cwd, item.title);
+      taskId = created.task.id;
+    } else if (taskId) {
+      try {
+        await this.activate(taskId);
+      } catch {
+        // Boot errors stay on the task; the card still shows 执行.
+      }
+    }
+    if (!taskId) return;
+    await this.workItems.update(id, { taskId, pendingRun: true });
+    this.emitWorkItems();
+    await this.tryStartWorkItemsForTask(taskId);
+  }
+
+  private async tryStartWorkItemsForTask(taskId: string): Promise<void> {
+    const task = this.store.get(taskId);
+    if (!task || task.archivedAt) return;
+    if (task.status === "queued" || task.status === "booting") return;
+    if (!this.supervisor.has(taskId) || task.status !== "idle") return;
+    const pending = this.workItems.findByTaskId(taskId).filter((item) => item.pendingRun && item.column === "doing");
+    for (const item of pending) {
+      try {
+        await this.prompt(taskId, workItemPrompt(item), undefined, "prompt");
+        await this.workItems.update(item.id, { pendingRun: false, lastRunAt: new Date().toISOString() });
+        this.emitWorkItems();
+      } catch (error) {
+        const message = humanizeUserFacingError(error);
+        this.emit(taskId, "server.error", { code: "workItem.run", message });
+      }
+    }
+  }
+
+  private async onWorkItemSettled(taskId: string): Promise<void> {
+    const task = this.store.get(taskId);
+    if (!task || task.status === "error") return;
+    let changed = false;
+    for (const item of this.workItems.findByTaskId(taskId)) {
+      if (item.column !== "doing" || item.pendingRun || !item.lastRunAt) continue;
+      await this.workItems.move(item.id, "review");
+      changed = true;
+    }
+    if (changed) this.emitWorkItems();
+    await this.tryStartWorkItemsForTask(taskId);
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {

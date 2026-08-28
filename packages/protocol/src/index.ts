@@ -72,6 +72,15 @@ export {
   preferAccumulatedThinking,
 } from "./timeline-message.js";
 export {
+  WORK_ITEM_COLUMNS,
+  WORK_ITEM_SCHEMA_VERSION,
+  workItemColumnSchema,
+  workItemPrompt,
+  workItemSchema,
+  type WorkItem,
+  type WorkItemColumn,
+} from "./work-items.js";
+export {
   authEntrySchema,
   interactionRequestSchema,
   piResourceFileSchema,

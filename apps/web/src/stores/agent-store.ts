@@ -16,6 +16,7 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
+  WorkItem,
 } from "@mowen/protocol";
 import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
 
@@ -134,6 +135,7 @@ type AgentState = {
   trustProject: boolean;
   pendingInteractions: InteractionRequest[];
   gitDiff: string | null;
+  workItems: WorkItem[];
   toast: { message: string; notifyType?: "info" | "warning" | "error" } | null;
   termByTask: Record<string, TermSession>;
   /** True when workspace is this repo under watched `pnpm dev`. */
@@ -229,6 +231,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
   trustProject: false,
   pendingInteractions: [],
   gitDiff: null,
+  workItems: [],
   toast: null,
   termByTask: {},
   devSelfWorkspace: false,
@@ -307,6 +310,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
       trustProject: payload.trustProject ?? false,
       pendingInteractions: payload.pendingInteractions ?? [],
       gitDiff: payload.gitDiff ?? null,
+      workItems: payload.workItems ?? [],
       approval:
         payload.approval ??
         (payload.pendingApprovals ?? []).find((item) => item.taskId === (taskId ?? payload.activeTaskId)) ??
@@ -377,6 +381,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
           trustProject: event.payload.trustProject ?? current.trustProject,
           pendingInteractions: event.payload.pendingInteractions ?? current.pendingInteractions,
           gitDiff: event.payload.gitDiff !== undefined ? event.payload.gitDiff : current.gitDiff,
+          workItems: event.payload.workItems ?? current.workItems,
           approval:
             event.payload.approval ??
             (event.payload.pendingApprovals ?? current.pendingApprovals).find(
@@ -619,6 +624,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
         });
         break;
       }
+      case "workItems.updated":
+        set({ lastSeen, workItems: event.payload.items });
+        break;
       default:
         set({ lastSeen });
     }

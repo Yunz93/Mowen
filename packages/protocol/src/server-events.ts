@@ -7,6 +7,7 @@ import {
   runtimeStateSchema,
   sessionTreeNodeSchema,
 } from "./pi-mvp.js";
+import { workItemSchema } from "./work-items.js";
 import {
   approvalRequestSchema,
   modelRefSchema,
@@ -53,6 +54,7 @@ export const serverEventTypeSchema = z.enum([
   "git.diff",
   "term.chunk",
   "term.exit",
+  "workItems.updated",
 ]);
 
 export type ServerEventType = z.infer<typeof serverEventTypeSchema>;
@@ -129,6 +131,7 @@ export const snapshotPayloadSchema = z.object({
   trustProject: z.boolean().optional(),
   pendingInteractions: z.array(interactionRequestSchema).optional(),
   gitDiff: z.string().nullable().optional(),
+  workItems: z.array(workItemSchema).default([]),
 });
 
 export type SnapshotPayload = z.infer<typeof snapshotPayloadSchema>;
@@ -373,6 +376,11 @@ export const serverEventSchema = z.discriminatedUnion("type", [
       code: z.number().int().nullable(),
       signal: z.string().nullable().optional(),
     }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("workItems.updated"),
+    payload: z.object({ items: z.array(workItemSchema) }),
   }),
 ]);
 

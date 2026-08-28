@@ -801,4 +801,61 @@ describe("integration fake-pi", () => {
       await isolated.app.close();
     }
   }, 35_000);
+
+  it("schedules a work item when it is moved to 执行", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-board"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "2",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
+    try {
+      const project = path.join(root.current, "project");
+      const sock = await openSocket(isolated.base);
+      await sock.waitFor("snapshot");
+      sock.send({
+        id: "wi-create",
+        type: "workItem.create",
+        payload: { title: "board job", cwd: project, description: "do the thing" },
+      });
+      const created = await sock.waitForRequest("wi-create");
+      const itemId = (created.payload?.data as { item?: { id: string; column: string } } | undefined)?.item?.id;
+      expect(itemId).toBeTruthy();
+      expect((created.payload?.data as { item?: { column: string } } | undefined)?.item?.column).toBe("todo");
+
+      sock.send({
+        id: "wi-move",
+        type: "workItem.move",
+        payload: { id: itemId, column: "doing" },
+      });
+      const moved = await sock.waitForRequest("wi-move");
+      expect((moved.payload?.data as { item?: { column: string } } | undefined)?.item?.column).toBe("doing");
+
+      const start = Date.now();
+      let reviewed = false;
+      while (Date.now() - start < 12_000) {
+        if (JSON.stringify(sock.events).includes("请完成下面这个工作项") === false) {
+          await new Promise((r) => setTimeout(r, 50));
+          continue;
+        }
+        const listed = sock.events.filter((event) => event.type === "workItems.updated");
+        const latest = listed.at(-1)?.payload as { items?: Array<{ id: string; column: string }> } | undefined;
+        if (latest?.items?.some((item) => item.id === itemId && item.column === "review")) {
+          reviewed = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(JSON.stringify(sock.events)).toMatch(/请完成下面这个工作项/);
+      expect(reviewed).toBe(true);
+      sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
+  }, 20_000);
 });

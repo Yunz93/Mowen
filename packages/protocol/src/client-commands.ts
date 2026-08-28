@@ -314,6 +314,38 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     taskId: z.string().min(1),
     payload: z.object({}).optional(),
   }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.list"),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.create"),
+    payload: z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().max(20_000).optional(),
+      cwd: z.string().min(1),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.update"),
+    payload: z.object({
+      id: z.string().uuid(),
+      title: z.string().min(1).max(200).optional(),
+      description: z.string().max(20_000).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.move"),
+    payload: z.object({
+      id: z.string().uuid(),
+      column: z.enum(["todo", "doing", "review", "done", "archived"]),
+      beforeId: z.string().uuid().nullable().optional(),
+    }),
+  }),
 ]);
 
 export type ClientCommand = z.infer<typeof clientCommandSchema>;

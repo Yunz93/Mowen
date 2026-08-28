@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
+import { LayoutGrid, MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../components/composer/PromptComposer";
@@ -560,6 +560,9 @@ export function WorkbenchLayout() {
           ) : null}
           <div className="app-no-drag flex items-center gap-0.5">
             <ThemeToggle />
+            <Link to="/board" aria-label="看板" className="pressable icon-btn" title="看板">
+              <LayoutGrid size={15} />
+            </Link>
             <button
               type="button"
               className="pressable icon-btn"

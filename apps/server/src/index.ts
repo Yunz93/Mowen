@@ -25,6 +25,7 @@ import { applyPiAgentDir, resolvePiAgentDir } from "./setup/pi-agent-dir.js";
 import { ensurePiSearchTools } from "./setup/pi-search-tools.js";
 import { TaskStore } from "./tasks/task-store.js";
 import { TaskService } from "./tasks/task-service.js";
+import { WorkItemStore } from "./tasks/work-item-store.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
 
 loadDotEnv();
@@ -66,7 +67,9 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
 
   const store = new TaskStore(config.dataDir);
   await store.load();
-  const service = new TaskService(config, store, version, error);
+  const workItems = new WorkItemStore(config.dataDir);
+  await workItems.load();
+  const service = new TaskService(config, store, version, error, workItems);
   const healthInfo = {
     piVersion: version,
     piError: error,
