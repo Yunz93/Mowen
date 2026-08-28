@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Square } from "lucide-react";
+import { Square, SquareTerminal } from "lucide-react";
 import { isNearBottom } from "../../lib/stick-to-bottom";
 import { useAgentStore } from "../../stores/agent-store";
 import { socketClient } from "../../transport/socket-client";
@@ -15,6 +15,8 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
   const clearTerm = useAgentStore((state) => state.clearTerm);
   const [draft, setDraft] = useState("");
   const [pinned, setPinned] = useState(true);
+  const [nativeBusy, setNativeBusy] = useState(false);
+  const [nativeError, setNativeError] = useState("");
   const scrollerRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const text = session?.text ?? "";
@@ -56,6 +58,19 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
     void socketClient.send("term.interrupt", {}, taskId);
   }
 
+  async function openNative(): Promise<void> {
+    if (!taskId || nativeBusy) return;
+    setNativeBusy(true);
+    setNativeError("");
+    try {
+      await socketClient.send("term.openNative", {}, taskId);
+    } catch (error: unknown) {
+      setNativeError(error instanceof Error ? error.message : "无法打开系统终端");
+    } finally {
+      setNativeBusy(false);
+    }
+  }
+
   if (!taskId) {
     return <p className="p-3 text-sm text-mute">打开一个对话后再用终端。</p>;
   }
@@ -69,17 +84,31 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
         <button
           type="button"
           className="pressable ml-auto h-7 shrink-0 px-2 text-[12px] text-mute"
+          disabled={nativeBusy}
+          aria-label="打开 zsh 终端"
+          title="在系统终端里打开 zsh"
+          onClick={() => void openNative()}
+        >
+          <span className="inline-flex items-center gap-1">
+            <SquareTerminal size={12} />
+            {nativeBusy ? "正在打开…" : "打开 zsh"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="pressable h-7 shrink-0 px-2 text-[12px] text-mute"
           onClick={() => clearTerm(taskId)}
         >
           清空
         </button>
       </div>
+      {nativeError ? <p className="border-b border-line px-3 py-1.5 text-[12px] text-danger">{nativeError}</p> : null}
       <pre
         ref={scrollerRef}
         className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-[12px] leading-5 text-ink"
         onScroll={(event) => setPinned(isNearBottom(event.currentTarget))}
       >
-        {text || "在工作文件夹里跑命令。没有完整 PTY，vim 这类交互程序跑不了。"}
+        {text || "在工作文件夹里跑命令。没有完整 PTY，vim 这类交互程序跑不了。需要完整终端时点「打开 zsh」。"}
       </pre>
       <form
         className="flex shrink-0 items-center gap-1 border-t border-line px-2 py-1.5"

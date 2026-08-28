@@ -28,6 +28,7 @@ import { previewProjectFile, listProjectFiles } from "./file-browser.js";
 import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskShells } from "./task-shell.js";
+import { openNativeTerminal } from "./open-native-terminal.js";
 import { scanPiResources, createProjectAgentsFile, setSkillEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
@@ -159,6 +160,8 @@ export class TaskService {
         return this.runTerm(command.taskId, command.payload.command);
       case "term.interrupt":
         return this.interruptTerm(command.taskId);
+      case "term.openNative":
+        return this.openNativeTerm(command.taskId);
       case "task.activate":
         await this.activate(command.taskId);
         return { task: this.store.get(command.taskId) };
@@ -700,6 +703,12 @@ export class TaskService {
   private interruptTerm(taskId: string): { ok: true } {
     this.requireTask(taskId);
     this.shells.interrupt(taskId);
+    return { ok: true };
+  }
+
+  private async openNativeTerm(taskId: string): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    await openNativeTerminal(task.cwd);
     return { ok: true };
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, PanelRight, PanelRightClose } from "lucide-react";
+import { Pin, PinOff, X, PanelRight, PanelRightClose } from "lucide-react";
 import {
   gitPatchForPath,
   parseGitPatch,
@@ -49,6 +49,8 @@ type Props = {
   onWriteResource?: (path: string, content: string) => Promise<void>;
   onToggleSkill?: (path: string, enabled: boolean) => void;
   drawer?: boolean;
+  pinned?: boolean;
+  onPinToggle?: () => void;
   onClose?: () => void;
 };
 
@@ -81,6 +83,8 @@ export function InspectorPanel({
   onWriteResource,
   onToggleSkill,
   drawer,
+  pinned = false,
+  onPinToggle,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("files");
@@ -199,7 +203,19 @@ export function InspectorPanel({
             </button>
           ))}
         </div>
-        {drawer ? (
+        {onPinToggle ? (
+          <button
+            type="button"
+            className="pressable icon-btn"
+            aria-label={pinned ? "取消固定详情" : "固定详情"}
+            aria-pressed={pinned}
+            title={pinned ? "取消固定" : "固定在右侧"}
+            onClick={onPinToggle}
+          >
+            {pinned ? <Pin size={14} /> : <PinOff size={14} />}
+          </button>
+        ) : null}
+        {onClose ? (
           <button type="button" className="pressable h-7 shrink-0 px-2 text-[12px] text-mute" onClick={onClose}>
             关闭
           </button>

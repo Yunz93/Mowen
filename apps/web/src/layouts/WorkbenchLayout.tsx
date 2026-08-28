@@ -22,6 +22,14 @@ import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
 import { getDesktop } from "../desktop-bridge";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import {
+  INSPECTOR_OPEN_KEY,
+  LEFT_PINNED_KEY,
+  RIGHT_PINNED_KEY,
+  readUiFlag,
+  writeUiFlag,
+} from "../lib/ui-prefs";
 
 export function WorkbenchLayout() {
   const tasks = useAgentStore((state) => state.tasks);
@@ -60,7 +68,16 @@ export function WorkbenchLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [composerImages, setComposerImages] = useState<ComposerImage[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [leftPinned, setLeftPinned] = useState(() => readUiFlag(LEFT_PINNED_KEY, true));
+  const [rightPinned, setRightPinned] = useState(() => readUiFlag(RIGHT_PINNED_KEY, false));
+  const [inspectorOpen, setInspectorOpen] = useState(
+    () => readUiFlag(RIGHT_PINNED_KEY, false) && readUiFlag(INSPECTOR_OPEN_KEY, false),
+  );
+  const isMd = useMediaQuery("(min-width: 768px)");
+  const dockLeft = leftPinned && isMd;
+  const dockRight = rightPinned && inspectorOpen && isMd;
+  const overlayLeft = taskOpen && !dockLeft;
+  const overlayRight = inspectorOpen && !dockRight;
   const [notice, setNotice] = useState("");
   const [lastExportPath, setLastExportPath] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -122,6 +139,34 @@ export function WorkbenchLayout() {
   }, [toast]);
 
   useEffect(() => {
+    writeUiFlag(LEFT_PINNED_KEY, leftPinned);
+  }, [leftPinned]);
+
+  useEffect(() => {
+    writeUiFlag(RIGHT_PINNED_KEY, rightPinned);
+  }, [rightPinned]);
+
+  useEffect(() => {
+    writeUiFlag(INSPECTOR_OPEN_KEY, inspectorOpen);
+  }, [inspectorOpen]);
+
+  function toggleLeftPinned() {
+    setLeftPinned((pinned) => {
+      const next = !pinned;
+      if (next) setTaskOpen(false);
+      return next;
+    });
+  }
+
+  function toggleRightPinned() {
+    setRightPinned((pinned) => {
+      const next = !pinned;
+      if (next) setInspectorOpen(true);
+      return next;
+    });
+  }
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (creating) {
@@ -144,7 +189,7 @@ export function WorkbenchLayout() {
           setTaskOpen(false);
           return;
         }
-        if (inspectorOpen) {
+        if (inspectorOpen && !rightPinned) {
           setInspectorOpen(false);
           return;
         }
@@ -180,7 +225,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [approval, creating, editingTitle, inspectorOpen, interaction, paletteOpen, task, taskOpen]);
+  }, [approval, creating, editingTitle, inspectorOpen, interaction, paletteOpen, rightPinned, task, taskOpen]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -305,33 +350,130 @@ export function WorkbenchLayout() {
 
   const hasChanges = tools.some((tool) => tool.toolName === "write" || tool.toolName === "edit");
 
-  const sidebar = (
-    <TaskSidebar
-      tasks={tasks}
-      activeTaskId={activeTaskId}
-      query={query}
-      onQuery={setQuery}
-      onSelect={(id) => void selectTask(id)}
-      onArchive={(id) => void socketClient.send("task.archive", {}, id)}
-      onRename={(id, title) => void renameTask(id, title)}
-      onNew={() => {
-        setTaskOpen(false);
-        setCreating(true);
-      }}
-    />
-  );
+  function renderSidebar(onClose?: () => void) {
+    return (
+      <TaskSidebar
+        tasks={tasks}
+        activeTaskId={activeTaskId}
+        query={query}
+        onQuery={setQuery}
+        onSelect={(id) => void selectTask(id)}
+        onArchive={(id) => void socketClient.send("task.archive", {}, id)}
+        onRename={(id, title) => void renameTask(id, title)}
+        pinned={leftPinned}
+        onPinToggle={toggleLeftPinned}
+        onNew={() => {
+          setTaskOpen(false);
+          setCreating(true);
+        }}
+        onClose={onClose}
+      />
+    );
+  }
+
+  function renderInspector(drawer: boolean) {
+    return (
+      <InspectorPanel
+        drawer={drawer}
+        pinned={rightPinned}
+        onPinToggle={toggleRightPinned}
+        taskId={task?.id ?? null}
+        cwd={task?.cwd ?? null}
+        files={files}
+        preview={preview}
+        git={git}
+        gitDiff={gitDiff}
+        resources={resources}
+        onClose={() => setInspectorOpen(false)}
+        onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
+        onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
+        onLoadGit={() => {
+          if (!task) return;
+          void socketClient.send("git.status", {}, task.id);
+        }}
+        onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
+        onGitCommit={(message, push) =>
+          task &&
+          void socketClient
+            .send("git.commit", { message, push }, task.id)
+            .then(() => setNotice(push ? "已提交并推送" : "已提交"))
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "提交失败");
+            })
+        }
+        onGitInit={() => {
+          if (!task) return;
+          void socketClient
+            .send("git.init", {}, task.id)
+            .then(() => setNotice("已初始化 Git 仓库"))
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "git init 失败");
+            });
+        }}
+        onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
+        onReloadResources={() => task && void socketClient.send("resources.reload", {}, task.id)}
+        onCreateAgents={() => {
+          if (!task) return;
+          void socketClient
+            .send<{ path: string }>("resources.createAgents", {}, task.id)
+            .then((result) => {
+              setNotice(`已创建 ${result.path}`);
+              setInspectorOpen(true);
+            })
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "创建 AGENTS.md 失败");
+            });
+        }}
+        onReadResource={(filePath) => {
+          if (!task) return Promise.reject(new Error("没有对话"));
+          return socketClient.send<{ path: string; content: string; truncated: boolean }>(
+            "resources.read",
+            { path: filePath },
+            task.id,
+          );
+        }}
+        onWriteResource={async (filePath, content) => {
+          if (!task) throw new Error("没有对话");
+          await socketClient.send("resources.write", { path: filePath, content }, task.id);
+          setNotice("已保存约定");
+        }}
+        onToggleSkill={(filePath, enabled) => {
+          if (!task) return;
+          void socketClient
+            .send("resources.skill.set", { path: filePath, enabled }, task.id)
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "技能开关失败");
+            });
+        }}
+        lastExportPath={lastExportPath}
+        onOpenExport={(filePath) => void openExport(filePath)}
+        onExport={() => {
+          if (!task) return;
+          void socketClient
+            .send<{ path: string }>("session.export", {}, task.id)
+            .then((result) => {
+              setLastExportPath(result.path);
+              setNotice(`已导出到 ${result.path}`);
+            })
+            .catch((error: unknown) =>
+              setNotice(error instanceof Error ? error.message : "导出失败"),
+            );
+        }}
+      />
+    );
+  }
 
   return (
-    <div className="relative flex h-dvh overflow-hidden bg-canvas text-ink">
+      <div className="relative flex h-dvh overflow-hidden bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
         跳到正文
       </a>
-      <div className="hidden md:flex">{sidebar}</div>
+      {dockLeft ? <div className="flex h-full">{renderSidebar()}</div> : null}
       <div className="flex min-w-0 flex-1 flex-col bg-surface">
         <header className="titlebar app-drag flex items-center gap-2 border-b border-line px-3">
           <button
             type="button"
-            className="pressable app-no-drag hover-fill inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink md:hidden"
+            className={`pressable app-no-drag hover-fill inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink ${dockLeft ? "md:hidden" : ""}`}
             onClick={() => setTaskOpen(true)}
           >
             <MessageSquare size={14} />
@@ -339,7 +481,7 @@ export function WorkbenchLayout() {
           </button>
           <button
             type="button"
-            className="pressable app-no-drag icon-btn md:hidden"
+            className={`pressable app-no-drag icon-btn ${dockLeft ? "md:hidden" : ""}`}
             aria-label="新对话"
             onClick={() => setCreating(true)}
           >
@@ -422,7 +564,8 @@ export function WorkbenchLayout() {
               type="button"
               className="pressable icon-btn"
               aria-label="详情"
-              onClick={() => setInspectorOpen(true)}
+              aria-pressed={inspectorOpen}
+              onClick={() => setInspectorOpen((open) => !open)}
             >
               <PanelRight size={15} />
             </button>
@@ -604,34 +747,21 @@ export function WorkbenchLayout() {
         ) : null}
       </div>
 
-      {taskOpen ? (
-        <div className="fixed inset-0 z-30 md:hidden">
+      {dockRight ? <div className="flex h-full w-[360px] shrink-0">{renderInspector(false)}</div> : null}
+
+      {overlayLeft ? (
+        <div className="fixed inset-0 z-30">
           <button
             type="button"
             className="absolute inset-0 bg-canvas/50 backdrop-blur-sm"
             aria-label="关闭会话列表"
             onClick={() => setTaskOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 z-40 shadow-dialog">
-            <TaskSidebar
-              tasks={tasks}
-              activeTaskId={activeTaskId}
-              query={query}
-              onQuery={setQuery}
-              onSelect={(id) => void selectTask(id)}
-              onArchive={(id) => void socketClient.send("task.archive", {}, id)}
-              onRename={(id, title) => void renameTask(id, title)}
-              onNew={() => {
-                setTaskOpen(false);
-                setCreating(true);
-              }}
-              onClose={() => setTaskOpen(false)}
-            />
-          </div>
+          <div className="absolute inset-y-0 left-0 z-40 shadow-dialog">{renderSidebar(() => setTaskOpen(false))}</div>
         </div>
       ) : null}
 
-      {inspectorOpen ? (
+      {overlayRight ? (
         <div className="fixed inset-0 z-30">
           <button
             type="button"
@@ -639,93 +769,7 @@ export function WorkbenchLayout() {
             aria-label="关闭详情"
             onClick={() => setInspectorOpen(false)}
           />
-          <div className="slide-in-right absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">
-            <InspectorPanel
-              drawer
-              taskId={task?.id ?? null}
-              cwd={task?.cwd ?? null}
-              files={files}
-              preview={preview}
-              git={git}
-              gitDiff={gitDiff}
-              resources={resources}
-              onClose={() => setInspectorOpen(false)}
-              onLoadTree={() => task && void socketClient.send("files.tree", {}, task.id)}
-              onReadFile={(path) => task && void socketClient.send("files.read", { path }, task.id)}
-              onLoadGit={() => {
-                if (!task) return;
-                void socketClient.send("git.status", {}, task.id);
-              }}
-              onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
-              onGitCommit={(message, push) =>
-                task &&
-                void socketClient
-                  .send("git.commit", { message, push }, task.id)
-                  .then(() => setNotice(push ? "已提交并推送" : "已提交"))
-                  .catch((error: unknown) => {
-                    setNotice(error instanceof Error ? error.message : "提交失败");
-                  })
-              }
-              onGitInit={() => {
-                if (!task) return;
-                void socketClient
-                  .send("git.init", {}, task.id)
-                  .then(() => setNotice("已初始化 Git 仓库"))
-                  .catch((error: unknown) => {
-                    setNotice(error instanceof Error ? error.message : "git init 失败");
-                  });
-              }}
-              onLoadResources={() => task && void socketClient.send("resources.list", {}, task.id)}
-              onReloadResources={() => task && void socketClient.send("resources.reload", {}, task.id)}
-              onCreateAgents={() => {
-                if (!task) return;
-                void socketClient
-                  .send<{ path: string }>("resources.createAgents", {}, task.id)
-                  .then((result) => {
-                    setNotice(`已创建 ${result.path}`);
-                    setInspectorOpen(true);
-                  })
-                  .catch((error: unknown) => {
-                    setNotice(error instanceof Error ? error.message : "创建 AGENTS.md 失败");
-                  });
-              }}
-              onReadResource={(filePath) => {
-                if (!task) return Promise.reject(new Error("没有对话"));
-                return socketClient.send<{ path: string; content: string; truncated: boolean }>(
-                  "resources.read",
-                  { path: filePath },
-                  task.id,
-                );
-              }}
-              onWriteResource={async (filePath, content) => {
-                if (!task) throw new Error("没有对话");
-                await socketClient.send("resources.write", { path: filePath, content }, task.id);
-                setNotice("已保存约定");
-              }}
-              onToggleSkill={(filePath, enabled) => {
-                if (!task) return;
-                void socketClient
-                  .send("resources.skill.set", { path: filePath, enabled }, task.id)
-                  .catch((error: unknown) => {
-                    setNotice(error instanceof Error ? error.message : "技能开关失败");
-                  });
-              }}
-              lastExportPath={lastExportPath}
-              onOpenExport={(filePath) => void openExport(filePath)}
-              onExport={() => {
-                if (!task) return;
-                void socketClient
-                  .send<{ path: string }>("session.export", {}, task.id)
-                  .then((result) => {
-                    setLastExportPath(result.path);
-                    setNotice(`已导出到 ${result.path}`);
-                  })
-                  .catch((error: unknown) =>
-                    setNotice(error instanceof Error ? error.message : "导出失败"),
-                  );
-              }}
-            />
-          </div>
+          <div className="slide-in-right absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">{renderInspector(true)}</div>
         </div>
       ) : null}
 
