@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clientCommandSchema,
   normalizeSessionStats,
+  piResourcesSchema,
   serverFrameSchema,
   type ServerEvent,
 } from "../../packages/protocol/src/index.ts";
@@ -90,6 +91,22 @@ describe("protocol", () => {
         payload: { path: "/tmp/SKILL.md", enabled: false },
       }).payload,
     ).toEqual({ path: "/tmp/SKILL.md", enabled: false });
+    expect(
+      clientCommandSchema.parse({
+        id: "9b",
+        type: "resources.extension.set",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { path: "/tmp/demo.ts", enabled: false },
+      }).payload,
+    ).toEqual({ path: "/tmp/demo.ts", enabled: false });
+    expect(
+      piResourcesSchema.parse({
+        agentsFiles: [],
+        skills: [],
+        templates: [],
+        trustProject: false,
+      }),
+    ).toMatchObject({ extensions: [], packages: [] });
   });
 
   it("accepts partial Pi session stats and fills context usage", () => {

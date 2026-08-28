@@ -8,6 +8,7 @@ const home = path.join(process.cwd(), ".mowen-test", "e2e-home");
 test.beforeAll(() => {
   mkdirSync(project, { recursive: true });
   mkdirSync(path.join(home, ".pi", "agent", "skills", "demo"), { recursive: true });
+  mkdirSync(path.join(home, ".pi", "agent", "extensions"), { recursive: true });
   mkdirSync(path.join(home, ".pi", "agent", "sessions", "e2e"), { recursive: true });
   writeFileSync(path.join(project, "README.md"), "e2e");
   writeFileSync(path.join(project, "AGENTS.md"), "# e2e agents");
@@ -17,6 +18,7 @@ test.beforeAll(() => {
   );
   writeFileSync(path.join(home, ".pi", "agent", "models.json"), JSON.stringify({ models: [{ id: "fake" }] }));
   writeFileSync(path.join(home, ".pi", "agent", "skills", "demo", "SKILL.md"), "# demo");
+  writeFileSync(path.join(home, ".pi", "agent", "extensions", "demo-ext.ts"), "export default function () {}");
   writeFileSync(
     path.join(home, ".pi", "agent", "sessions", "e2e", "resume.jsonl"),
     [
@@ -168,6 +170,10 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" })).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
+  await page.getByRole("button", { name: "插件" }).click();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("开关会在下次启动对话时生效。")).toBeVisible();
+  await page.getByRole("button", { name: "技能" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();

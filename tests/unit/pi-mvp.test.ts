@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { listAuthEntries, removeAuth } from "../../apps/server/src/setup/auth-status.ts";
-import { scanPiResources, createProjectAgentsFile, setSkillEnabled, PROJECT_AGENTS_TEMPLATE } from "../../apps/server/src/tasks/pi-resources.ts";
+import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, PROJECT_AGENTS_TEMPLATE } from "../../apps/server/src/tasks/pi-resources.ts";
 import { listPiSessions } from "../../apps/server/src/tasks/pi-sessions.ts";
 import { flattenSessionTree } from "../../apps/server/src/tasks/session-tree.ts";
 
@@ -82,6 +82,86 @@ describe("pi mvp helpers", () => {
     });
     const enabled = await scanPiResources(cwd, home, false, agentDir);
     expect(enabled.skills[0]?.enabled).toBe(true);
+  });
+
+  it("scans user and project extensions, packages, and extra settings paths", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ext-"));
+    const cwd = path.join(home, "project");
+    const agentDir = path.join(home, ".pi", "agent");
+    await mkdir(path.join(agentDir, "extensions", "pack"), { recursive: true });
+    await mkdir(path.join(cwd, ".pi", "extensions"), { recursive: true });
+    await mkdir(path.join(home, "extra-dir"), { recursive: true });
+    await writeFile(path.join(agentDir, "extensions", "user-ext.ts"), "export default function() {}");
+    await writeFile(path.join(agentDir, "extensions", "pack", "index.ts"), "export default function() {}");
+    await writeFile(path.join(cwd, ".pi", "extensions", "project-ext.ts"), "export default function() {}");
+    await writeFile(path.join(home, "extra-dir", "index.ts"), "export default function() {}");
+    await writeFile(
+      path.join(agentDir, "settings.json"),
+      JSON.stringify({
+        extensions: ["~/extra-dir"],
+        packages: ["git:https://example.com/pkg.git"],
+      }),
+    );
+    await writeFile(
+      path.join(cwd, ".pi", "settings.json"),
+      JSON.stringify({ packages: [{ source: "@scope/pi-plugin" }] }),
+    );
+
+    const untrusted = await scanPiResources(cwd, home, false, agentDir);
+    expect(untrusted.extensions.map((item) => item.name).sort()).toEqual(["extra-dir", "pack", "user-ext"]);
+    expect(untrusted.extensions.every((item) => item.scope === "user")).toBe(true);
+    expect(untrusted.packages).toEqual([{ source: "git:https://example.com/pkg.git", scope: "user" }]);
+
+    const trusted = await scanPiResources(cwd, home, true, agentDir);
+    expect(trusted.extensions.map((item) => item.name).sort()).toEqual(["extra-dir", "pack", "project-ext", "user-ext"]);
+    expect(trusted.packages.map((item) => item.source).sort()).toEqual([
+      "@scope/pi-plugin",
+      "git:https://example.com/pkg.git",
+    ]);
+  });
+
+  it("marks extensions disabled from settings.json exclusions and can re-enable them", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ext-off-"));
+    const cwd = path.join(home, "project");
+    const agentDir = path.join(home, ".pi", "agent");
+    await mkdir(path.join(agentDir, "extensions", "pack"), { recursive: true });
+    await writeFile(path.join(agentDir, "extensions", "demo.ts"), "export default function() {}");
+    await writeFile(path.join(agentDir, "extensions", "pack", "index.ts"), "export default function() {}");
+    await writeFile(
+      path.join(agentDir, "settings.json"),
+      JSON.stringify({ extensions: ["-extensions/demo.ts", "-extensions/pack"] }),
+    );
+    const scanned = await scanPiResources(cwd, home, false, agentDir);
+    expect(scanned.extensions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "demo", enabled: false, scope: "user" }),
+        expect.objectContaining({ name: "pack", enabled: false, scope: "user" }),
+      ]),
+    );
+    await setExtensionEnabled({
+      extensionPath: path.join(agentDir, "extensions", "demo.ts"),
+      enabled: true,
+      cwd,
+      homeDir: home,
+      agentDir,
+      scope: "user",
+    });
+    await setExtensionEnabled({
+      extensionPath: path.join(agentDir, "extensions", "pack", "index.ts"),
+      enabled: false,
+      cwd,
+      homeDir: home,
+      agentDir,
+      scope: "user",
+    });
+    const next = await scanPiResources(cwd, home, false, agentDir);
+    expect(next.extensions.find((item) => item.name === "demo")?.enabled).toBe(true);
+    expect(next.extensions.find((item) => item.name === "pack")?.enabled).toBe(false);
+    const settings = JSON.parse(await readFile(path.join(agentDir, "settings.json"), "utf8")) as {
+      extensions: string[];
+    };
+    expect(settings.extensions).toContain("-extensions/pack");
+    expect(settings.extensions.some((item) => item.includes("demo"))).toBe(false);
   });
 
   it("creates project AGENTS.md once and refuses to overwrite", async () => {

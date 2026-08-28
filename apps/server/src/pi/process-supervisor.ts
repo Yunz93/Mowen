@@ -20,6 +20,7 @@ import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
 import { flattenSessionTree } from "../tasks/session-tree.js";
+import { buildPiRpcArgs } from "./rpc-args.js";
 import { humanizeUserFacingError, shouldSurfacePiStderr } from "../setup/pi-agent-dir.js";
 
 export type AgentCommand = {
@@ -233,13 +234,12 @@ export class ProcessSupervisor {
     const generation = Date.now();
     const sessionDir = path.join(this.config.dataDir, "sessions", task.id);
     await mkdir(sessionDir, { recursive: true });
-    const args = ["--mode", "rpc", "--no-extensions", "--extension", this.config.approvalExtensionPath];
-    args.push(this.config.trustProject ? "--approve" : "--no-approve");
-    if (task.sessionPath) {
-      args.push("--session", task.sessionPath);
-    } else {
-      args.push("--session-dir", sessionDir);
-    }
+    const args = buildPiRpcArgs({
+      approvalExtensionPath: this.config.approvalExtensionPath,
+      trustProject: this.config.trustProject,
+      sessionPath: task.sessionPath,
+      sessionDir,
+    });
 
     const runtime = {
       generation,

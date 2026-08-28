@@ -1,8 +1,11 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PiResources } from "@mowen/protocol";
 import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
 import { isInsideRoot } from "../security/path-policy.js";
+
+const INDEX_RE = /^index\.(ts|js|mts|mjs)$/i;
+const EXT_FILE_RE = /\.(ts|js|mts|mjs)$/i;
 
 const CONTEXT_NAMES = [
   { name: "AGENTS.override.md", kind: "override" as const },
@@ -60,6 +63,98 @@ async function listSkillDirs(dir: string, scope: "user" | "project"): Promise<Pi
   }
 }
 
+function extensionDisplayName(filePath: string): string {
+  const base = path.basename(filePath);
+  if (INDEX_RE.test(base)) return path.basename(path.dirname(filePath));
+  return base.replace(EXT_FILE_RE, "");
+}
+
+async function findIndexFile(dir: string): Promise<string | null> {
+  for (const index of ["index.ts", "index.js", "index.mts", "index.mjs"]) {
+    const indexPath = path.join(dir, index);
+    if (await exists(indexPath)) return indexPath;
+  }
+  return null;
+}
+
+async function listExtensions(dir: string, scope: "user" | "project"): Promise<PiResources["extensions"]> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const found: PiResources["extensions"] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isFile() && EXT_FILE_RE.test(entry.name)) {
+        found.push({
+          name: extensionDisplayName(full),
+          path: full,
+          scope,
+          enabled: true,
+        });
+        continue;
+      }
+      if (!entry.isDirectory()) continue;
+      const indexPath = await findIndexFile(full);
+      if (indexPath) {
+        found.push({ name: extensionDisplayName(indexPath), path: indexPath, scope, enabled: true });
+      }
+    }
+    return found;
+  } catch {
+    return [];
+  }
+}
+
+function packageSources(settings: Record<string, unknown>, scope: "user" | "project"): PiResources["packages"] {
+  const packages = settings.packages;
+  if (!Array.isArray(packages)) return [];
+  const out: PiResources["packages"] = [];
+  for (const item of packages) {
+    if (typeof item === "string" && item.trim()) {
+      out.push({ source: item.trim(), scope });
+      continue;
+    }
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const source = (item as { source?: unknown }).source;
+      if (typeof source === "string" && source.trim()) out.push({ source: source.trim(), scope });
+    }
+  }
+  return out;
+}
+
+async function extraExtensionPaths(
+  settings: Record<string, unknown>,
+  baseDir: string,
+  homeDir: string,
+  scope: "user" | "project",
+): Promise<PiResources["extensions"]> {
+  const extensions = settings.extensions;
+  if (!Array.isArray(extensions)) return [];
+  const found: PiResources["extensions"] = [];
+  for (const item of extensions) {
+    if (typeof item !== "string" || item.startsWith("-") || item.startsWith("!")) continue;
+    const rest = item.startsWith("+") ? item.slice(1).trim() : item.trim();
+    if (!rest) continue;
+    const resolved = path.resolve(baseDir, expandHome(rest, homeDir));
+    let filePath: string | null = null;
+    try {
+      const info = await stat(resolved);
+      if (info.isFile()) filePath = resolved;
+      else if (info.isDirectory()) filePath = await findIndexFile(resolved);
+    } catch {
+      continue;
+    }
+    if (!filePath) continue;
+    found.push({
+      name: extensionDisplayName(filePath),
+      path: filePath,
+      scope,
+      enabled: true,
+    });
+  }
+  return found;
+}
+
 async function listTemplates(dir: string, scope: "user" | "project"): Promise<PiResources["templates"]> {
   try {
     const names = await readdir(dir);
@@ -111,23 +206,53 @@ export async function scanPiResources(
     ...(await listSkillDirs(path.join(homeDir, ".agents", "skills"), "user")),
   ];
   const templates = await listTemplates(path.join(agentDir, "prompts"), "user");
+  const userSettings = await readJsonObject(path.join(agentDir, "settings.json"));
+  const projectSettings = trustProject
+    ? await readJsonObject(path.join(cwd, ".pi", "settings.json"))
+    : {};
+  const extensions = [
+    ...(await listExtensions(path.join(agentDir, "extensions"), "user")),
+    ...(await extraExtensionPaths(userSettings, agentDir, homeDir, "user")),
+  ];
+  const packages = [...packageSources(userSettings, "user")];
   if (trustProject) {
     skills.push(
       ...(await listSkillDirs(path.join(cwd, ".pi", "skills"), "project")),
       ...(await listSkillDirs(path.join(cwd, ".agents", "skills"), "project")),
     );
     templates.push(...(await listTemplates(path.join(cwd, ".pi", "prompts"), "project")));
+    extensions.push(
+      ...(await listExtensions(path.join(cwd, ".pi", "extensions"), "project")),
+      ...(await extraExtensionPaths(projectSettings, path.join(cwd, ".pi"), homeDir, "project")),
+    );
+    packages.push(...packageSources(projectSettings, "project"));
   }
 
-  const excluded = new Set([
-    ...(await skillExclusions(path.join(agentDir, "settings.json"), agentDir, homeDir)),
-    ...(await skillExclusions(path.join(cwd, ".pi", "settings.json"), path.join(cwd, ".pi"), homeDir)),
+  const excludedSkills = new Set([
+    ...(await settingPathExclusions(path.join(agentDir, "settings.json"), agentDir, homeDir, "skills")),
+    ...(await settingPathExclusions(path.join(cwd, ".pi", "settings.json"), path.join(cwd, ".pi"), homeDir, "skills")),
   ]);
   for (const skill of skills) {
-    skill.enabled = !excluded.has(path.resolve(path.dirname(skill.path)));
+    skill.enabled = !excludedSkills.has(path.resolve(path.dirname(skill.path)));
   }
 
-  return { agentsFiles, skills, templates, trustProject };
+  const excludedExtensions = new Set([
+    ...(await settingPathExclusions(path.join(agentDir, "settings.json"), agentDir, homeDir, "extensions")),
+    ...(await settingPathExclusions(path.join(cwd, ".pi", "settings.json"), path.join(cwd, ".pi"), homeDir, "extensions")),
+  ]);
+  const uniqueExtensions: PiResources["extensions"] = [];
+  const seenExt = new Set<string>();
+  for (const item of extensions) {
+    const resolved = path.resolve(item.path);
+    if (seenExt.has(resolved)) continue;
+    seenExt.add(resolved);
+    const dir = path.dirname(resolved);
+    const index = /^index\.(ts|js|mts|mjs)$/i.test(path.basename(resolved));
+    item.enabled = !excludedExtensions.has(resolved) && !(index && excludedExtensions.has(dir));
+    uniqueExtensions.push(item);
+  }
+
+  return { agentsFiles, skills, templates, extensions: uniqueExtensions, packages, trustProject };
 }
 
 /** Create project-root AGENTS.md once; returns the relative path. */
@@ -164,17 +289,22 @@ function expandHome(value: string, homeDir: string): string {
   return value;
 }
 
-async function skillExclusions(settingsPath: string, baseDir: string, homeDir: string): Promise<string[]> {
+async function settingPathExclusions(
+  settingsPath: string,
+  baseDir: string,
+  homeDir: string,
+  key: "skills" | "extensions",
+): Promise<string[]> {
   let settings: Record<string, unknown>;
   try {
     settings = await readJsonObject(settingsPath);
   } catch {
     return [];
   }
-  const skills = settings.skills;
-  if (!Array.isArray(skills)) return [];
+  const values = settings[key];
+  if (!Array.isArray(values)) return [];
   const out: string[] = [];
-  for (const item of skills) {
+  for (const item of values) {
     if (typeof item !== "string" || !item.startsWith("-")) continue;
     const rest = item.slice(1).trim();
     if (!rest) continue;
@@ -184,18 +314,60 @@ async function skillExclusions(settingsPath: string, baseDir: string, homeDir: s
 }
 
 function skillMarker(skillDir: string, baseDir: string): string {
-  const relative = path.relative(baseDir, skillDir);
-  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
-    return `-${relative}`;
-  }
-  return `-${skillDir}`;
+  return pathListMarker(skillDir, baseDir);
 }
 
 function isSameSkillMarker(item: string, skillDir: string, baseDir: string, homeDir: string): boolean {
+  return isSamePathListMarker(item, skillDir, baseDir, homeDir);
+}
+
+function extensionDisableTarget(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  return INDEX_RE.test(path.basename(resolved)) ? path.dirname(resolved) : resolved;
+}
+
+function pathListMarker(target: string, baseDir: string): string {
+  const relative = path.relative(baseDir, target);
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+    return `-${relative}`;
+  }
+  return `-${target}`;
+}
+
+function isSamePathListMarker(item: string, target: string, baseDir: string, homeDir: string): boolean {
   if (!item.startsWith("-")) return false;
   const rest = item.slice(1).trim();
   if (!rest) return false;
-  return path.resolve(baseDir, expandHome(rest, homeDir)) === path.resolve(skillDir);
+  return path.resolve(baseDir, expandHome(rest, homeDir)) === path.resolve(target);
+}
+
+export async function setExtensionEnabled(input: {
+  extensionPath: string;
+  enabled: boolean;
+  cwd: string;
+  homeDir: string;
+  agentDir: string;
+  scope: "user" | "project";
+}): Promise<void> {
+  const target = extensionDisableTarget(input.extensionPath);
+  const settingsPath =
+    input.scope === "user"
+      ? path.join(input.agentDir, "settings.json")
+      : path.join(input.cwd, ".pi", "settings.json");
+  const baseDir = path.dirname(settingsPath);
+  const settingsRoot = input.scope === "user" ? input.homeDir : path.resolve(input.cwd);
+  if (!isInsideRoot(path.resolve(settingsPath), path.resolve(settingsRoot))) {
+    throw new Error("插件设置文件路径不合法");
+  }
+  await mkdir(baseDir, { recursive: true });
+  const settings = await readJsonObject(settingsPath);
+  const current = Array.isArray(settings.extensions)
+    ? settings.extensions.filter((item) => typeof item === "string")
+    : [];
+  const next = current.filter((item) => !isSamePathListMarker(item, target, baseDir, input.homeDir));
+  if (!input.enabled) next.push(pathListMarker(target, baseDir));
+  settings.extensions = next;
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
 export async function setSkillEnabled(input: {

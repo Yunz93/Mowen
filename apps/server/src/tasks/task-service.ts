@@ -29,7 +29,7 @@ import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "./git-s
 import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskShells } from "./task-shell.js";
 import { openNativeTerminal } from "./open-native-terminal.js";
-import { scanPiResources, createProjectAgentsFile, setSkillEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
+import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -227,6 +227,8 @@ export class TaskService {
         return this.writeResourceFile(command.taskId, command.payload.path, command.payload.content);
       case "resources.skill.set":
         return this.setResourceSkill(command.taskId, command.payload.path, command.payload.enabled);
+      case "resources.extension.set":
+        return this.setResourceExtension(command.taskId, command.payload.path, command.payload.enabled);
       case "files.open":
         return this.openFile(command.taskId, command.payload.path);
       case "interaction.respond":
@@ -811,6 +813,27 @@ export class TaskService {
       homeDir: this.config.homeDir,
       agentDir: this.config.piAgentDir,
       scope: skill.scope,
+    });
+    await this.reloadResources(taskId);
+    return { ok: true };
+  }
+
+  private async setResourceExtension(
+    taskId: string,
+    extensionPath: string,
+    enabled: boolean,
+  ): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    const extension = resources.extensions.find((item) => path.resolve(item.path) === path.resolve(extensionPath));
+    if (!extension) throw new Error("找不到这个插件");
+    await setExtensionEnabled({
+      extensionPath: extension.path,
+      enabled,
+      cwd: task.cwd,
+      homeDir: this.config.homeDir,
+      agentDir: this.config.piAgentDir,
+      scope: extension.scope,
     });
     await this.reloadResources(taskId);
     return { ok: true };

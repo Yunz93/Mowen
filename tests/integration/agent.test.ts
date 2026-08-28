@@ -411,6 +411,8 @@ describe("integration fake-pi", () => {
     await writeFile(path.join(project, "AGENTS.md"), "# project agents");
     await mkdir(path.join(root.current, ".pi", "agent", "skills", "demo"), { recursive: true });
     await writeFile(path.join(root.current, ".pi", "agent", "skills", "demo", "SKILL.md"), "# demo");
+    await mkdir(path.join(root.current, ".pi", "agent", "extensions"), { recursive: true });
+    await writeFile(path.join(root.current, ".pi", "agent", "extensions", "demo-ext.ts"), "export default function() {}");
     const sessionDir = path.join(root.current, ".pi", "agent", "sessions", "project");
     await mkdir(sessionDir, { recursive: true });
     const sessionPath = path.join(sessionDir, "resume.jsonl");
@@ -436,6 +438,7 @@ describe("integration fake-pi", () => {
       const resources = await sock.waitFor("resources.updated");
       expect(JSON.stringify(resources.payload)).toMatch(/AGENTS\.md/);
       expect(JSON.stringify(resources.payload)).toMatch(/demo/);
+      expect(JSON.stringify(resources.payload)).toMatch(/demo-ext/);
 
       const beforePrompt = sock.events.length;
       sock.send({ id: "p-tree", type: "prompt.send", taskId, payload: { message: "branch source" } });
