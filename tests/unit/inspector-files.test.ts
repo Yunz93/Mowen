@@ -73,9 +73,9 @@ describe("fileKindBadge", () => {
 });
 
 describe("InspectorPanel tabs", () => {
-  it("keeps 文件 Git 终端 浏览器 约定 技能 and does not offer 动态 or 分支", () => {
+  it("keeps 文件 Git 终端 浏览器 约定 技能 插件 and does not offer 动态 or 分支", () => {
     const src = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorPanel.tsx"), "utf8");
-    expect(src).toMatch(/\(\["files", "git", "term", "browser", "rules", "skills"\] as const\)/);
+    expect(src).toMatch(/\(\["files", "git", "term", "browser", "rules", "skills", "plugins"\] as const\)/);
     expect(src).not.toMatch(/"activity"/);
     expect(src).not.toMatch(/"changes"/);
     expect(src).not.toMatch(/\? "改动"/);

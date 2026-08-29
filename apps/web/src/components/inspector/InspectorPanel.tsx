@@ -14,8 +14,9 @@ import { InspectorTerminal } from "./InspectorTerminal";
 import { InspectorBrowser } from "./InspectorBrowser";
 import { InspectorRules } from "./InspectorRules";
 import { InspectorSkills } from "./InspectorSkills";
+import { InspectorExtensions } from "./InspectorExtensions";
 
-type Tab = "files" | "git" | "term" | "browser" | "rules" | "skills";
+type Tab = "files" | "git" | "term" | "browser" | "rules" | "skills" | "plugins";
 
 type FileEntry = InspectorFileEntry;
 type GitSnapshot = {
@@ -48,6 +49,7 @@ type Props = {
   onReadResource?: (path: string) => Promise<{ path: string; content: string; truncated: boolean }>;
   onWriteResource?: (path: string, content: string) => Promise<void>;
   onToggleSkill?: (path: string, enabled: boolean) => void;
+  onToggleExtension?: (path: string, enabled: boolean) => void;
   drawer?: boolean;
   pinned?: boolean;
   onPinToggle?: () => void;
@@ -82,6 +84,7 @@ export function InspectorPanel({
   onReadResource,
   onWriteResource,
   onToggleSkill,
+  onToggleExtension,
   drawer,
   pinned = false,
   onPinToggle,
@@ -171,7 +174,7 @@ export function InspectorPanel({
     >
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {(["files", "git", "term", "browser", "rules", "skills"] as const).map((item) => (
+          {(["files", "git", "term", "browser", "rules", "skills", "plugins"] as const).map((item) => (
             <button
               key={item}
               type="button"
@@ -186,7 +189,7 @@ export function InspectorPanel({
                   onLoadGit();
                   onGitDiff?.();
                 }
-                if (item === "skills" || item === "rules") onLoadResources?.();
+                if (item === "skills" || item === "rules" || item === "plugins") onLoadResources?.();
               }}
             >
               {item === "files"
@@ -199,7 +202,9 @@ export function InspectorPanel({
                       ? "浏览器"
                       : item === "rules"
                         ? "约定"
-                        : "技能"}
+                        : item === "skills"
+                          ? "技能"
+                          : "插件"}
             </button>
           ))}
         </div>
@@ -403,6 +408,15 @@ export function InspectorPanel({
             lastExportPath={lastExportPath}
             onExport={onExport}
             onOpenExport={onOpenExport}
+            onReload={onReloadResources}
+          />
+        ) : null}
+        {tab === "plugins" ? (
+          <InspectorExtensions
+            extensions={resources?.extensions ?? []}
+            packages={resources?.packages ?? []}
+            trustProject={Boolean(resources?.trustProject)}
+            onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
             onReload={onReloadResources}
           />
         ) : null}

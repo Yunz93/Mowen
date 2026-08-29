@@ -195,6 +195,15 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("resources.extension.set"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      path: z.string().min(1),
+      enabled: z.boolean(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("files.open"),
     taskId: z.string().min(1),
     payload: z.object({ path: z.string().min(1) }),

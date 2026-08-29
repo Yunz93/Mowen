@@ -94,6 +94,8 @@ export {
   authEntrySchema,
   interactionRequestSchema,
   piResourceFileSchema,
+  piExtensionSchema,
+  piPackageSchema,
   piResourcesSchema,
   piSessionRefSchema,
   piSkillSchema,

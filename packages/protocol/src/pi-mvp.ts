@@ -31,10 +31,24 @@ export const piSkillSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+export const piExtensionSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  scope: z.enum(["user", "project"]),
+  enabled: z.boolean().default(true),
+});
+
+export const piPackageSchema = z.object({
+  source: z.string(),
+  scope: z.enum(["user", "project"]),
+});
+
 export const piResourcesSchema = z.object({
   agentsFiles: z.array(piResourceFileSchema),
   skills: z.array(piSkillSchema),
   templates: z.array(piSkillSchema),
+  extensions: z.array(piExtensionSchema).default([]),
+  packages: z.array(piPackageSchema).default([]),
   trustProject: z.boolean(),
 });
 export type PiResources = z.infer<typeof piResourcesSchema>;

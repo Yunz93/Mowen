@@ -457,6 +457,14 @@ export function WorkbenchLayout() {
               setNotice(error instanceof Error ? error.message : "技能开关失败");
             });
         }}
+        onToggleExtension={(filePath, enabled) => {
+          if (!task) return;
+          void socketClient
+            .send("resources.extension.set", { path: filePath, enabled }, task.id)
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "插件开关失败");
+            });
+        }}
         lastExportPath={lastExportPath}
         onOpenExport={(filePath) => void openExport(filePath)}
         onExport={() => {
@@ -547,12 +555,22 @@ export function WorkbenchLayout() {
               {headerSubtitle(task?.cwd, Boolean(task), status)}
             </p>
           </div>
-          {resources && (resources.agentsFiles.length > 0 || resources.skills.length > 0) ? (
-            <p className="chip app-no-drag hidden max-w-[220px] truncate lg:inline-flex">
-              {resources.agentsFiles.some((item) => item.kind === "agents")
-                ? "已加载 AGENTS.md"
-                : "已加载上下文文件"}
-              {resources.skills.length ? ` · ${resources.skills.length} 个技能` : ""}
+          {resources &&
+          (resources.agentsFiles.length > 0 ||
+            resources.skills.length > 0 ||
+            (resources.extensions?.length ?? 0) > 0) ? (
+            <p className="chip app-no-drag hidden max-w-[260px] truncate lg:inline-flex">
+              {[
+                resources.agentsFiles.some((item) => item.kind === "agents")
+                  ? "已加载 AGENTS.md"
+                  : resources.agentsFiles.length > 0
+                    ? "已加载上下文文件"
+                    : null,
+                resources.skills.length ? `${resources.skills.length} 个技能` : null,
+                resources.extensions?.length ? `${resources.extensions.length} 个插件` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           ) : null}
           {linkedWorkItem ? (
