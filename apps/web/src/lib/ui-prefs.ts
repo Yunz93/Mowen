@@ -1,6 +1,7 @@
 export const LEFT_PINNED_KEY = "mowen.ui.leftPinned";
 export const RIGHT_PINNED_KEY = "mowen.ui.rightPinned";
 export const INSPECTOR_OPEN_KEY = "mowen.ui.inspectorOpen";
+export const BOARD_SHOW_ARCHIVED_KEY = "mowen.ui.boardShowArchived";
 
 export function readUiFlag(key: string, fallback: boolean): boolean {
   try {

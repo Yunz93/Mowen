@@ -107,6 +107,20 @@ describe("protocol", () => {
         trustProject: false,
       }),
     ).toMatchObject({ extensions: [], packages: [] });
+    expect(
+      clientCommandSchema.parse({
+        id: "10",
+        type: "workItem.create",
+        payload: { title: "fix login", cwd: "/tmp/project", description: "handle 401" },
+      }).payload,
+    ).toMatchObject({ title: "fix login", cwd: "/tmp/project", description: "handle 401" });
+    expect(
+      clientCommandSchema.parse({
+        id: "11",
+        type: "workItem.move",
+        payload: { id: "11111111-1111-4111-8111-111111111111", column: "doing", beforeId: null },
+      }).payload,
+    ).toEqual({ id: "11111111-1111-4111-8111-111111111111", column: "doing", beforeId: null });
   });
 
   it("accepts partial Pi session stats and fills context usage", () => {

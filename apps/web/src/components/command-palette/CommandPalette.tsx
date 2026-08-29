@@ -36,6 +36,7 @@ export function CommandPalette({ open, onClose, onNewTask, onRenameSession, onFi
   const items = useMemo(() => {
     const commands = [
       { id: "new", label: "新对话", run: onNewTask },
+      { id: "board", label: "打开工作", run: () => navigate("/board") },
       { id: "settings", label: "打开设置", run: () => navigate("/settings") },
       ...(onRenameSession && activeTaskId
         ? [{ id: "rename", label: "重命名会话", run: onRenameSession }]
