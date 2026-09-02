@@ -1,0 +1,309 @@
+import {
+  AlertCircle,
+  Archive,
+  Bot,
+  Check,
+  CheckCircle2,
+  CircleDot,
+  Clock3,
+  MessageSquareText,
+  Pause,
+  Play,
+  ShieldAlert,
+  UserRound,
+} from "lucide-react";
+import {
+  deriveWorkItemViewState,
+  type ApprovalRequest,
+  type InteractionRequest,
+  type TaskRecord,
+  type WorkItemSummary,
+  type WorkItemViewState,
+} from "@mowen/protocol";
+
+type Props = {
+  items: WorkItemSummary[];
+  tasks: TaskRecord[];
+  pendingApprovals: ApprovalRequest[];
+  pendingInteractions: InteractionRequest[];
+  filter: WorkFilter;
+  onFilter: (filter: WorkFilter) => void;
+  onSelect: (item: WorkItemSummary) => void;
+  onStart: (id: string) => void;
+  onStop: (id: string) => void;
+  onAccept: (id: string) => void;
+  onReopen: (id: string) => void;
+  onArchive: (id: string) => void;
+  onOpenConversation: (item: WorkItemSummary) => void;
+};
+
+export type WorkFilter = "all" | "attention" | "working" | "ready" | "completed" | "archived";
+
+type PresentedItem = {
+  item: WorkItemSummary;
+  task?: TaskRecord;
+  viewState: WorkItemViewState;
+};
+
+const ATTENTION_STATES = new Set<WorkItemViewState>([
+  "needs_approval",
+  "needs_input",
+  "needs_review",
+  "failed",
+  "paused",
+]);
+
+const WORKING_STATES = new Set<WorkItemViewState>(["queued", "working"]);
+
+const VIEW_COPY: Record<WorkItemViewState, { label: string; detail: string }> = {
+  ready: { label: "准备开始", detail: "目标已保存，尚未交给 Agent" },
+  queued: { label: "排队中", detail: "等待可用的 Agent 进程" },
+  working: { label: "Agent 工作中", detail: "正在推进这个目标" },
+  needs_approval: { label: "等待批准", detail: "Agent 有一项操作需要你确认" },
+  needs_input: { label: "等待回答", detail: "Agent 需要更多信息才能继续" },
+  needs_review: { label: "待验收", detail: "本轮已结束，请检查结果" },
+  failed: { label: "执行失败", detail: "查看原因并补充说明后继续" },
+  paused: { label: "已暂停", detail: "检查当前状态后再继续" },
+  completed: { label: "已完成", detail: "目标已经验收" },
+  archived: { label: "已归档", detail: "目标已从工作台隐藏" },
+};
+
+const FILTERS: Array<{ id: WorkFilter; label: string }> = [
+  { id: "all", label: "全部" },
+  { id: "attention", label: "需要你处理" },
+  { id: "working", label: "Agent 工作中" },
+  { id: "ready", label: "准备开始" },
+  { id: "completed", label: "已完成" },
+  { id: "archived", label: "归档" },
+];
+
+export function WorkDashboard({
+  items,
+  tasks,
+  pendingApprovals,
+  pendingInteractions,
+  filter,
+  onFilter,
+  onSelect,
+  onStart,
+  onStop,
+  onAccept,
+  onReopen,
+  onArchive,
+  onOpenConversation,
+}: Props) {
+  const presented = items.map((item): PresentedItem => {
+      const task = item.taskId ? tasks.find((entry) => entry.id === item.taskId) : undefined;
+      return {
+        item,
+        task,
+        viewState: deriveWorkItemViewState({
+          item,
+          taskStatus: task?.status,
+          needsApproval: Boolean(item.taskId && pendingApprovals.some((entry) => entry.taskId === item.taskId)),
+          needsInput: Boolean(item.taskId && pendingInteractions.some((entry) => entry.taskId === item.taskId)),
+        }),
+      };
+    });
+
+  const visible = presented.filter((entry) => entry.viewState !== "archived");
+  const attention = visible.filter((entry) => ATTENTION_STATES.has(entry.viewState));
+  const working = visible.filter((entry) => WORKING_STATES.has(entry.viewState));
+  const ready = visible.filter((entry) => entry.viewState === "ready");
+  const completed = visible.filter((entry) => entry.viewState === "completed");
+  const archived = presented.filter((entry) => entry.viewState === "archived");
+  const counts: Record<WorkFilter, number> = {
+    all: visible.length,
+    attention: attention.length,
+    working: working.length,
+    ready: ready.length,
+    completed: completed.length,
+    archived: archived.length,
+  };
+
+  const sections = [
+    { id: "attention" as const, title: "需要你处理", copy: "批准、回答、验收或处理失败。", items: attention },
+    { id: "working" as const, title: "Agent 工作中", copy: "正在运行或等待可用进程。", items: working },
+    { id: "ready" as const, title: "准备开始", copy: "已经保存，还没有交给 Agent。", items: ready },
+    { id: "completed" as const, title: "最近完成", copy: "已验收的目标，可重新打开。", items: completed.slice(0, 8) },
+    { id: "archived" as const, title: "归档", copy: "已经移出日常工作台的目标。", items: archived },
+  ].filter((section) => (filter === "all" ? section.id !== "archived" : section.id === filter));
+
+  return (
+    <div className="work-dashboard">
+      <div className="work-filter-strip" aria-label="工作筛选">
+        {FILTERS.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            className={`pressable work-filter ${filter === entry.id ? "work-filter-active" : ""}`}
+            aria-pressed={filter === entry.id}
+            onClick={() => onFilter(entry.id)}
+          >
+            <span>{entry.label}</span>
+            <span className="tabular work-filter-count">{counts[entry.id]}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="work-sections">
+        {sections.map((section) => (
+          <section key={section.id} aria-labelledby={`work-section-${section.id}`} className="work-section">
+            <header className="work-section-head">
+              <div>
+                <h2 id={`work-section-${section.id}`}>{section.title}</h2>
+                <p>{section.copy}</p>
+              </div>
+              <span className="tabular work-section-count">{section.items.length}</span>
+            </header>
+            {section.items.length > 0 ? (
+              <ul className="work-objective-list">
+                {section.items.map((entry) => (
+                  <li key={entry.item.id}>
+                    <WorkObjectiveRow
+                      entry={entry}
+                      onSelect={onSelect}
+                      onStart={onStart}
+                      onStop={onStop}
+                      onAccept={onAccept}
+                      onReopen={onReopen}
+                      onArchive={onArchive}
+                      onOpenConversation={onOpenConversation}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="work-section-empty">
+                {section.id === "attention"
+                  ? "现在没有事情在等你。"
+                  : section.id === "working"
+                    ? "Agent 当前没有运行中的目标。"
+                      : section.id === "ready"
+                      ? "没有尚未开始的目标。"
+                      : section.id === "completed"
+                        ? "还没有已完成的目标。"
+                        : "归档中没有目标。"}
+              </p>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkObjectiveRow({
+  entry,
+  onSelect,
+  onStart,
+  onStop,
+  onAccept,
+  onReopen,
+  onArchive,
+  onOpenConversation,
+}: {
+  entry: PresentedItem;
+  onSelect: (item: WorkItemSummary) => void;
+  onStart: (id: string) => void;
+  onStop: (id: string) => void;
+  onAccept: (id: string) => void;
+  onReopen: (id: string) => void;
+  onArchive: (id: string) => void;
+  onOpenConversation: (item: WorkItemSummary) => void;
+}) {
+  const { item, viewState } = entry;
+  const copy = VIEW_COPY[viewState];
+  const Icon = viewIcon(viewState);
+  const result = item.latestRun?.resultSummary || item.latestRun?.errorMessage;
+
+  return (
+    <article className={`work-objective work-objective-${viewState}`}>
+      <button type="button" className="pressable work-objective-main" onClick={() => onSelect(item)}>
+        <span className="work-state-icon" aria-hidden="true">
+          <Icon size={15} />
+        </span>
+        <span className="work-objective-copy">
+          <span className="work-objective-title">{item.title}</span>
+          <span className="work-objective-meta">
+            <strong>{copy.label}</strong>
+            <span>{copy.detail}</span>
+          </span>
+          {result ? <span className="work-objective-result">{result}</span> : null}
+        </span>
+      </button>
+      <div className="work-objective-actions">
+        {viewState === "ready" ? (
+          <button type="button" className="pressable btn btn-primary" onClick={() => onStart(item.id)}>
+            <Play size={13} />
+            开始执行
+          </button>
+        ) : null}
+        {viewState === "queued" || viewState === "working" ? (
+          <>
+            <button type="button" className="pressable btn btn-secondary" onClick={() => onOpenConversation(item)}>
+              查看执行
+            </button>
+            <button type="button" className="pressable btn btn-ghost" onClick={() => onStop(item.id)}>
+              停止
+            </button>
+          </>
+        ) : null}
+        {viewState === "needs_approval" || viewState === "needs_input" ? (
+          <button type="button" className="pressable btn btn-primary" onClick={() => onOpenConversation(item)}>
+            {viewState === "needs_approval" ? "查看并批准" : "回答并继续"}
+          </button>
+        ) : null}
+        {viewState === "needs_review" ? (
+          <>
+            <button type="button" className="pressable btn btn-primary" onClick={() => onAccept(item.id)}>
+              <Check size={13} />
+              接受并完成
+            </button>
+            <button type="button" className="pressable btn btn-secondary" onClick={() => onSelect(item)}>
+              补充要求
+            </button>
+          </>
+        ) : null}
+        {viewState === "failed" || viewState === "paused" ? (
+          <button type="button" className="pressable btn btn-primary" onClick={() => onSelect(item)}>
+            补充说明并继续
+          </button>
+        ) : null}
+        {viewState === "completed" ? (
+          <>
+            <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
+              重新打开
+            </button>
+            <button
+              type="button"
+              className="pressable icon-btn"
+              aria-label={`归档 ${item.title}`}
+              onClick={() => onArchive(item.id)}
+            >
+              <Archive size={14} />
+            </button>
+          </>
+        ) : null}
+        {viewState === "archived" ? (
+          <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
+            重新打开
+          </button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function viewIcon(state: WorkItemViewState) {
+  if (state === "needs_approval") return ShieldAlert;
+  if (state === "needs_input") return MessageSquareText;
+  if (state === "needs_review") return UserRound;
+  if (state === "failed") return AlertCircle;
+  if (state === "paused") return Pause;
+  if (state === "queued") return Clock3;
+  if (state === "working") return Bot;
+  if (state === "completed") return CheckCircle2;
+  if (state === "archived") return Archive;
+  return CircleDot;
+}

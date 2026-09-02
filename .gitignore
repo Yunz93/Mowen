@@ -1,24 +1,56 @@
-node_modules
-dist
-dist-ssr
-.DS_Store
-*.log
-.env
-.env.local
-coverage
-test-results
-playwright-report
-blob-report
-.vite
-*.tsbuildinfo
-.mowen-test
-.ohmypi-test
-.mypi-test
-tmp
-.turbo
-.pnpm-store
-apps/web/test-results
-apps/desktop/out
-apps/desktop/release
-apps/desktop/vendor
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
 
+# Build output and caches
+dist/
+dist-ssr/
+apps/desktop/out/
+apps/desktop/release/
+apps/desktop/vendor/
+.vite/
+.turbo/
+.cache/
+.eslintcache
+*.tsbuildinfo
+*.tgz
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Runtime data created by local development or tests
+/.mowen/
+/.ohmypi/
+/.mypi-web/
+.mowen-test/
+.ohmypi-test/
+.mypi-test/
+tmp/
+*.pid
+
+# Test, coverage, and browser artifacts
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright-cli/
+/audit/
+/pi-session-*.html
+
+# Logs and diagnostic output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Operating-system and editor files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.idea/
+*.swp
+*.swo

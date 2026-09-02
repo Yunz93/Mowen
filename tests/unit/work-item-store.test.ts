@@ -1,79 +1,108 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { WorkItemStore } from "../../apps/server/src/tasks/work-item-store.ts";
 
 describe("WorkItemStore", () => {
-  it("creates items in 待办 and can reorder across columns", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-work-items-"));
-    await mkdir(root, { recursive: true });
+  it("creates open objectives and persists their rank and acceptance criteria", async () => {
+    const root = await tempRoot();
     const store = new WorkItemStore(root);
     await store.load();
-    const first = await store.create({ title: "fix login", cwd: root, description: "handle 401" });
+    const first = await store.create({
+      title: "fix login",
+      cwd: root,
+      description: "handle 401",
+      acceptanceCriteria: "tests pass",
+    });
     const second = await store.create({ title: "add tests", cwd: root });
-    expect(first.column).toBe("todo");
+    expect(first.state).toBe("open");
+    expect(first.acceptanceCriteria).toBe("tests pass");
     expect(first.projectId).toBeTruthy();
-    expect(store.listProjects()).toHaveLength(1);
     expect(second.projectId).toBe(first.projectId);
     expect(second.rank).toBeGreaterThan(first.rank);
 
-    await store.move(second.id, "doing");
-    await store.move(first.id, "doing", second.id);
-    const doing = store.list().filter((item) => item.column === "doing");
-    expect(doing.map((item) => item.title)).toEqual(["fix login", "add tests"]);
+    await store.reorder(second.id, first.id);
+    expect(store.list().map((item) => item.title)).toEqual(["add tests", "fix login"]);
 
     const reloaded = new WorkItemStore(root);
     await reloaded.load();
-    expect(reloaded.list().map((item) => item.title).sort()).toEqual(["add tests", "fix login"]);
-    expect(reloaded.get(second.id)?.column).toBe("doing");
-    expect(reloaded.listProjects()).toHaveLength(1);
+    expect(reloaded.get(first.id)?.acceptanceCriteria).toBe("tests pass");
+    expect(reloaded.list().map((item) => item.title)).toEqual(["add tests", "fix login"]);
   });
 
-  it("appends notes until a task is closed", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-work-items-"));
-    await mkdir(root, { recursive: true });
+  it("stores feedback and immutable run history separately from the objective", async () => {
+    const root = await tempRoot();
     const store = new WorkItemStore(root);
     await store.load();
     const item = await store.create({ title: "fix login", cwd: root });
-    const appended = await store.appendNote(item.id, "also handle 403");
-    expect(appended.notes).toHaveLength(1);
-    expect(appended.notes[0]?.text).toBe("also handle 403");
-    expect(appended.notes[0]?.sentAt).toBeNull();
-    await store.move(item.id, "done");
-    await expect(store.appendNote(item.id, "too late")).rejects.toThrow(/闭环/);
-    expect(store.get(item.id)?.closedAt).toBeTruthy();
+    const feedback = await store.addFeedback(item.id, "also handle 403");
+    const run = await store.createRun({
+      objectiveId: item.id,
+      taskId: "33333333-3333-4333-8333-333333333333",
+      kind: "feedback",
+      instruction: "continue",
+    });
+    await store.markFeedbackDelivered([feedback.id], run.id);
+    await store.updateRun(run.id, { status: "running" });
+    await store.updateRun(run.id, { status: "succeeded", resultSummary: "tests pass" });
+
+    const details = store.getDetails(item.id);
+    expect(details?.feedback[0]).toMatchObject({ text: "also handle 403", runId: run.id });
+    expect(details?.feedback[0]?.deliveredAt).toBeTruthy();
+    expect(details?.runs[0]).toMatchObject({ status: "succeeded", resultSummary: "tests pass" });
+    expect(store.getSummary(item.id)).toMatchObject({ runCount: 1, feedbackCount: 1 });
+
+    await store.setState(item.id, "completed");
+    await expect(store.addFeedback(item.id, "too late")).rejects.toThrow(/重新打开/);
+    expect(store.get(item.id)?.completedAt).toBeTruthy();
   });
 
-  it("migrates legacy items without a project into one", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-work-items-"));
-    await mkdir(root, { recursive: true });
-    await writeFile(
-      path.join(root, "work-items.json"),
-      JSON.stringify({
-        schemaVersion: 1,
-        items: [
-          {
-            schemaVersion: 1,
-            id: "11111111-1111-4111-8111-111111111111",
-            title: "legacy",
-            description: "",
-            cwd: root,
-            column: "todo",
-            rank: 0,
-            taskId: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            lastRunAt: null,
-            pendingRun: false,
-          },
-        ],
-      }),
-    );
+  it("migrates the v2 board into objectives and runs while preserving a backup", async () => {
+    const root = await tempRoot();
+    const legacy = {
+      schemaVersion: 2,
+      items: [
+        {
+          schemaVersion: 2,
+          id: "11111111-1111-4111-8111-111111111111",
+          title: "legacy",
+          description: "keep this",
+          cwd: root,
+          column: "review",
+          rank: 0,
+          taskId: "33333333-3333-4333-8333-333333333333",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-02T00:00:00.000Z",
+          lastRunAt: "2026-01-02T00:00:00.000Z",
+          pendingRun: false,
+          closedAt: null,
+          notes: [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              text: "preserve feedback",
+              createdAt: "2026-01-01T12:00:00.000Z",
+              sentAt: null,
+            },
+          ],
+        },
+      ],
+    };
+    await writeFile(path.join(root, "work-items.json"), JSON.stringify(legacy));
+
     const store = new WorkItemStore(root);
     await store.load();
     expect(store.listProjects()).toHaveLength(1);
-    expect(store.list()[0]?.projectId).toBe(store.listProjects()[0]?.id);
-    expect(store.list()[0]?.title).toBe("legacy");
+    expect(store.list()[0]).toMatchObject({ title: "legacy", state: "open", runCount: 1, feedbackCount: 1 });
+    expect(store.list()[0]?.latestRun?.status).toBe("succeeded");
+    expect(store.getDetails(legacy.items[0]!.id)?.feedback[0]?.text).toBe("preserve feedback");
+    expect(JSON.parse(await readFile(path.join(root, "work-items.v2.backup.json"), "utf8"))).toEqual(legacy);
+    expect(JSON.parse(await readFile(path.join(root, "work-items.json"), "utf8")).schemaVersion).toBe(3);
   });
 });
+
+async function tempRoot(): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mowen-work-items-"));
+  await mkdir(root, { recursive: true });
+  return root;
+}

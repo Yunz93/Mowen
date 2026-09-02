@@ -12,11 +12,12 @@ export type MachineEvent =
   | "abort_confirmed"
   | "pi_exit"
   | "restart"
-  | "queued";
+  | "queued"
+  | "dequeue";
 
 const transitions: Record<TaskStatus, Partial<Record<MachineEvent, TaskStatus>>> = {
   stopped: { activate: "booting", queued: "queued" },
-  queued: { activate: "booting", pi_exit: "error" },
+  queued: { activate: "booting", pi_exit: "error", dequeue: "stopped" },
   booting: { pi_ready: "idle", spawn_failed: "error", pi_exit: "error", abort: "aborting" },
   idle: {
     prompt_accepted: "running",

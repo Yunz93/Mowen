@@ -111,16 +111,35 @@ describe("protocol", () => {
       clientCommandSchema.parse({
         id: "10",
         type: "workItem.create",
-        payload: { title: "fix login", cwd: "/tmp/project", description: "handle 401" },
+        payload: {
+          title: "fix login",
+          cwd: "/tmp/project",
+          description: "handle 401",
+          acceptanceCriteria: "tests pass",
+          start: true,
+        },
       }).payload,
-    ).toMatchObject({ title: "fix login", cwd: "/tmp/project", description: "handle 401" });
+    ).toMatchObject({
+      title: "fix login",
+      cwd: "/tmp/project",
+      description: "handle 401",
+      acceptanceCriteria: "tests pass",
+      start: true,
+    });
     expect(
       clientCommandSchema.parse({
         id: "11",
-        type: "workItem.move",
-        payload: { id: "11111111-1111-4111-8111-111111111111", column: "doing", beforeId: null },
+        type: "workItem.feedback",
+        payload: { id: "11111111-1111-4111-8111-111111111111", text: "also handle 403" },
       }).payload,
-    ).toEqual({ id: "11111111-1111-4111-8111-111111111111", column: "doing", beforeId: null });
+    ).toEqual({ id: "11111111-1111-4111-8111-111111111111", text: "also handle 403" });
+    expect(
+      clientCommandSchema.parse({
+        id: "12",
+        type: "workItem.accept",
+        payload: { id: "11111111-1111-4111-8111-111111111111" },
+      }).type,
+    ).toBe("workItem.accept");
   });
 
   it("accepts partial Pi session stats and fills context usage", () => {

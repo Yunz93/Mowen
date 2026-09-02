@@ -76,48 +76,55 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-canvas">
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-line px-3">
-        <span className="min-w-0 truncate font-mono text-[11px] text-mute" title={cwd ?? undefined}>
+    <div className="term-shell flex h-full min-h-0 flex-col">
+      <div className="term-head h-8">
+        <span
+          aria-hidden="true"
+          className={`term-status ${running ? "term-status-running" : ""}`}
+          title={running ? "命令运行中" : "终端就绪"}
+        />
+        <span className="term-path" title={cwd ?? undefined}>
           {cwd || "工作文件夹"}
         </span>
         <button
           type="button"
-          className="pressable ml-auto h-7 shrink-0 px-2 text-[12px] text-mute"
+          className="term-head-btn pressable ml-auto"
           disabled={nativeBusy}
           aria-label="打开 zsh 终端"
           title="在系统终端里打开 zsh"
           onClick={() => void openNative()}
         >
-          <span className="inline-flex items-center gap-1">
-            <SquareTerminal size={12} />
-            {nativeBusy ? "正在打开…" : "打开 zsh"}
-          </span>
+          <SquareTerminal size={12} />
+          {nativeBusy ? "正在打开…" : "打开 zsh"}
         </button>
-        <button
-          type="button"
-          className="pressable h-7 shrink-0 px-2 text-[12px] text-mute"
-          onClick={() => clearTerm(taskId)}
-        >
+        <button type="button" className="term-head-btn pressable" onClick={() => clearTerm(taskId)}>
           清空
         </button>
       </div>
-      {nativeError ? <p className="border-b border-line px-3 py-1.5 text-[12px] text-danger">{nativeError}</p> : null}
+      {nativeError ? (
+        <p className="term-error border-b border-white/10 px-3 py-1.5 text-[12px]">{nativeError}</p>
+      ) : null}
       <pre
         ref={scrollerRef}
-        className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-[12px] leading-5 text-ink"
+        className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all px-3.5 py-2.5 font-mono text-[12px] leading-5"
         onScroll={(event) => setPinned(isNearBottom(event.currentTarget))}
       >
-        {text || "在工作文件夹里跑命令。没有完整 PTY，vim 这类交互程序跑不了。需要完整终端时点「打开 zsh」。"}
+        {text || (
+          <span className="term-hint">
+            在工作文件夹里跑命令。没有完整 PTY，vim 这类交互程序跑不了。需要完整终端时点「打开 zsh」。
+          </span>
+        )}
       </pre>
       <form
-        className="flex shrink-0 items-center gap-1 border-t border-line px-2 py-1.5"
+        className="term-input-line"
         onSubmit={(event) => {
           event.preventDefault();
           run();
         }}
       >
-        <span className="shrink-0 font-mono text-[12px] text-mute">$</span>
+        <span className="term-prompt" aria-hidden="true">
+          $
+        </span>
         <input
           ref={inputRef}
           value={draft}
@@ -131,19 +138,14 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
           disabled={!taskId}
           aria-label="终端命令"
           placeholder={running ? "正在执行…" : "ls"}
-          className="h-7 min-h-7 min-w-0 flex-1 bg-transparent font-mono text-[12px] text-ink placeholder:text-mute"
+          className="term-input"
         />
         {running ? (
-          <button
-            type="button"
-            className="pressable icon-btn"
-            aria-label="停止命令"
-            onClick={interrupt}
-          >
+          <button type="button" className="term-head-btn pressable" aria-label="停止命令" onClick={interrupt}>
             <Square size={12} />
           </button>
         ) : (
-          <button type="submit" className="pressable h-7 px-2 text-[12px] text-mute" disabled={!draft.trim()}>
+          <button type="submit" className="term-run pressable" disabled={!draft.trim()}>
             运行
           </button>
         )}

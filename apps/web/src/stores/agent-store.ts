@@ -16,7 +16,7 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
-  WorkItem,
+  WorkItemSummary,
   WorkProject,
 } from "@mowen/protocol";
 import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
@@ -136,7 +136,7 @@ type AgentState = {
   trustProject: boolean;
   pendingInteractions: InteractionRequest[];
   gitDiff: string | null;
-  workItems: WorkItem[];
+  workItems: WorkItemSummary[];
   workProjects: WorkProject[];
   activeProjectId: string | null;
   toast: { message: string; notifyType?: "info" | "warning" | "error" } | null;

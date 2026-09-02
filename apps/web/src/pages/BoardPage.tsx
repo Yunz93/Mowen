@@ -1,24 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Settings } from "lucide-react";
-import { WorkBoard } from "../components/board/WorkBoard";
+import type { WorkItemDetails, WorkItemSummary } from "@mowen/protocol";
+import { WorkDashboard, type WorkFilter } from "../components/board/WorkDashboard";
+import { WorkObjectivePanel } from "../components/board/WorkObjectivePanel";
 import { NewWorkItemDialog } from "../components/board/NewWorkItemDialog";
 import { NewWorkProjectDialog } from "../components/board/NewWorkProjectDialog";
-import { ConfirmWorkDialog } from "../components/board/ConfirmWorkDialog";
 import { ModeSwitcher } from "../components/app/ModeSwitcher";
 import { ThemeToggle } from "../components/status/ThemeToggle";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
-import { BOARD_SHOW_ARCHIVED_KEY, readUiFlag, writeUiFlag } from "../lib/ui-prefs";
 import { folderName } from "../copy";
-import {
-  workItemMoveCloses,
-  workItemMoveStartsRun,
-  type WorkItem,
-  type WorkItemColumn,
-} from "@mowen/protocol";
 
 export function BoardPage() {
   const items = useAgentStore((state) => state.workItems);
@@ -32,16 +26,10 @@ export function BoardPage() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(() => readUiFlag(BOARD_SHOW_ARCHIVED_KEY, false));
-  const [pendingConfirm, setPendingConfirm] = useState<{
-    id: string;
-    column: WorkItemColumn;
-    beforeId?: string | null;
-    title: string;
-    kind: "start" | "close";
-  } | null>(null);
+  const [filter, setFilter] = useState<WorkFilter>("all");
+  const [details, setDetails] = useState<WorkItemDetails | null>(null);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const focusItemId = searchParams.get("item");
   const defaultCwd = workspaceRoot ?? allowedRoots[0] ?? "";
   const project = useMemo(
@@ -58,58 +46,79 @@ export function BoardPage() {
   );
   const approval = pendingApprovals.find((entry) => workTaskIds.has(entry.taskId)) ?? null;
   const interaction = pendingInteractions.find((entry) => workTaskIds.has(entry.taskId)) ?? null;
+  const selectedSummary = focusItemId ? items.find((item) => item.id === focusItemId) : undefined;
 
   useEffect(() => {
     void socketClient.send("workItem.list").catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    writeUiFlag(BOARD_SHOW_ARCHIVED_KEY, showArchived);
-  }, [showArchived]);
-
-  function moveItem(id: string, column: WorkItemColumn, beforeId?: string | null) {
-    void socketClient
-      .send("workItem.move", { id, column, beforeId: beforeId ?? null })
-      .catch((error: unknown) => {
-        setNotice(error instanceof Error ? error.message : "移动任务失败");
-      });
-  }
-
-  function requestMove(id: string, column: WorkItemColumn, beforeId?: string | null) {
-    const item = items.find((entry) => entry.id === id);
-    if (!item) return;
-    if (workItemMoveStartsRun(item.column, column)) {
-      setPendingConfirm({ id, column, beforeId, title: item.title, kind: "start" });
+    if (!focusItemId) {
+      setDetails(null);
       return;
     }
-    if (workItemMoveCloses(item.column, column)) {
-      setPendingConfirm({ id, column, beforeId, title: item.title, kind: "close" });
-      return;
-    }
-    moveItem(id, column, beforeId);
-  }
-
-  function updateItem(id: string, title: string, description: string) {
+    let current = true;
     void socketClient
-      .send("workItem.update", { id, title, description })
+      .send<WorkItemDetails>("workItem.details", { id: focusItemId })
+      .then((next) => {
+        if (current) setDetails(next);
+      })
       .catch((error: unknown) => {
-        setNotice(error instanceof Error ? error.message : "更新任务失败");
+        if (!current) return;
+        setNotice(error instanceof Error ? error.message : "读取目标详情失败");
+        setDetails(null);
+        setSearchParams({});
       });
+    return () => {
+      current = false;
+    };
+  }, [focusItemId, selectedSummary?.updatedAt, selectedSummary?.runCount, selectedSummary?.feedbackCount, setSearchParams]);
+
+  function showError(error: unknown, fallback: string) {
+    setNotice(error instanceof Error ? error.message : fallback);
   }
 
-  function appendItem(id: string, text: string) {
-    void socketClient
-      .send("workItem.append", { id, text })
-      .catch((error: unknown) => {
-        setNotice(error instanceof Error ? error.message : "追加失败");
-      });
+  function openDetails(item: WorkItemSummary) {
+    setDetails(null);
+    setSearchParams({ item: item.id });
   }
 
-  function openConversation(item: WorkItem) {
+  function closeDetails() {
+    setDetails(null);
+    setSearchParams({});
+  }
+
+  function openConversation(item: WorkItemSummary) {
     if (item.taskId) {
       void socketClient.send("task.activate", {}, item.taskId).catch(() => undefined);
     }
     navigate("/");
+  }
+
+  function startItem(id: string) {
+    setNotice(null);
+    void socketClient.send("workItem.start", { id }).catch((error: unknown) => showError(error, "开始执行失败"));
+  }
+
+  function stopItem(id: string) {
+    setNotice(null);
+    void socketClient.send("workItem.stop", { id }).catch((error: unknown) => showError(error, "停止执行失败"));
+  }
+
+  function acceptItem(id: string) {
+    setNotice(null);
+    void socketClient.send("workItem.accept", { id }).catch((error: unknown) => showError(error, "验收失败"));
+  }
+
+  function reopenItem(id: string) {
+    setNotice(null);
+    void socketClient.send("workItem.reopen", { id }).catch((error: unknown) => showError(error, "重新打开失败"));
+  }
+
+  function archiveItem(id: string) {
+    setNotice(null);
+    if (focusItemId === id) closeDetails();
+    void socketClient.send("workItem.archive", { id }).catch((error: unknown) => showError(error, "归档失败"));
   }
 
   return (
@@ -117,57 +126,50 @@ export function BoardPage() {
       <a className="skip-link" href="#main-content">
         跳到正文
       </a>
-      <header className="titlebar app-drag traffic-inline flex items-center gap-2 border-b border-line px-3">
+      <header className="titlebar app-drag traffic-inline work-page-head border-b border-line px-3">
         <ModeSwitcher />
-        {projects.length > 0 ? (
-          <label className="app-no-drag min-w-0 flex-1">
-            <span className="sr-only">当前项目</span>
-            <select
-              className="field h-7 w-full max-w-[220px] px-1.5 text-[13px] font-semibold"
-              value={project?.id ?? ""}
-              onChange={(event) => {
-                void socketClient.send("workProject.select", { id: event.target.value }).catch((error: unknown) => {
-                  setNotice(error instanceof Error ? error.message : "切换项目失败");
-                });
-              }}
-            >
-              {projects.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <h1 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">工作</h1>
-        )}
-        <button
-          type="button"
-          className="pressable app-no-drag btn btn-ghost h-7"
-          onClick={() => setCreatingProject(true)}
-        >
-          新项目
-        </button>
-        {project ? (
-          <>
-            <button
-              type="button"
-              className="pressable app-no-drag btn btn-ghost h-7"
-              aria-pressed={showArchived}
-              onClick={() => setShowArchived((value) => !value)}
-            >
-              {showArchived ? "隐藏归档" : "显示归档"}
-            </button>
+        <div className="work-project-row">
+          {projects.length > 0 ? (
+            <label className="app-no-drag min-w-0 flex-1">
+              <span className="sr-only">当前项目</span>
+              <select
+                className="field h-7 w-full max-w-[240px] px-1.5 text-[13px] font-semibold"
+                value={project?.id ?? ""}
+                onChange={(event) => {
+                  closeDetails();
+                  void socketClient
+                    .send("workProject.select", { id: event.target.value })
+                    .catch((error: unknown) => showError(error, "切换项目失败"));
+                }}
+              >
+                {projects.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <h1 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">工作</h1>
+          )}
+          <button
+            type="button"
+            className="pressable app-no-drag btn btn-ghost h-7"
+            onClick={() => setCreatingProject(true)}
+          >
+            新项目
+          </button>
+          {project ? (
             <button
               type="button"
               className="pressable app-no-drag btn btn-primary h-7"
               onClick={() => setCreating(true)}
             >
               <Plus size={14} />
-              新建任务
+              新建目标
             </button>
-          </>
-        ) : null}
+          ) : null}
+        </div>
         <div className="app-no-drag flex items-center gap-0.5">
           <ThemeToggle />
           <Link to="/settings" aria-label="设置" className="pressable icon-btn">
@@ -175,31 +177,44 @@ export function BoardPage() {
           </Link>
         </div>
       </header>
-      {notice ? <div className="banner-note text-danger">{notice}</div> : null}
-      <main id="main-content" className="flex min-h-0 flex-1 flex-col">
+      {notice ? (
+        <div className="banner-note flex items-center justify-between gap-3 text-danger" role="alert">
+          <span>{notice}</span>
+          <button type="button" className="pressable btn btn-ghost" onClick={() => setNotice(null)}>
+            关闭
+          </button>
+        </div>
+      ) : null}
+      <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
         {project ? (
-          <>
-            <p className="px-4 pt-3 text-[12px] text-mute">
-              {folderName(project.cwd)} · 在这个项目里创建任务并追加内容，直到闭环。对话适合单次提问。
-            </p>
-            <WorkBoard
+          <div className="mx-auto w-full max-w-[1040px] px-4 pb-12 pt-5">
+            <div className="mb-5">
+              <h1 className="text-[22px] font-semibold tracking-tight">{project.name}</h1>
+              <p className="mt-1 text-[12px] text-mute">
+                {folderName(project.cwd)} · 用目标驱动 Agent，执行结束后由你验收或补充要求。
+              </p>
+            </div>
+            <WorkDashboard
               items={projectItems}
               tasks={tasks}
               pendingApprovals={pendingApprovals}
               pendingInteractions={pendingInteractions}
-              showArchived={showArchived}
-              focusItemId={focusItemId}
-              onMove={requestMove}
-              onUpdate={updateItem}
-              onAppend={appendItem}
+              filter={filter}
+              onFilter={setFilter}
+              onSelect={openDetails}
+              onStart={startItem}
+              onStop={stopItem}
+              onAccept={acceptItem}
+              onReopen={reopenItem}
+              onArchive={archiveItem}
               onOpenConversation={openConversation}
             />
-          </>
+          </div>
         ) : (
-          <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
-            <p className="text-[22px] font-semibold tracking-tight text-ink">从启动一个项目开始</p>
+          <div className="mx-auto flex h-full max-w-[440px] flex-col items-center justify-center px-6 pb-16 text-center">
+            <p className="text-[22px] font-semibold tracking-tight text-ink">从一个工作项目开始</p>
             <p className="mt-3 text-[13px] leading-6 text-mute">
-              工作是长期推进：选文件夹、建任务、执行、追加，直到闭环。单次提问请用「对话」。
+              选定文件夹，写下目标与验收标准，再让 Agent 按轮次推进。单次提问仍然使用「对话」。
             </p>
             <button
               type="button"
@@ -211,17 +226,14 @@ export function BoardPage() {
           </div>
         )}
       </main>
+
       {creatingProject ? (
         <NewWorkProjectDialog
           defaultCwd={defaultCwd}
           onCancel={() => setCreatingProject(false)}
           onCreate={(input) => {
             setCreatingProject(false);
-            void socketClient
-              .send("workProject.create", input)
-              .catch((error: unknown) => {
-                setNotice(error instanceof Error ? error.message : "启动项目失败");
-              });
+            void socketClient.send("workProject.create", input).catch((error: unknown) => showError(error, "启动项目失败"));
           }}
         />
       ) : null}
@@ -233,29 +245,29 @@ export function BoardPage() {
             setCreating(false);
             void socketClient
               .send("workItem.create", { ...input, projectId: project.id })
-              .catch((error: unknown) => {
-                setNotice(error instanceof Error ? error.message : "创建任务失败");
-              });
+              .catch((error: unknown) => showError(error, "创建目标失败"));
           }}
         />
       ) : null}
-      {pendingConfirm ? (
-        <ConfirmWorkDialog
-          title={
-            pendingConfirm.kind === "start"
-              ? `开始执行「${pendingConfirm.title}」？`
-              : `闭环「${pendingConfirm.title}」？`
-          }
-          copy={
-            pendingConfirm.kind === "start"
-              ? "会在这个项目里开一轮执行，并把当前说明发给 AI。之后还可以追加。"
-              : "闭环后不能再追加内容。执行记录会保留，但这个任务结束。"
-          }
-          confirmLabel={pendingConfirm.kind === "start" ? "开始执行" : "完成闭环"}
-          onCancel={() => setPendingConfirm(null)}
-          onConfirm={() => {
-            moveItem(pendingConfirm.id, pendingConfirm.column, pendingConfirm.beforeId);
-            setPendingConfirm(null);
+      {focusItemId && details ? (
+        <WorkObjectivePanel
+          details={details}
+          onClose={closeDetails}
+          onSave={(input) => {
+            void socketClient
+              .send("workItem.update", { id: focusItemId, ...input })
+              .catch((error: unknown) => showError(error, "更新目标失败"));
+          }}
+          onFeedback={(text) => {
+            void socketClient
+              .send("workItem.feedback", { id: focusItemId, text })
+              .then(() => closeDetails())
+              .catch((error: unknown) => showError(error, "继续执行失败"));
+          }}
+          onAccept={() => acceptItem(focusItemId)}
+          onReopen={() => reopenItem(focusItemId)}
+          onOpenConversation={() => {
+            if (selectedSummary) openConversation(selectedSummary);
           }}
         />
       ) : null}

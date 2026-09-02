@@ -15,12 +15,13 @@ import {
   type ServerEvent,
   type TaskRecord,
   type TimelineMessage,
-  workItemAppendPrompt,
+  workItemFeedbackPrompt,
   workItemIsClosed,
-  workItemMoveAbortsRun,
   workItemPrompt,
   type WorkItem,
   type WorkItemColumn,
+  type WorkRunKind,
+  type WorkRunStatus,
 } from "@mowen/protocol";
 import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
@@ -105,13 +106,21 @@ export class TaskService {
     this.supervisor.onEvent((event) => {
       this.events.dispatch(event);
       if (event.type === "approval.requested") {
+        void this.syncActiveWorkRun(event.taskId, "waiting_approval");
         void this.applyStoredPolicy(event.taskId, event.payload.approval);
       }
       if (event.type === "approval.resolved") {
+        void this.syncActiveWorkRun(event.taskId, "running");
         const task = this.store.get(event.taskId);
         if (task?.status === "waiting_approval") {
           void this.apply(event.taskId, "approval_resolved");
         }
+      }
+      if (event.type === "interaction.requested") {
+        void this.syncActiveWorkRun(event.taskId, "waiting_input");
+      }
+      if (event.type === "interaction.resolved") {
+        void this.syncActiveWorkRun(event.taskId, "running");
       }
       if (event.type === "message.started" || event.type === "tool.started") {
         void this.markUnread(event.taskId);
@@ -183,15 +192,38 @@ export class TaskService {
         return this.createWorkItem(
           command.payload.title,
           command.payload.description,
+          command.payload.acceptanceCriteria,
           command.payload.cwd,
           command.payload.projectId,
+          command.payload.start,
         );
       case "workItem.update":
-        return this.updateWorkItem(command.payload.id, command.payload.title, command.payload.description);
+        return this.updateWorkItem(
+          command.payload.id,
+          command.payload.title,
+          command.payload.description,
+          command.payload.acceptanceCriteria,
+        );
+      case "workItem.start":
+        return this.startWorkItem(command.payload.id, "initial");
+      case "workItem.feedback":
+        return this.feedbackWorkItem(command.payload.id, command.payload.text);
+      case "workItem.stop":
+        return this.stopWorkItem(command.payload.id);
+      case "workItem.accept":
+        return this.setWorkItemState(command.payload.id, "completed");
+      case "workItem.reopen":
+        return this.setWorkItemState(command.payload.id, "open");
+      case "workItem.archive":
+        return this.setWorkItemState(command.payload.id, "archived");
+      case "workItem.reorder":
+        return this.reorderWorkItem(command.payload.id, command.payload.beforeId);
+      case "workItem.details":
+        return this.workItemDetails(command.payload.id);
       case "workItem.append":
-        return this.appendWorkItem(command.payload.id, command.payload.text);
+        return this.feedbackWorkItem(command.payload.id, command.payload.text);
       case "workItem.move":
-        return this.moveWorkItem(command.payload.id, command.payload.column, command.payload.beforeId);
+        return this.legacyMoveWorkItem(command.payload.id, command.payload.column, command.payload.beforeId);
       case "task.activate":
         await this.activate(command.taskId);
         return { task: this.store.get(command.taskId) };
@@ -1159,9 +1191,24 @@ export class TaskService {
     });
     this.emit(taskId, "agent.status", { status: next.status, errorMessage: next.errorMessage ?? null });
     this.emit(taskId, "task.updated", { task: next });
+    if (next.status === "error") {
+      const run = this.workItems.activeRunForTask(taskId);
+      if (run) {
+        await this.workItems.updateRun(run.id, {
+          status: "failed",
+          errorMessage: next.errorMessage ?? "执行失败",
+        });
+        this.emitWorkItems();
+      }
+    } else if (event === "abort_confirmed") {
+      await this.syncActiveWorkRun(taskId, "aborted");
+    }
     if (event === "agent_settled") {
       void this.refreshStats(taskId);
-      if (task.status === "running" || task.status === "waiting_approval") {
+      if (
+        (task.status === "running" || task.status === "waiting_approval") &&
+        this.workItems.findByTaskId(taskId).length === 0
+      ) {
         this.emit(taskId, "notification.shown", { message: "回复完成", notifyType: "info" });
       }
       void this.onWorkItemSettled(taskId);
@@ -1183,7 +1230,7 @@ export class TaskService {
   }
 
   private emitWorkItems(): {
-    items: WorkItem[];
+    items: ReturnType<WorkItemStore["list"]>;
     projects: ReturnType<WorkItemStore["listProjects"]>;
     activeProjectId: string | null;
   } {
@@ -1212,8 +1259,10 @@ export class TaskService {
   private async createWorkItem(
     title: string,
     description: string | undefined,
+    acceptanceCriteria: string | undefined,
     cwd: string | undefined,
     projectId?: string,
+    start = false,
   ): Promise<{ item: WorkItem }> {
     let project = projectId ? this.workItems.getProject(projectId) : undefined;
     if (projectId && !project) throw new Error("找不到这个项目");
@@ -1232,105 +1281,140 @@ export class TaskService {
     const item = await this.workItems.create({
       title,
       description,
+      acceptanceCriteria,
       cwd: resolved,
       projectId: project.id,
     });
     this.emitWorkItems();
-    return { item };
+    if (start) return this.startWorkItem(item.id, "initial");
+    return { item: this.workItems.get(item.id) ?? item };
   }
 
   private async updateWorkItem(
     id: string,
     title?: string,
     description?: string,
+    acceptanceCriteria?: string,
   ): Promise<{ item: WorkItem }> {
-    const item = await this.workItems.update(id, { title, description });
+    const item = await this.workItems.update(id, { title, description, acceptanceCriteria });
     this.emitWorkItems();
     return { item };
   }
 
-  private async appendWorkItem(id: string, text: string): Promise<{ item: WorkItem }> {
-    const current = this.workItems.get(id);
-    if (!current) throw new Error("找不到这个任务");
-    if (workItemIsClosed(current.column)) throw new Error("这个任务已经闭环，不能再追加。");
-    const item = await this.workItems.appendNote(id, text);
-    this.emitWorkItems();
-    if (item.column === "todo") return { item: this.workItems.get(id) ?? item };
-    if (item.column === "review") {
-      await this.workItems.move(id, "doing");
-      this.emitWorkItems();
-    }
-    const latest = this.workItems.get(id) ?? item;
-    if (!latest.taskId) {
-      await this.scheduleWorkItem(id);
-      return { item: this.workItems.get(id) ?? latest };
-    }
-    const unsent = latest.notes.filter((note) => !note.sentAt);
-    const appendText = unsent.map((note) => note.text).join("\n\n") || text.trim();
-    try {
-      try {
-        await this.activate(latest.taskId);
-      } catch {
-        // Boot errors stay on the task; unsent notes retry after settle.
-      }
-      await this.prompt(latest.taskId, workItemAppendPrompt(latest, appendText), undefined, "follow_up");
-      await this.workItems.markNotesSent(id, unsent.map((note) => note.id));
-      await this.workItems.update(id, { lastRunAt: new Date().toISOString(), pendingRun: false });
-      this.emitWorkItems();
-    } catch {
-      // Leave notes unsent so tryStartWorkItemsForTask can send them when idle.
-    }
-    return { item: this.workItems.get(id) ?? latest };
+  private workItemDetails(id: string): ReturnType<WorkItemStore["getDetails"]> {
+    const details = this.workItems.getDetails(id);
+    if (!details) throw new Error("找不到这个目标");
+    return details;
   }
 
-  private async moveWorkItem(
-    id: string,
-    column: WorkItemColumn,
-    beforeId?: string | null,
-  ): Promise<{ item: WorkItem }> {
-    const current = this.workItems.get(id);
-    if (!current) throw new Error("找不到这个任务");
-    const sameColumn = current.column === column;
-    const item = await this.workItems.move(id, column, beforeId);
-    this.emitWorkItems();
-    if (current.column === "doing" && column !== "doing") {
-      if (workItemMoveAbortsRun(current.column, column) && current.taskId) {
-        const task = this.store.get(current.taskId);
-        if (task && isBusyStatus(task.status)) {
-          try {
-            await this.abort(current.taskId);
-          } catch {
-            // Cancelling 执行 should still succeed even if abort is a no-op.
-          }
-        }
-      }
-      if (item.pendingRun) await this.workItems.update(id, { pendingRun: false });
+  private async feedbackWorkItem(id: string, text: string): Promise<{ item: WorkItem }> {
+    const item = this.workItems.get(id);
+    if (!item) throw new Error("找不到这个目标");
+    if (workItemIsClosed(item.state)) throw new Error("这个目标已经结束，请先重新打开。");
+    if (item.taskId && this.workItems.activeRunForTask(item.taskId)) {
+      throw new Error("这个目标正在执行，请在完整对话中直接补充。");
     }
-    if (column === "doing" && !sameColumn) {
-      await this.scheduleWorkItem(id);
+    await this.workItems.addFeedback(id, text);
+    this.emitWorkItems();
+    return this.startWorkItem(id, "feedback", workItemFeedbackPrompt(item, text));
+  }
+
+  private async startWorkItem(
+    id: string,
+    kind: WorkRunKind,
+    explicitInstruction?: string,
+  ): Promise<{ item: WorkItem }> {
+    const item = this.workItems.get(id);
+    if (!item) throw new Error("找不到这个目标");
+    if (workItemIsClosed(item.state)) throw new Error("这个目标已经结束，请先重新打开。");
+    if (item.taskId && this.workItems.activeRunForTask(item.taskId)) {
+      throw new Error("这个目标已经在执行。");
+    }
+    let taskId = item.taskId;
+    if (!taskId || !this.store.get(taskId) || this.store.get(taskId)?.archivedAt) {
+      taskId = (await this.createTask(item.cwd, item.title)).task.id;
+    } else {
+      try {
+        await this.activate(taskId);
+      } catch {
+        // The run below records the boot failure and remains recoverable.
+      }
+    }
+    const feedback = this.workItems.listFeedback(id).filter((entry) => !entry.deliveredAt);
+    const instruction =
+      explicitInstruction ??
+      workItemPrompt({
+        title: item.title,
+        description: item.description,
+        acceptanceCriteria: item.acceptanceCriteria,
+        feedback,
+      });
+    const run = await this.workItems.createRun({ objectiveId: id, taskId, kind, instruction });
+    this.emitWorkItems();
+    const task = this.store.get(taskId);
+    if (task?.status === "error") {
+      await this.workItems.updateRun(run.id, {
+        status: "failed",
+        errorMessage: task.errorMessage ?? "AI 启动失败",
+      });
+      this.emitWorkItems();
+    } else {
+      await this.tryStartWorkItemsForTask(taskId);
     }
     return { item: this.workItems.get(id) ?? item };
   }
 
-  private async scheduleWorkItem(id: string): Promise<void> {
+  private async stopWorkItem(id: string): Promise<{ item: WorkItem }> {
     const item = this.workItems.get(id);
-    if (!item) return;
-    let taskId = item.taskId;
-    const existing = taskId ? this.store.get(taskId) : undefined;
-    if (!existing || existing.archivedAt) {
-      const created = await this.createTask(item.cwd, item.title);
-      taskId = created.task.id;
-    } else if (taskId) {
-      try {
-        await this.activate(taskId);
-      } catch {
-        // Boot errors stay on the task; the card still shows 执行.
-      }
+    if (!item) throw new Error("找不到这个目标");
+    if (!item.taskId) return { item };
+    const task = this.store.get(item.taskId);
+    if (task?.status === "queued") {
+      this.removeQueued(item.taskId);
+      await this.apply(item.taskId, "dequeue");
+    } else if (task && (isBusyStatus(task.status) || task.status === "booting")) {
+      await this.abort(item.taskId);
     }
-    if (!taskId) return;
-    await this.workItems.update(id, { taskId, pendingRun: true });
+    const run = this.workItems.activeRunForTask(item.taskId);
+    if (run) await this.workItems.updateRun(run.id, { status: "aborted" });
     this.emitWorkItems();
-    await this.tryStartWorkItemsForTask(taskId);
+    return { item: this.workItems.get(id) ?? item };
+  }
+
+  private async setWorkItemState(id: string, state: "open" | "completed" | "archived"): Promise<{ item: WorkItem }> {
+    const item = this.workItems.get(id);
+    if (!item) throw new Error("找不到这个目标");
+    if (state === "completed" && item.taskId && this.workItems.activeRunForTask(item.taskId)) {
+      throw new Error("Agent 还在执行，请先停止或等待本轮结束。");
+    }
+    if (state === "archived" && item.taskId && this.workItems.activeRunForTask(item.taskId)) {
+      await this.stopWorkItem(id);
+    }
+    const next = await this.workItems.setState(id, state);
+    this.emitWorkItems();
+    return { item: next };
+  }
+
+  private async reorderWorkItem(id: string, beforeId?: string | null): Promise<{ item: WorkItem }> {
+    const item = await this.workItems.reorder(id, beforeId);
+    this.emitWorkItems();
+    return { item };
+  }
+
+  private async legacyMoveWorkItem(
+    id: string,
+    column: WorkItemColumn,
+    beforeId?: string | null,
+  ): Promise<{ item: WorkItem }> {
+    if (column === "doing") return this.startWorkItem(id, "initial");
+    if (column === "done") return this.setWorkItemState(id, "completed");
+    if (column === "archived") return this.setWorkItemState(id, "archived");
+    if (column === "todo") {
+      const reopened = await this.setWorkItemState(id, "open");
+      if (beforeId !== undefined) return this.reorderWorkItem(id, beforeId);
+      return reopened;
+    }
+    throw new Error("待检视现在由 Agent 本轮完成后自动进入。");
   }
 
   private async tryStartWorkItemsForTask(taskId: string): Promise<void> {
@@ -1338,45 +1422,52 @@ export class TaskService {
     if (!task || task.archivedAt) return;
     if (task.status === "queued" || task.status === "booting") return;
     if (!this.supervisor.has(taskId) || task.status !== "idle") return;
-    const pending = this.workItems.findByTaskId(taskId).filter((item) => item.pendingRun && item.column === "doing");
-    for (const item of pending) {
-      try {
-        await this.prompt(taskId, workItemPrompt(item), undefined, "prompt");
-        await this.workItems.markNotesSent(item.id);
-        await this.workItems.update(item.id, { pendingRun: false, lastRunAt: new Date().toISOString() });
-        this.emitWorkItems();
-      } catch (error) {
-        const message = humanizeUserFacingError(error);
-        this.emit(taskId, "server.error", { code: "workItem.run", message });
-      }
-    }
-    const appends = this.workItems
-      .findByTaskId(taskId)
-      .filter((item) => item.column === "doing" && !item.pendingRun && item.notes.some((note) => !note.sentAt));
-    for (const item of appends) {
-      const unsent = item.notes.filter((note) => !note.sentAt);
-      try {
-        await this.prompt(
-          taskId,
-          workItemAppendPrompt(item, unsent.map((note) => note.text).join("\n\n")),
-          undefined,
-          "prompt",
-        );
-        await this.workItems.markNotesSent(item.id, unsent.map((note) => note.id));
-        await this.workItems.update(item.id, { lastRunAt: new Date().toISOString() });
-        this.emitWorkItems();
-      } catch (error) {
-        const message = humanizeUserFacingError(error);
-        this.emit(taskId, "server.error", { code: "workItem.append", message });
-      }
+    const run = this.workItems.activeRunForTask(taskId);
+    if (!run || run.status !== "queued") return;
+    try {
+      await this.prompt(taskId, run.instruction, undefined, "prompt");
+      await this.workItems.updateRun(run.id, { status: "running" });
+      const feedbackIds = this.workItems
+        .listFeedback(run.objectiveId)
+        .filter((entry) => !entry.deliveredAt)
+        .map((entry) => entry.id);
+      if (feedbackIds.length > 0) await this.workItems.markFeedbackDelivered(feedbackIds, run.id);
+      this.emitWorkItems();
+    } catch (error) {
+      const message = humanizeUserFacingError(error);
+      await this.workItems.updateRun(run.id, { status: "failed", errorMessage: message });
+      this.emitWorkItems();
+      this.emit(taskId, "server.error", { code: "workItem.run", message });
     }
   }
 
   private async onWorkItemSettled(taskId: string): Promise<void> {
     const task = this.store.get(taskId);
     if (!task || task.status === "error") return;
-    // Stay in 执行 so the user can keep iterating; they move to 待检视 themselves.
+    const run = this.workItems.activeRunForTask(taskId);
+    if (run) {
+      const messages = this.supervisor.snapshot(taskId)?.messages ?? [];
+      const result = [...messages].reverse().find((message) => message.role === "assistant" && message.text.trim());
+      await this.workItems.updateRun(run.id, {
+        status: "succeeded",
+        resultSummary: result ? summarizeWorkResult(result.text) : "本轮执行已结束，请打开对话检查结果。",
+        resultMessageId: result?.id ?? null,
+      });
+      this.emitWorkItems();
+      const item = this.workItems.get(run.objectiveId);
+      this.emit(taskId, "notification.shown", {
+        message: item ? `“${item.title}”已完成一轮执行，等待你验收。` : "工作目标等待验收。",
+        notifyType: "info",
+      });
+    }
     await this.tryStartWorkItemsForTask(taskId);
+  }
+
+  private async syncActiveWorkRun(taskId: string, status: WorkRunStatus): Promise<void> {
+    const run = this.workItems.activeRunForTask(taskId);
+    if (!run || run.status === status) return;
+    await this.workItems.updateRun(run.id, { status });
+    this.emitWorkItems();
   }
 
   emit(taskId: string, type: ServerEvent["type"], payload: unknown): void {
@@ -1397,3 +1488,9 @@ export class TaskService {
 }
 
 export { isActiveProcessStatus };
+
+function summarizeWorkResult(text: string): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length <= 280) return compact;
+  return `${compact.slice(0, 277)}...`;
+}

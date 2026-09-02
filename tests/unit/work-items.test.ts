@@ -1,62 +1,79 @@
 import { describe, expect, it } from "vitest";
 import {
-  workItemAppendPrompt,
-  workItemCanAppend,
+  deriveWorkItemViewState,
+  workItemCanContinue,
+  workItemFeedbackPrompt,
   workItemIsClosed,
-  workItemMoveAbortsRun,
-  workItemMoveCloses,
-  workItemMoveStartsRun,
   workItemPrompt,
-  WORK_ITEM_COLUMNS,
+  type WorkItemSummary,
+  type WorkRun,
 } from "../../packages/protocol/src/work-items.ts";
 
-describe("work item prompt", () => {
-  it("uses the title when there is no description", () => {
-    expect(workItemPrompt({ title: "fix login" })).toBe("请完成工作项：fix login");
+const now = "2026-09-02T00:00:00.000Z";
+
+function latestRun(status: WorkRun["status"]): WorkRun {
+  return {
+    id: "22222222-2222-4222-8222-222222222222",
+    objectiveId: "11111111-1111-4111-8111-111111111111",
+    taskId: "33333333-3333-4333-8333-333333333333",
+    kind: "initial",
+    instruction: "do it",
+    status,
+    resultSummary: null,
+    resultMessageId: null,
+    errorMessage: null,
+    createdAt: now,
+    startedAt: null,
+    finishedAt: null,
+  };
+}
+
+function item(status?: WorkRun["status"], state: WorkItemSummary["state"] = "open") {
+  return { state, latestRun: status ? latestRun(status) : null };
+}
+
+describe("agent-native work item contracts", () => {
+  it("builds an initial prompt from goal, acceptance criteria and pending feedback", () => {
+    const prompt = workItemPrompt({
+      title: "fix login",
+      description: "handle 401",
+      acceptanceCriteria: "tests pass",
+      feedback: [{ text: "also handle 403" }],
+    });
+    expect(prompt).toContain("标题：fix login");
+    expect(prompt).toContain("目标说明：\nhandle 401");
+    expect(prompt).toContain("验收标准：\ntests pass");
+    expect(prompt).toContain("补充要求：\nalso handle 403");
   });
 
-  it("includes title and description", () => {
-    expect(workItemPrompt({ title: "fix login", description: "handle 401" })).toContain("标题：fix login");
-    expect(workItemPrompt({ title: "fix login", description: "handle 401" })).toContain("handle 401");
+  it("builds a continuation prompt that preserves existing progress", () => {
+    const prompt = workItemFeedbackPrompt({ title: "fix login" }, "also handle 403");
+    expect(prompt).toContain("fix login");
+    expect(prompt).toContain("不要重复已经完成的操作");
+    expect(prompt).toContain("also handle 403");
   });
 
-  it("keeps the five board columns in order", () => {
-    expect(WORK_ITEM_COLUMNS.map((item) => item.label)).toEqual(["待办", "执行", "待检视", "已完成", "归档"]);
-  });
-
-  it("only aborts a run when leaving 执行 for 待办 or 归档", () => {
-    expect(workItemMoveAbortsRun("doing", "todo")).toBe(true);
-    expect(workItemMoveAbortsRun("doing", "archived")).toBe(true);
-    expect(workItemMoveAbortsRun("doing", "review")).toBe(false);
-    expect(workItemMoveAbortsRun("doing", "done")).toBe(false);
-    expect(workItemMoveAbortsRun("doing", "doing")).toBe(false);
-    expect(workItemMoveAbortsRun("todo", "archived")).toBe(false);
-  });
-
-  it("starts a run only when entering 执行 from another column", () => {
-    expect(workItemMoveStartsRun("todo", "doing")).toBe(true);
-    expect(workItemMoveStartsRun("review", "doing")).toBe(true);
-    expect(workItemMoveStartsRun("doing", "doing")).toBe(false);
-    expect(workItemMoveStartsRun("todo", "review")).toBe(false);
-  });
-
-  it("closes a task when moving to 已完成", () => {
-    expect(workItemMoveCloses("doing", "done")).toBe(true);
-    expect(workItemMoveCloses("done", "done")).toBe(false);
-    expect(workItemIsClosed("done")).toBe(true);
+  it("keeps completion separate from execution status", () => {
+    expect(workItemIsClosed("completed")).toBe(true);
     expect(workItemIsClosed("archived")).toBe(true);
-    expect(workItemCanAppend("doing")).toBe(true);
-    expect(workItemCanAppend("done")).toBe(false);
+    expect(workItemIsClosed("open")).toBe(false);
+    expect(workItemCanContinue("open")).toBe(true);
+    expect(workItemCanContinue("completed")).toBe(false);
   });
 
-  it("builds an append prompt for extra instructions", () => {
-    expect(workItemAppendPrompt({ title: "fix login" }, "also handle 403")).toContain("fix login");
-    expect(workItemAppendPrompt({ title: "fix login" }, "also handle 403")).toContain("also handle 403");
+  it("derives attention-first UI states from task and run state", () => {
+    expect(deriveWorkItemViewState({ item: item() })).toBe("ready");
+    expect(deriveWorkItemViewState({ item: item("queued") })).toBe("queued");
+    expect(deriveWorkItemViewState({ item: item("running") })).toBe("working");
+    expect(deriveWorkItemViewState({ item: item("succeeded") })).toBe("needs_review");
+    expect(deriveWorkItemViewState({ item: item("failed") })).toBe("failed");
+    expect(deriveWorkItemViewState({ item: item("aborted") })).toBe("paused");
+    expect(deriveWorkItemViewState({ item: item("running"), needsApproval: true })).toBe("needs_approval");
+    expect(deriveWorkItemViewState({ item: item("running"), needsInput: true })).toBe("needs_input");
   });
 
-  it("includes notes in the first-run prompt", () => {
-    expect(
-      workItemPrompt({ title: "fix login", description: "handle 401", notes: [{ text: "and 403" }] }),
-    ).toContain("and 403");
+  it("lets accepted and archived state override stale run state", () => {
+    expect(deriveWorkItemViewState({ item: item("running", "completed") })).toBe("completed");
+    expect(deriveWorkItemViewState({ item: item("failed", "archived") })).toBe("archived");
   });
 });

@@ -348,6 +348,8 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
       .object({
         title: z.string().min(1).max(200),
         description: z.string().max(20_000).optional(),
+        acceptanceCriteria: z.string().max(10_000).optional(),
+        start: z.boolean().optional(),
         cwd: z.string().min(1).optional(),
         projectId: z.string().uuid().optional(),
       })
@@ -364,7 +366,54 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
       id: z.string().uuid(),
       title: z.string().min(1).max(200).optional(),
       description: z.string().max(20_000).optional(),
+      acceptanceCriteria: z.string().max(10_000).optional(),
     }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.start"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.feedback"),
+    payload: z.object({
+      id: z.string().uuid(),
+      text: z.string().min(1).max(20_000),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.stop"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.accept"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.reopen"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.archive"),
+    payload: z.object({ id: z.string().uuid() }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.reorder"),
+    payload: z.object({
+      id: z.string().uuid(),
+      beforeId: z.string().uuid().nullable().optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("workItem.details"),
+    payload: z.object({ id: z.string().uuid() }),
   }),
   z.object({
     ...commandBase,

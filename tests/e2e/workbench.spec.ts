@@ -523,7 +523,7 @@ test("sidebars can pin into the layout and the terminal tab opens zsh", async ({
   await expect(page.getByRole("button", { name: "打开 zsh 终端" })).toBeVisible();
 });
 
-test("work board schedules items moved to 执行", async ({ page }) => {
+test("work mode creates an objective and starts an agent run", async ({ page }) => {
   await page.goto("/board");
   await expect(page.getByRole("tab", { name: "工作" })).toBeVisible();
   await page.getByRole("button", { name: "启动项目" }).click();
@@ -531,25 +531,14 @@ test("work board schedules items moved to 执行", async ({ page }) => {
   await page.getByLabel("项目文件夹").fill(project);
   await page.getByLabel("项目名称").fill("E2E project");
   await page.getByRole("dialog", { name: "启动项目" }).getByRole("button", { name: "启动项目" }).click();
-  await page.getByRole("button", { name: "新建任务" }).click();
+  await page.getByRole("button", { name: "新建目标" }).click();
   await page.getByLabel("标题").fill("Board e2e job");
-  await page.getByLabel("说明").fill("echo from the board");
-  await page.getByRole("button", { name: "创建任务" }).click();
-  const todo = page.getByRole("region", { name: "待办" });
-  await expect(todo.getByText("Board e2e job", { exact: true })).toBeVisible();
-  await todo.getByRole("button", { name: "Board e2e job" }).click();
-  await expect(page.getByPlaceholder(/追加到任务里/)).toBeVisible();
-  await expect(page).toHaveURL(/\/board/);
-  await page.getByRole("button", { name: "收起" }).click();
-  await todo.getByLabel("移动 Board e2e job").selectOption({ label: "执行" });
-  await expect(page.getByRole("alertdialog", { name: /开始执行/ })).toBeVisible();
-  await page.getByRole("button", { name: "取消" }).click();
-  await expect(todo.getByText("Board e2e job", { exact: true })).toBeVisible();
-  await todo.getByLabel("移动 Board e2e job").selectOption({ label: "执行" });
-  await page.getByRole("button", { name: "开始执行" }).click();
-  await expect(page.getByRole("region", { name: "执行" }).getByText("Board e2e job", { exact: true })).toBeVisible({
+  await page.getByLabel("目标说明").fill("echo from work mode");
+  await page.getByLabel("验收标准").fill("the run finishes and reports a result");
+  await page.getByRole("button", { name: "创建并开始" }).click();
+  const working = page.getByRole("region", { name: "Agent 工作中" });
+  await expect(working.getByText("Board e2e job", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByRole("region", { name: "待检视" }).getByText("Board e2e job", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "查看执行" })).toBeVisible();
 });
-

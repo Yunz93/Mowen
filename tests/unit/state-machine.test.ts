@@ -21,4 +21,8 @@ describe("task state machine", () => {
     expect(canTransition("idle", "approval_request")).toBe(false);
     expect(() => transition("idle", "approval_request")).toThrow(/Illegal task transition/);
   });
+
+  it("can remove a queued task without starting it", () => {
+    expect(transition("queued", "dequeue")).toBe("stopped");
+  });
 });

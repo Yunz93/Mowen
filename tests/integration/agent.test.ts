@@ -805,7 +805,7 @@ describe("integration fake-pi", () => {
     }
   }, 35_000);
 
-  it("schedules a work item when it is moved to 执行", async () => {
+  it("runs a work objective and leaves it waiting for human acceptance", async () => {
     const isolated = await listen({
       HOST: "127.0.0.1",
       PORT: "0",
@@ -824,45 +824,43 @@ describe("integration fake-pi", () => {
       sock.send({
         id: "wi-create",
         type: "workItem.create",
-        payload: { title: "board job", cwd: project, description: "do the thing" },
+        payload: {
+          title: "board job",
+          cwd: project,
+          description: "do the thing",
+          acceptanceCriteria: "report the result",
+          start: true,
+        },
       });
       const created = await sock.waitForRequest("wi-create");
-      const itemId = (created.payload?.data as { item?: { id: string; column: string } } | undefined)?.item?.id;
+      const itemId = (created.payload?.data as { item?: { id: string; state: string } } | undefined)?.item?.id;
       expect(itemId).toBeTruthy();
-      expect((created.payload?.data as { item?: { column: string } } | undefined)?.item?.column).toBe("todo");
-
-      sock.send({
-        id: "wi-move",
-        type: "workItem.move",
-        payload: { id: itemId, column: "doing" },
-      });
-      const moved = await sock.waitForRequest("wi-move");
-      expect((moved.payload?.data as { item?: { column: string } } | undefined)?.item?.column).toBe("doing");
+      expect((created.payload?.data as { item?: { state: string } } | undefined)?.item?.state).toBe("open");
 
       const start = Date.now();
-      let doingAfterRun = false;
+      let waitingForAcceptance = false;
       while (Date.now() - start < 12_000) {
-        const hasPrompt = JSON.stringify(sock.events).includes("请完成下面这个工作项");
+        const hasPrompt = JSON.stringify(sock.events).includes("请完成下面这个工作目标");
         const listed = sock.events.filter((event) => event.type === "workItems.updated");
         const latest = listed.at(-1)?.payload as
-          | { items?: Array<{ id: string; column: string; lastRunAt: string | null; pendingRun: boolean }> }
+          | { items?: Array<{ id: string; state: string; latestRun: { status: string } | null }> }
           | undefined;
         const item = latest?.items?.find((entry) => entry.id === itemId);
         const settled = sock.events.some(
           (event) => event.type === "agent.status" && (event.payload as { status?: string } | undefined)?.status === "idle",
         );
-        if (hasPrompt && item?.column === "doing" && item.lastRunAt && item.pendingRun === false && settled) {
-          doingAfterRun = true;
+        if (hasPrompt && item?.state === "open" && item.latestRun?.status === "succeeded" && settled) {
+          waitingForAcceptance = true;
           break;
         }
         await new Promise((r) => setTimeout(r, 50));
       }
-      expect(JSON.stringify(sock.events)).toMatch(/请完成下面这个工作项/);
-      expect(doingAfterRun).toBe(true);
-      const listed = sock.events.filter((event) => event.type === "workItems.updated");
-      const latest = listed.at(-1)?.payload as { items?: Array<{ id: string; column: string }> } | undefined;
-      expect(latest?.items?.some((item) => item.id === itemId && item.column === "doing")).toBe(true);
-      expect(latest?.items?.some((item) => item.id === itemId && item.column === "review")).toBeFalsy();
+      expect(JSON.stringify(sock.events)).toMatch(/请完成下面这个工作目标/);
+      expect(waitingForAcceptance).toBe(true);
+
+      sock.send({ id: "wi-accept", type: "workItem.accept", payload: { id: itemId } });
+      const accepted = await sock.waitForRequest("wi-accept");
+      expect((accepted.payload?.data as { item?: { state: string } } | undefined)?.item?.state).toBe("completed");
       sock.ws.close();
     } finally {
       await isolated.app.close();
