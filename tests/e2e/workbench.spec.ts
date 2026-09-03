@@ -167,7 +167,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
 
   await page.getByRole("button", { name: "详情" }).click();
   await page.getByRole("button", { name: "约定" }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" }).first()).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
