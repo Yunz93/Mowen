@@ -410,7 +410,7 @@ export function SettingsPage() {
                   {mowenUpdateError ? <p className="mt-1 text-[12px] text-danger">{mowenUpdateError}</p> : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <button type="button" className="pressable btn btn-ghost" disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate()}>
+                  <button type="button" className="pressable btn btn-ghost" aria-label={mowenCheckBusy ? "正在检查墨问更新" : "检查墨问更新"} disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate()}>
                     {mowenCheckBusy ? "正在检查…" : "检查更新"}
                   </button>
                   {mowenLatest?.updateAvailable && mowenLatest.canUpdate ? (

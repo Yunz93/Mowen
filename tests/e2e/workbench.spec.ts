@@ -496,7 +496,7 @@ test("pasting one image attaches a single preview", async ({ page }) => {
   await expectPreviewAboveInput(page);
 });
 
-test("sidebars can pin into the layout and the terminal tab opens zsh", async ({ page }) => {
+test("sidebars can pin into the layout and the terminal tab embeds zsh", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await createTask(page, "Pin term task");
 
@@ -520,7 +520,7 @@ test("sidebars can pin into the layout and the terminal tab opens zsh", async ({
   await expect(page.getByRole("complementary", { name: "详情" })).toBeVisible();
 
   await page.getByRole("button", { name: "终端" }).click();
-  await expect(page.getByRole("button", { name: "打开 zsh 终端" })).toBeVisible();
+  await expect(page.getByLabel("内嵌 zsh 输入")).toBeVisible();
 });
 
 test("work mode creates an objective and starts an agent run", async ({ page }) => {
