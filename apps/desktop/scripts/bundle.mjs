@@ -21,8 +21,8 @@ await esbuild.build({
 // node-pty contains platform native binaries. Keep the package beside the
 // bundled main process so electron-builder can ship it inside the asar.
 const ptyRoot = path.resolve(path.dirname(require.resolve("node-pty")), "..");
-const bundledPty = path.resolve("out/main/node_modules/node-pty");
-mkdirSync(path.dirname(bundledPty), { recursive: true });
+const bundledPty = path.resolve("out/main/pty-runtime");
+mkdirSync(bundledPty, { recursive: true });
 cpSync(ptyRoot, bundledPty, { recursive: true });
 if (process.platform !== "win32") {
   try { chmodSync(path.join(bundledPty, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper"), 0o755); } catch { /* optional prebuild */ }

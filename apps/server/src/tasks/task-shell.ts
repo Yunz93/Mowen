@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { chmodSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import * as pty from "node-pty";
+import { fileURLToPath } from "node:url";
+import type { IPty } from "node-pty";
 
 export const TERM_TIMEOUT_MS = 120_000;
 export const TERM_MAX_OUTPUT = 200_000;
@@ -25,13 +26,13 @@ export type TerminalInput = {
 
 export class TaskShells {
   private readonly children = new Map<string, ChildProcess>();
-  private readonly terminals = new Map<string, pty.IPty>();
+  private readonly terminals = new Map<string, IPty>();
 
   running(taskId: string): boolean {
     return this.children.has(taskId) || this.terminals.has(taskId);
   }
 
-  terminal(taskId: string): pty.IPty | undefined {
+  terminal(taskId: string): IPty | undefined {
     return this.terminals.get(taskId);
   }
 
@@ -43,7 +44,7 @@ export class TaskShells {
     if (this.children.has(taskId)) throw new Error("上一条命令还在跑，先停再执行。");
     ensurePtyHelperExecutable();
     const shell = resolveInteractiveShell();
-    const terminal = pty.spawn(shell, interactiveShellArgs(shell), {
+    const terminal = nodePty.spawn(shell, interactiveShellArgs(shell), {
       name: "xterm-256color",
       cols: clampDimension(input.cols ?? 100),
       rows: clampDimension(input.rows ?? 30),
@@ -149,13 +150,29 @@ export class TaskShells {
 }
 
 const require = createRequire(import.meta.url);
+const nodePty = loadNodePty();
 let ptyHelperChecked = false;
+
+function loadNodePty(): typeof import("node-pty") {
+  try {
+    return require("node-pty") as typeof import("node-pty");
+  } catch {
+    const localEntry = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "pty-runtime", "lib", "index.js");
+    return require(localEntry) as typeof import("node-pty");
+  }
+}
 
 function ensurePtyHelperExecutable(): void {
   if (ptyHelperChecked || process.platform === "win32") return;
   ptyHelperChecked = true;
   try {
-    const entry = require.resolve("node-pty");
+    const entry = (() => {
+      try {
+        return require.resolve("node-pty");
+      } catch {
+        return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "pty-runtime", "lib", "index.js");
+      }
+    })();
     const packageDir = path.resolve(path.dirname(entry), "..");
     const helper = path.join(packageDir, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper");
     chmodSync(helper, 0o755);

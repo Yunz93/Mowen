@@ -201,7 +201,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     },
   });
   registerUpdateRoutes(app, {
-    getCurrentVersion: () => env.MOWEN_VERSION ?? "0.1.6",
+    getCurrentVersion: () => env.MOWEN_VERSION ?? "0.1.7",
     env,
   });
 

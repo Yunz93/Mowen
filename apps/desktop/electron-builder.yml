@@ -4,7 +4,7 @@ copyright: Copyright © 2026 墨问 / Mowen
 artifactName: Mowen-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
-  - out/main/node_modules/node-pty/**
+  - out/main/pty-runtime/**
 directories:
   output: release
   buildResources: build
@@ -12,7 +12,7 @@ files:
   - out/**/*
   - package.json
   - "!**/node_modules/**"
-  - out/main/node_modules/node-pty/**/*
+  - out/main/pty-runtime/**/*
 extraResources:
   - from: ../web/dist
     to: web
