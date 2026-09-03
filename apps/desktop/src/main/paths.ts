@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export function applyDesktopEnv(): void {
+  process.env.MOWEN_DESKTOP = "1";
   process.env.HOST = process.env.HOST ?? "127.0.0.1";
   process.env.PORT = process.env.PORT ?? "4310";
   if (app.isPackaged) {

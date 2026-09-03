@@ -307,6 +307,30 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("term.start"),
+    taskId: z.string().min(1),
+    payload: z.object({ cols: z.number().int().min(20).max(500).optional(), rows: z.number().int().min(10).max(200).optional() }).optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.input"),
+    taskId: z.string().min(1),
+    payload: z.object({ data: z.string().max(20_000) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.resize"),
+    taskId: z.string().min(1),
+    payload: z.object({ cols: z.number().int().min(20).max(500), rows: z.number().int().min(10).max(200) }),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("term.close"),
+    taskId: z.string().min(1),
+    payload: z.object({}).optional(),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("term.run"),
     taskId: z.string().min(1),
     payload: z.object({ command: z.string().min(1).max(8000) }),

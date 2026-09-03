@@ -16,6 +16,12 @@ param(
 $ErrorActionPreference = "Stop"
 $AppName = "Mowen"
 
+if ($env:MOWEN_UPDATE_PARENT_PID -match '^\d+$') {
+  while (Get-Process -Id ([int]$env:MOWEN_UPDATE_PARENT_PID) -ErrorAction SilentlyContinue) {
+    Start-Sleep -Milliseconds 200
+  }
+}
+
 if ($Nightly) {
   $Version = "nightly"
 }

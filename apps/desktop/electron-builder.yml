@@ -3,6 +3,8 @@ productName: Mowen
 copyright: Copyright © 2026 墨问 / Mowen
 artifactName: Mowen-${os}-${arch}.${ext}
 asar: true
+asarUnpack:
+  - out/main/node_modules/node-pty/**
 directories:
   output: release
   buildResources: build
@@ -10,6 +12,7 @@ files:
   - out/**/*
   - package.json
   - "!**/node_modules/**"
+  - out/main/node_modules/node-pty/**/*
 extraResources:
   - from: ../web/dist
     to: web

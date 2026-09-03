@@ -73,10 +73,11 @@ async function startBackend(): Promise<number> {
     console.warn("[mowen-desktop] bundled Pi not found; falling back to PATH");
   }
 
-  const { app: server, config } = await createApp(process.env);
+  const { app: server, config, service } = await createApp(process.env);
   try {
     await server.listen({ host: "127.0.0.1", port: config.port });
     stopServer = async () => {
+      service.dispose();
       await server.close();
     };
     return config.port;
@@ -87,6 +88,7 @@ async function startBackend(): Promise<number> {
     const address = server.server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     stopServer = async () => {
+      service.dispose();
       await server.close();
     };
     return port;
@@ -182,6 +184,10 @@ function registerIpc(): void {
     if (Notification.isSupported()) {
       new Notification({ title, body }).show();
     }
+  });
+  ipcMain.handle("mowen:restart", async () => {
+    app.relaunch();
+    app.exit(0);
   });
 }
 

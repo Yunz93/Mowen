@@ -142,6 +142,10 @@ export class TaskService {
     this.setupHints = hints;
   }
 
+  dispose(): void {
+    this.shells.disposeAll();
+  }
+
   addSocket(socket: SocketLike): void {
     this.events.addSocket(socket);
   }
@@ -176,6 +180,14 @@ export class TaskService {
         return this.emitResources(command.taskId);
       case "runtime.set":
         return this.setRuntime(command.taskId, command.payload);
+      case "term.start":
+        return this.startTerm(command.taskId, command.payload);
+      case "term.input":
+        return this.inputTerm(command.taskId, command.payload.data);
+      case "term.resize":
+        return this.resizeTerm(command.taskId, command.payload.cols, command.payload.rows);
+      case "term.close":
+        return this.closeTerm(command.taskId);
       case "term.run":
         return this.runTerm(command.taskId, command.payload.command);
       case "term.interrupt":
@@ -765,6 +777,41 @@ export class TaskService {
       onChunk: (text) => this.emit(taskId, "term.chunk", { text }),
       onExit: (code, signal) => this.emit(taskId, "term.exit", { code, signal }),
     });
+    return { ok: true };
+  }
+
+  private startTerm(taskId: string, payload?: { cols?: number; rows?: number }): { ok: true; shell: string; pid: number } {
+    const task = this.requireTask(taskId);
+    const result = this.shells.startTerminal(taskId, {
+      cwd: task.cwd,
+      cols: payload?.cols,
+      rows: payload?.rows,
+      onChunk: (text) => this.emit(taskId, "term.chunk", { text }),
+      onExit: (code, signal) => this.emit(taskId, "term.exit", { code, signal }),
+    });
+    this.emit(taskId, "term.ready", { shell: result.shell, cwd: task.cwd, pid: result.pid });
+    return { ok: true, ...result };
+  }
+
+  private inputTerm(taskId: string, data: string): { ok: true } {
+    this.requireTask(taskId);
+    if (!this.shells.writeTerminal(taskId, data)) {
+      throw new Error("终端还没有启动。");
+    }
+    return { ok: true };
+  }
+
+  private resizeTerm(taskId: string, cols: number, rows: number): { ok: true } {
+    this.requireTask(taskId);
+    if (!this.shells.resizeTerminal(taskId, cols, rows)) {
+      throw new Error("终端还没有启动。");
+    }
+    return { ok: true };
+  }
+
+  private closeTerm(taskId: string): { ok: true } {
+    this.requireTask(taskId);
+    this.shells.dispose(taskId);
     return { ok: true };
   }
 

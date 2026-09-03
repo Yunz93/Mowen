@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("mowen", {
   pickFolder: (defaultPath?: string) => ipcRenderer.invoke("mowen:pick-folder", defaultPath) as Promise<string | null>,
   openPath: (filePath: string) => ipcRenderer.invoke("mowen:open-path", filePath) as Promise<string>,
   notify: (payload: { title: string; body: string }) => ipcRenderer.invoke("mowen:notify", payload) as Promise<void>,
+  restart: () => ipcRenderer.invoke("mowen:restart") as Promise<void>,
   onOpenSetup: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("mowen:open-setup", handler);

@@ -27,6 +27,7 @@ import { TaskStore } from "./tasks/task-store.js";
 import { TaskService } from "./tasks/task-service.js";
 import { WorkItemStore } from "./tasks/work-item-store.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
+import { registerUpdateRoutes } from "./routes/update.js";
 
 loadDotEnv();
 
@@ -198,6 +199,10 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
       await refreshSetupHints();
       void service.refreshResources();
     },
+  });
+  registerUpdateRoutes(app, {
+    getCurrentVersion: () => env.MOWEN_VERSION ?? "0.1.6",
+    env,
   });
 
   app.get("/api/session", async () => {

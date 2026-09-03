@@ -38,21 +38,38 @@ export type CheckpointRecord = {
 };
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
-export type TermSession = { text: string; running: boolean };
+export type TermSession = { text: string; running: boolean; connected: boolean; shell: string | null };
 
 const TERM_BUFFER_MAX = 200_000;
-const emptyTerm: TermSession = { text: "", running: false };
+const emptyTerm: TermSession = { text: "", running: false, connected: false, shell: null };
 
 function patchTerm(
   sessions: Record<string, TermSession>,
   taskId: string,
-  patch: { append?: string; text?: string; running?: boolean },
+  patch: { append?: string; text?: string; running?: boolean; connected?: boolean; shell?: string | null },
 ): Record<string, TermSession> {
   const prev = sessions[taskId] ?? emptyTerm;
   let text = patch.text ?? prev.text;
-  if (patch.append) text += patch.append;
+  if (patch.append) text += cleanTerminalOutput(patch.append);
   if (text.length > TERM_BUFFER_MAX) text = text.slice(text.length - TERM_BUFFER_MAX);
-  return { ...sessions, [taskId]: { text, running: patch.running ?? prev.running } };
+  return {
+    ...sessions,
+    [taskId]: {
+      text,
+      running: patch.running ?? prev.running,
+      connected: patch.connected ?? prev.connected,
+      shell: patch.shell === undefined ? prev.shell : patch.shell,
+    },
+  };
+}
+
+function cleanTerminalOutput(value: string): string {
+  const esc = String.fromCharCode(27);
+  return value
+    .replace(new RegExp(`${esc}\\[[0-9;?]*[ -/]*[@-~]`, "g"), "")
+    .replace(new RegExp(`${esc}\\][^${String.fromCharCode(7)}]*${String.fromCharCode(7)}`, "g"), "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
 }
 
 const WORKBENCH_CACHE_KEY = "mowen.workbench";
@@ -256,12 +273,13 @@ export const useAgentStore = create<AgentState>((set, get) => {
         termByTask: patchTerm(state.termByTask, taskId, {
           append: `${prefix}$ ${command}\n`,
           running: true,
+          connected: true,
         }),
       };
     }),
   clearTerm: (taskId) =>
     set((state) => ({
-      termByTask: { ...state.termByTask, [taskId]: { ...emptyTerm } },
+        termByTask: { ...state.termByTask, [taskId]: { ...emptyTerm } },
     })),
   clearRequestError: () => set({ requestError: null, serverError: null }),
   setSetupState: (payload) =>
@@ -619,6 +637,15 @@ export const useAgentStore = create<AgentState>((set, get) => {
           termByTask: patchTerm(current.termByTask, event.taskId, { append: event.payload.text }),
         });
         break;
+      case "term.ready":
+        set({
+          lastSeen,
+          termByTask: patchTerm(current.termByTask, event.taskId, {
+            connected: true,
+            shell: event.payload.shell,
+          }),
+        });
+        break;
       case "term.exit": {
         const extra = event.payload.signal
           ? "已中断\n"
@@ -630,6 +657,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
           termByTask: patchTerm(current.termByTask, event.taskId, {
             append: extra,
             running: false,
+            connected: false,
           }),
         });
         break;

@@ -5,6 +5,7 @@ import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
 import { socketClient } from "../transport/socket-client";
+import { getDesktop } from "../desktop-bridge";
 import { authStatusLabel, findAuthEntry, logoutNotice, mergeAuthCatalog, oauthButtonLabel, pickDefaultProvider, providersForMode, type AuthMode } from "../lib/settings-auth";
 
 type ProviderOption = { id: string; label: string; hint: string };
@@ -15,6 +16,19 @@ type PiLatest = {
   updateAvailable: boolean;
   canUpdate: boolean;
   piBundled: boolean;
+  error: string | null;
+};
+
+type MowenLatest = {
+  current: string | null;
+  latest: string | null;
+  tagName: string | null;
+  name: string | null;
+  url: string | null;
+  body: string;
+  publishedAt: string | null;
+  updateAvailable: boolean;
+  canUpdate: boolean;
   error: string | null;
 };
 
@@ -47,6 +61,10 @@ export function SettingsPage() {
   const [flash, setFlash] = useState<{ id: string; tone: "ok" | "err"; text: string } | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("oauth");
   const [selectedProvider, setSelectedProvider] = useState("github");
+  const [mowenLatest, setMowenLatest] = useState<MowenLatest | null>(null);
+  const [mowenCheckBusy, setMowenCheckBusy] = useState(false);
+  const [mowenUpdateBusy, setMowenUpdateBusy] = useState(false);
+  const [mowenUpdateError, setMowenUpdateError] = useState("");
 
   function applySetup(setup: SetupStatus) {
     setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
@@ -75,7 +93,62 @@ export function SettingsPage() {
       .catch(() => {
         /* 打开设置页时检查失败不挡操作，可再点「检查更新」。 */
       });
+    void checkMowenUpdate();
   }, []);
+
+  async function checkMowenUpdate() {
+    setMowenCheckBusy(true);
+    try {
+      const response = await fetch("/api/update/latest", { credentials: "same-origin" });
+      const json = (await response.json()) as MowenLatest;
+      setMowenLatest(response.ok ? json : { ...json, error: json.error ?? "检查更新失败。" });
+    } catch {
+      setMowenLatest((current) => ({
+        current: current?.current ?? null,
+        latest: null,
+        tagName: null,
+        name: null,
+        url: null,
+        body: "",
+        publishedAt: null,
+        updateAvailable: false,
+        canUpdate: false,
+        error: "检查更新失败，请检查网络后重试。",
+      }));
+    } finally {
+      setMowenCheckBusy(false);
+    }
+  }
+
+  async function installMowenUpdate() {
+    if (!mowenLatest?.latest) return;
+    setMowenUpdateBusy(true);
+    setMowenUpdateError("");
+    try {
+      const response = await fetch("/api/update/install", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ version: mowenLatest.latest }),
+      });
+      const json = (await response.json()) as { error?: string; version?: string };
+      if (!response.ok) {
+        setMowenUpdateError(json.error ?? "启动更新失败。");
+        return;
+      }
+      const desktop = getDesktop();
+      if (desktop?.restart) {
+        setMowenUpdateError("更新程序已启动，墨问即将重启…");
+        window.setTimeout(() => void desktop.restart?.(), 400);
+      } else {
+        setMowenUpdateError("更新程序已启动，请关闭并重新打开墨问完成更新。");
+      }
+    } catch {
+      setMowenUpdateError("启动更新失败，请稍后重试。");
+    } finally {
+      setMowenUpdateBusy(false);
+    }
+  }
 
   async function toggleTrust(next: boolean) {
     setTrustBusy(true);
@@ -292,6 +365,13 @@ export function SettingsPage() {
   } else if (piLatest && piVersion && !piLatest.updateAvailable && piLatest.latest) {
     updateDetail = "已是最新版本";
   }
+  const mowenDetail = mowenLatest?.error
+    ? mowenLatest.error
+    : mowenLatest?.updateAvailable && mowenLatest.latest
+      ? `发现新版本 ${mowenLatest.latest}`
+      : mowenLatest?.latest
+        ? "已是最新版本"
+        : "尚未检查";
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
@@ -314,6 +394,37 @@ export function SettingsPage() {
           <p className="px-1 text-[13px] leading-6 text-mute">
             墨问只在这台电脑上运行。认证分两种方式：订阅登录，或粘贴 API Key。每种方式先选服务商，再配置。
           </p>
+
+          <section>
+            <h2 className="settings-label">墨问更新</h2>
+            <div className="settings-card">
+              <div className="settings-row items-center">
+                <div className="min-w-0 pr-3">
+                  <p className="text-[13px] text-ink">应用版本</p>
+                  <p className="mt-0.5 text-[12px] text-mute">当前 {mowenLatest?.current ?? "—"} · {mowenDetail}</p>
+                  {mowenLatest?.name && mowenLatest.url ? (
+                    <a className="mt-1 inline-block text-[12px] text-accent" href={mowenLatest.url} target="_blank" rel="noreferrer">
+                      查看 GitHub Release
+                    </a>
+                  ) : null}
+                  {mowenUpdateError ? <p className="mt-1 text-[12px] text-danger">{mowenUpdateError}</p> : null}
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <button type="button" className="pressable btn btn-ghost" disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate()}>
+                    {mowenCheckBusy ? "正在检查…" : "检查更新"}
+                  </button>
+                  {mowenLatest?.updateAvailable && mowenLatest.canUpdate ? (
+                    <button type="button" className="pressable btn btn-primary" disabled={mowenUpdateBusy || mowenCheckBusy} onClick={() => void installMowenUpdate()}>
+                      {mowenUpdateBusy ? "正在准备…" : "更新墨问"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="settings-row">
+                <p className="text-[12px] leading-5 text-mute">更新会下载对应 Release 的官方脚本，在应用内启动安装流程。开发模式只检查版本，不会替换当前源码。</p>
+              </div>
+            </div>
+          </section>
 
           <section>
             <h2 className="settings-label">外观</h2>

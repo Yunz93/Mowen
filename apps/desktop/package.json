@@ -1,6 +1,6 @@
 {
   "name": "@mowen/desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Local-first 墨问 / Mowen workbench for Windows and macOS",
   "author": "Mowen",
   "type": "module",
@@ -15,7 +15,8 @@
     "pack:dir": "pnpm build && electron-builder --config electron-builder.yml --dir"
   },
   "dependencies": {
-    "@mowen/server": "workspace:*"
+    "@mowen/server": "workspace:*",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "electron": "^37.2.6",

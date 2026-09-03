@@ -1,6 +1,6 @@
 {
   "name": "@mowen/server",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "exports": {
@@ -23,6 +23,7 @@
     "@fastify/websocket": "^11.2.0",
     "@mowen/protocol": "workspace:*",
     "fastify": "^5.4.0",
+    "node-pty": "^1.1.0",
     "thread-stream": "^4.2.0",
     "zod": "^3.25.76"
   },

@@ -1,4 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { chmodSync, existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import * as pty from "node-pty";
 
 export const TERM_TIMEOUT_MS = 120_000;
 export const TERM_MAX_OUTPUT = 200_000;
@@ -11,15 +15,66 @@ type RunInput = {
   timeoutMs?: number;
 };
 
+export type TerminalInput = {
+  cwd: string;
+  cols?: number;
+  rows?: number;
+  onChunk: (text: string) => void;
+  onExit: (code: number | null, signal: string | null) => void;
+};
+
 export class TaskShells {
   private readonly children = new Map<string, ChildProcess>();
+  private readonly terminals = new Map<string, pty.IPty>();
 
   running(taskId: string): boolean {
-    return this.children.has(taskId);
+    return this.children.has(taskId) || this.terminals.has(taskId);
+  }
+
+  terminal(taskId: string): pty.IPty | undefined {
+    return this.terminals.get(taskId);
+  }
+
+  startTerminal(taskId: string, input: TerminalInput): { shell: string; pid: number } {
+    if (this.terminals.has(taskId)) {
+      const current = this.terminals.get(taskId)!;
+      return { shell: current.process, pid: current.pid };
+    }
+    if (this.children.has(taskId)) throw new Error("上一条命令还在跑，先停再执行。");
+    ensurePtyHelperExecutable();
+    const shell = resolveInteractiveShell();
+    const terminal = pty.spawn(shell, interactiveShellArgs(shell), {
+      name: "xterm-256color",
+      cols: clampDimension(input.cols ?? 100),
+      rows: clampDimension(input.rows ?? 30),
+      cwd: input.cwd,
+      env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", TERM_PROGRAM: "Mowen" },
+    });
+    this.terminals.set(taskId, terminal);
+    terminal.onData(input.onChunk);
+    terminal.onExit(({ exitCode, signal }) => {
+      this.terminals.delete(taskId);
+      input.onExit(exitCode ?? null, signal ? String(signal) : null);
+    });
+    return { shell, pid: terminal.pid };
+  }
+
+  writeTerminal(taskId: string, data: string): boolean {
+    const terminal = this.terminals.get(taskId);
+    if (!terminal) return false;
+    terminal.write(data);
+    return true;
+  }
+
+  resizeTerminal(taskId: string, cols: number, rows: number): boolean {
+    const terminal = this.terminals.get(taskId);
+    if (!terminal) return false;
+    terminal.resize(clampDimension(cols), clampDimension(rows));
+    return true;
   }
 
   run(taskId: string, input: RunInput): void {
-    if (this.children.has(taskId)) {
+    if (this.children.has(taskId) || this.terminals.has(taskId)) {
       throw new Error("上一条命令还在跑，先停再执行。");
     }
     const command = input.command.trim();
@@ -63,6 +118,11 @@ export class TaskShells {
   }
 
   interrupt(taskId: string): boolean {
+    const terminal = this.terminals.get(taskId);
+    if (terminal) {
+      terminal.write("\u0003");
+      return true;
+    }
     return this.stop(taskId, process.platform === "win32" ? undefined : "SIGINT");
   }
 
@@ -70,10 +130,53 @@ export class TaskShells {
     this.stop(taskId, "SIGTERM");
   }
 
+  disposeAll(): void {
+    for (const taskId of new Set([...this.children.keys(), ...this.terminals.keys()])) this.dispose(taskId);
+  }
+
   private stop(taskId: string, signal?: NodeJS.Signals): boolean {
+    const terminal = this.terminals.get(taskId);
+    if (terminal) {
+      terminal.kill(signal);
+      this.terminals.delete(taskId);
+      return true;
+    }
     const child = this.children.get(taskId);
     if (!child) return false;
     child.kill(signal);
     return true;
   }
+}
+
+const require = createRequire(import.meta.url);
+let ptyHelperChecked = false;
+
+function ensurePtyHelperExecutable(): void {
+  if (ptyHelperChecked || process.platform === "win32") return;
+  ptyHelperChecked = true;
+  try {
+    const entry = require.resolve("node-pty");
+    const packageDir = path.resolve(path.dirname(entry), "..");
+    const helper = path.join(packageDir, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper");
+    chmodSync(helper, 0o755);
+  } catch {
+    // The helper may be unpacked by Electron; node-pty will report a useful error if it is unavailable.
+  }
+}
+
+function clampDimension(value: number): number {
+  return Math.max(20, Math.min(500, Math.round(Number.isFinite(value) ? value : 80)));
+}
+
+function resolveInteractiveShell(): string {
+  if (process.platform === "win32") return process.env.ComSpec || "powershell.exe";
+  const candidates = ["/bin/zsh", "/usr/bin/zsh", process.env.SHELL].filter(
+    (value): value is string => Boolean(value && existsSync(value)),
+  );
+  return candidates[0] ?? "/bin/sh";
+}
+
+function interactiveShellArgs(shell: string): string[] {
+  if (process.platform === "win32") return [];
+  return shell.endsWith("/zsh") ? ["-l"] : ["-i"];
 }

@@ -4,6 +4,7 @@ export type MowenDesktopApi = {
   pickFolder: (defaultPath?: string) => Promise<string | null>;
   openPath?: (filePath: string) => Promise<string>;
   notify?: (payload: { title: string; body: string }) => Promise<void>;
+  restart?: () => Promise<void>;
   onOpenSetup?: (callback: () => void) => () => void;
 };
 

@@ -103,6 +103,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# In-app updates launch this script detached, then quit the running Electron
+# process. Wait for it to disappear before replacing the application bundle.
+if [[ -n "${MOWEN_UPDATE_PARENT_PID:-}" && "${MOWEN_UPDATE_PARENT_PID}" =~ ^[0-9]+$ ]]; then
+  while kill -0 "${MOWEN_UPDATE_PARENT_PID}" 2>/dev/null; do sleep 0.2; done
+fi
+
 ROOT=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
