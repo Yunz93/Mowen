@@ -6,6 +6,7 @@ export function applyDesktopEnv(): void {
   process.env.MOWEN_DESKTOP = "1";
   process.env.HOST = process.env.HOST ?? "127.0.0.1";
   process.env.PORT = process.env.PORT ?? "4310";
+  process.env.MOWEN_VERSION = process.env.MOWEN_VERSION ?? app.getVersion();
   if (app.isPackaged) {
     process.env.NODE_ENV = "production";
   } else if (!process.env.NODE_ENV) {

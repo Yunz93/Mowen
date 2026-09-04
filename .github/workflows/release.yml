@@ -34,9 +34,13 @@ jobs:
       matrix:
         include:
           - runner: macos-latest
-            label: macOS
+            label: macOS arm64
             pack: desktop:pack:mac
-            artifact: mac
+            artifact: mac-arm64
+          - runner: macos-13
+            label: macOS x64
+            pack: desktop:pack:mac
+            artifact: mac-x64
           - runner: windows-latest
             label: Windows x64
             pack: desktop:pack:win
@@ -93,6 +97,9 @@ jobs:
           cp scripts/install-windows.ps1 dist/install-windows.ps1
           chmod +x dist/install-macos.sh
           ls -la dist
+          sha256sum dist/* > /tmp/SHA256SUMS.txt
+          mv /tmp/SHA256SUMS.txt dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
 
       - name: Stable release from tag
         if: startsWith(github.ref, 'refs/tags/v')

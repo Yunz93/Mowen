@@ -88,6 +88,8 @@ export {
   workRunKindSchema,
   workRunSchema,
   workRunStatusSchema,
+  workRunIsActive,
+  taskStatusIsBusy,
   deriveWorkItemViewState,
   legacyWorkItemColumnSchema,
   type WorkItem,

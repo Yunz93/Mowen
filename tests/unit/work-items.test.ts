@@ -76,4 +76,10 @@ describe("agent-native work item contracts", () => {
     expect(deriveWorkItemViewState({ item: item("running", "completed") })).toBe("completed");
     expect(deriveWorkItemViewState({ item: item("failed", "archived") })).toBe("archived");
   });
+
+  it("treats a live run as paused when the task was demoted after a restart", () => {
+    expect(deriveWorkItemViewState({ item: item("running"), taskStatus: "stopped" })).toBe("paused");
+    expect(deriveWorkItemViewState({ item: item("queued"), taskStatus: "idle" })).toBe("paused");
+    expect(deriveWorkItemViewState({ item: item("running"), taskStatus: "running" })).toBe("working");
+  });
 });

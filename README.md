@@ -6,7 +6,9 @@
 
 ## 安装
 
-**macOS（推荐，也是目前唯一支持的安装方式）**
+**macOS（推荐）**
+
+支持 Apple 芯片（arm64）和 Intel（x64）。
 
 打开「终端」，粘贴后回车：
 
@@ -43,7 +45,7 @@ git tag v0.1.7
 git push origin v0.1.7
 ```
 
-这会跑 `.github/workflows/release.yml`，上传安装包和上述脚本。日常 `main` 推送会更新 `nightly` 预发布。
+这会跑 `.github/workflows/release.yml`，上传安装包、安装脚本和 `SHA256SUMS.txt`。日常 `main` 推送会更新 `nightly` 预发布。安装脚本会校验清单（旧版本没有清单时只警告）。
 
 ## 开发者
 

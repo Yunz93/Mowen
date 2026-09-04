@@ -203,13 +203,46 @@ export async function readPiVersion(
   }
 }
 
+export function parseHostHeader(host: string | undefined): { hostname: string; port: string | null } | null {
+  if (!host?.trim()) return null;
+  const value = host.trim();
+  if (value.startsWith("[")) {
+    const end = value.indexOf("]");
+    if (end < 0) return null;
+    const hostname = value.slice(1, end);
+    const rest = value.slice(end + 1);
+    return { hostname, port: rest.startsWith(":") ? rest.slice(1) : null };
+  }
+  const colon = value.lastIndexOf(":");
+  if (colon >= 0 && /^\d+$/.test(value.slice(colon + 1))) {
+    return { hostname: value.slice(0, colon), port: value.slice(colon + 1) };
+  }
+  return { hostname: value, port: null };
+}
+
+export function isLoopbackHostname(hostname: string): boolean {
+  const value = hostname.trim().toLowerCase();
+  return value === "127.0.0.1" || value === "localhost" || value === "::1";
+}
+
+/** Reject DNS-rebinding Host headers. Loopback binds only accept loopback hosts. */
+export function isAllowedHost(hostHeader: string | undefined, bindHost = "127.0.0.1"): boolean {
+  const parsed = parseHostHeader(hostHeader);
+  if (!parsed?.hostname) return false;
+  const hostname = parsed.hostname.toLowerCase();
+  if (isLoopbackHostname(hostname)) return true;
+  const bind = bindHost.trim().toLowerCase();
+  if (!bind || bind === "0.0.0.0" || bind === "::" || bind === "[::]") return false;
+  return hostname === bind;
+}
+
 export function isAllowedOrigin(origin: string | undefined, allowedOrigins: string[], bindHost = "127.0.0.1"): boolean {
   if (!origin) return false;
   if (allowedOrigins.includes(origin)) return true;
   if (bindHost !== "127.0.0.1" && bindHost !== "localhost") return false;
   try {
     const url = new URL(origin);
-    return url.protocol === "http:" && (url.hostname === "127.0.0.1" || url.hostname === "localhost");
+    return url.protocol === "http:" && isLoopbackHostname(url.hostname);
   } catch {
     return false;
   }

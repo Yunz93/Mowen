@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const DEFAULT_MOWEN_REPO = "Yunz93/Mowen";
 const GITHUB_TIMEOUT_MS = 8_000;
@@ -55,6 +58,39 @@ export function normalizeVersion(value: string | null | undefined): string | nul
   return match ? `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}` : null;
 }
 
+export function currentMowenVersion(env: NodeJS.ProcessEnv = process.env): string {
+  const fromEnv = env.MOWEN_VERSION?.trim() || env.OHMYPI_VERSION?.trim();
+  if (fromEnv) return fromEnv.replace(/^v/i, "");
+  try {
+    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as {
+      version?: string;
+    };
+    if (pkg.version?.trim()) return pkg.version.trim();
+  } catch {
+    // packaged or test environments may not ship the nearby package.json
+  }
+  return "0.0.0";
+}
+
+export function parseSha256Sums(text: string): Map<string, string> {
+  const sums = new Map<string, string>();
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.trim().match(/^([a-fA-F0-9]{64})\s+\*?(\S+)$/);
+    if (match) sums.set(path.basename(match[2]!), match[1]!.toLowerCase());
+  }
+  return sums;
+}
+
+export function sha256Hex(content: string | Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+export function assertChecksum(name: string, content: string | Buffer, sums: Map<string, string>): void {
+  const expected = sums.get(path.basename(name));
+  if (!expected) throw new Error(`更新清单里没有 ${name}。`);
+  if (sha256Hex(content) !== expected) throw new Error(`${name} 校验和不匹配，已中止更新。`);
+}
+
 export function isMowenUpdateAvailable(latest: string | null | undefined, current: string | null | undefined): boolean {
   const next = normalizeVersion(latest);
   const have = normalizeVersion(current);
@@ -98,8 +134,10 @@ export async function startMowenUpdate(options: {
   const tag = `v${version}`;
   const extension = platform === "darwin" ? "install-macos.sh" : "install-windows.ps1";
   const scriptUrl = `https://github.com/${repo}/releases/download/${tag}/${extension}`;
+  const sumsUrl = `https://github.com/${repo}/releases/download/${tag}/SHA256SUMS.txt`;
   const fetchText = options.fetchText ?? fetchTextDocument;
-  const script = await fetchText(scriptUrl);
+  const [script, sumsText] = await Promise.all([fetchText(scriptUrl), fetchText(sumsUrl)]);
+  assertChecksum(extension, script, parseSha256Sums(sumsText));
   const dir = await mkdtemp(path.join(tmpdir(), "mowen-update-"));
   const scriptPath = path.join(dir, extension);
   await writeFile(scriptPath, script, "utf8");

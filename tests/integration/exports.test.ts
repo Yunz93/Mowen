@@ -71,4 +71,18 @@ describe("html export route", () => {
     });
     expect(missing.status).toBe(404);
   });
+
+  it("rejects DNS-rebinding Host headers and foreign Origins", async () => {
+    const deniedHost = await app.inject({ url: "/health", headers: { host: "evil.example" } });
+    expect(deniedHost.statusCode).toBe(403);
+    expect(deniedHost.json()).toMatchObject({ error: "host denied" });
+
+    const deniedOrigin = await app.inject({
+      method: "POST",
+      url: "/api/setup/complete",
+      headers: { host: "127.0.0.1", origin: "https://evil.example" },
+    });
+    expect(deniedOrigin.statusCode).toBe(403);
+    expect(deniedOrigin.json()).toMatchObject({ error: "origin denied" });
+  });
 });
