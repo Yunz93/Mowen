@@ -362,7 +362,7 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
   await expect(page.locator("header.titlebar")).not.toContainText("回车补充");
   await expect(page.getByLabel("输入消息")).toHaveAttribute(
     "placeholder",
-    "回车补充，Shift+Enter 排队下一条。",
+      "回车补充，Shift+Enter 排队",
   );
   await expect(page.getByLabel("输入消息")).not.toHaveAttribute(
     "placeholder",
