@@ -44,9 +44,7 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
             <h2 id="new-work-item-title" className="dialog-title">
               新建目标
             </h2>
-            <p className="dialog-copy">
-              写在「{projectName}」里。可以马上交给 Agent，也可以先存到计划。
-            </p>
+            <p className="dialog-copy">{projectName}</p>
           </div>
           <button type="button" className="pressable icon-btn -mr-1 -mt-1" aria-label="关闭" onClick={onCancel}>
             <X size={16} />

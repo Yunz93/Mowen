@@ -7,6 +7,7 @@ import { WorkObjectivePanel } from "../components/board/WorkObjectivePanel";
 import { NewWorkItemDialog } from "../components/board/NewWorkItemDialog";
 import { NewWorkProjectDialog } from "../components/board/NewWorkProjectDialog";
 import { ModeSwitcher } from "../components/app/ModeSwitcher";
+import { UpdateBanner } from "../components/app/UpdateBanner";
 import { ThemeToggle } from "../components/status/ThemeToggle";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
@@ -177,6 +178,7 @@ export function BoardPage() {
           </Link>
         </div>
       </header>
+      <UpdateBanner />
       {notice ? (
         <div className="banner-note flex items-center justify-between gap-3 text-danger" role="alert">
           <span>{notice}</span>
@@ -190,9 +192,7 @@ export function BoardPage() {
           <div className="mx-auto w-full max-w-[1040px] px-4 pb-12 pt-5">
             <div className="mb-5">
               <h1 className="text-[22px] font-semibold tracking-tight">{project.name}</h1>
-              <p className="mt-1 text-[12px] text-mute">
-                {folderName(project.cwd)} · 用目标驱动 Agent，执行结束后由你验收或补充要求。
-              </p>
+              <p className="mt-1 text-[12px] text-mute">{folderName(project.cwd)}</p>
             </div>
             <WorkDashboard
               items={projectItems}
@@ -212,10 +212,7 @@ export function BoardPage() {
           </div>
         ) : (
           <div className="mx-auto flex h-full max-w-[440px] flex-col items-center justify-center px-6 pb-16 text-center">
-            <p className="text-[22px] font-semibold tracking-tight text-ink">从一个工作项目开始</p>
-            <p className="mt-3 text-[13px] leading-6 text-mute">
-              选定文件夹，写下目标与验收标准，再让 Agent 按轮次推进。单次提问仍然使用「对话」。
-            </p>
+            <p className="text-[22px] font-semibold tracking-tight text-ink">启动一个项目</p>
             <button
               type="button"
               className="pressable btn btn-primary mt-7"

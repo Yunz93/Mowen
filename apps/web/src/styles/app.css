@@ -679,48 +679,34 @@ html.dark {
     color: var(--term-dim);
   }
 
-  .term-hint {
-    color: var(--term-dim);
+  .term-xterm {
+    min-height: 0;
+    flex: 1;
+    padding: 8px 10px 10px;
+  }
+
+  .term-xterm .xterm {
+    height: 100%;
+  }
+
+  .term-xterm .xterm-viewport {
+    overflow-y: auto !important;
   }
 
   .term-error {
     color: var(--term-red);
   }
 
-  .term-input-line {
+  .update-banner {
     display: flex;
+    min-height: 36px;
     flex-shrink: 0;
     align-items: center;
-    gap: 7px;
-    border-top: 0.5px solid var(--term-line);
-    background: oklch(0.21 0.01 264);
-    padding: 6px 10px;
-  }
-
-  .term-prompt {
-    flex-shrink: 0;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--term-green);
-    user-select: none;
-  }
-
-  .term-input {
-    min-width: 0;
-    flex: 1;
-    height: 26px;
-    min-height: 26px;
-    background: transparent;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: oklch(0.95 0.005 264);
-    caret-color: var(--term-accent);
-  }
-
-  .term-input::placeholder {
-    color: var(--term-dim);
-    opacity: 1;
+    gap: 12px;
+    border-bottom: 0.5px solid var(--color-line, oklch(0.9 0.01 264));
+    background: var(--color-fill, oklch(0.96 0.008 264));
+    padding: 0 14px;
+    font-size: 13px;
   }
 
   .term-run {

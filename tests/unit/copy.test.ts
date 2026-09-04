@@ -48,15 +48,15 @@ describe("running status copy", () => {
   it("keeps keyboard hints in the composer, not the header subtitle", () => {
     expect(headerSubtitle("/tmp/MyPi", true, "running")).toBe("MyPi");
     expect(headerSubtitle("/tmp/MyPi", true, "idle")).toBe("MyPi");
-    expect(headerSubtitle(undefined, false, "idle")).toBe("从左侧选择会话，或点 + 开始聊天");
+    expect(headerSubtitle(undefined, false, "idle")).toBe("点 + 开始聊天");
     expect(nextHint("running", true)).not.toMatch(/回车补充/);
   });
 
   it("does not repeat live progress copy in the composer placeholder", () => {
     const busy = composerPlaceholder(true);
-    expect(busy).toBe("回车补充，Shift+Enter 排队下一条。");
+    expect(busy).toBe("回车补充，Shift+Enter 排队");
     expect(busy).not.toMatch(/正在处理|正在回复|等待/);
-    expect(composerPlaceholder(false)).toMatch(/有什么想做的/);
+    expect(composerPlaceholder(false)).toBe("输入消息");
   });
 
   it("does not repeat the live command in the status bar", () => {
