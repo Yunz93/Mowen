@@ -64,7 +64,7 @@ export function WorkObjectivePanel({
       <aside className="work-panel" role="dialog" aria-modal="true" aria-labelledby="work-panel-title">
         <header className="work-panel-head">
           <div>
-            <p className="work-panel-kicker">工作目标</p>
+            <p className="work-panel-kicker">任务</p>
             <h2 id="work-panel-title">{item.title}</h2>
           </div>
           <button type="button" className="pressable icon-btn" aria-label="关闭" onClick={onClose}>
@@ -168,7 +168,7 @@ export function WorkObjectivePanel({
               </div>
               {item.taskId ? (
                 <button type="button" className="pressable btn btn-ghost" onClick={onOpenConversation}>
-                  打开完整对话
+                  打开对话
                   <ArrowUpRight size={13} />
                 </button>
               ) : null}

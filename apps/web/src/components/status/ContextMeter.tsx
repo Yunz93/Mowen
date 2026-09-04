@@ -103,9 +103,6 @@ export function ContextMeter({
                 <dd className="mt-1 text-ink">{toolCalls}</dd>
               </div>
             </dl>
-            <p className="mt-3 text-xs leading-5 text-mute">
-              这里是当前对话占用的上下文。快满时可以压缩，把旧内容收成摘要。
-            </p>
             {onRuntimeSet ? (
               <div className="settings-card mt-3">
                 <div className="settings-row items-center">

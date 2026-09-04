@@ -54,6 +54,10 @@ function installMenu(): void {
           click: () => mainWindow?.webContents.send("mowen:open-setup"),
         },
         {
+          label: "检查更新…",
+          click: () => mainWindow?.webContents.send("mowen:check-update"),
+        },
+        {
           label: "在 GitHub 查看墨问",
           click: () => void shell.openExternal("https://github.com/Yunz93/Mowen"),
         },

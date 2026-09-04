@@ -4,9 +4,11 @@ import { Plus, Settings } from "lucide-react";
 import type { WorkItemDetails, WorkItemSummary } from "@mowen/protocol";
 import { WorkDashboard, type WorkFilter } from "../components/board/WorkDashboard";
 import { WorkObjectivePanel } from "../components/board/WorkObjectivePanel";
+import { WorkConversationDrawer } from "../components/board/WorkConversationDrawer";
 import { NewWorkItemDialog } from "../components/board/NewWorkItemDialog";
 import { NewWorkProjectDialog } from "../components/board/NewWorkProjectDialog";
 import { ModeSwitcher } from "../components/app/ModeSwitcher";
+import { UpdateBanner } from "../components/app/UpdateBanner";
 import { ThemeToggle } from "../components/status/ThemeToggle";
 import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
@@ -27,7 +29,9 @@ export function BoardPage() {
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<WorkFilter>("all");
+  const [query, setQuery] = useState("");
   const [details, setDetails] = useState<WorkItemDetails | null>(null);
+  const [conversationItem, setConversationItem] = useState<WorkItemSummary | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const focusItemId = searchParams.get("item");
@@ -65,7 +69,7 @@ export function BoardPage() {
       })
       .catch((error: unknown) => {
         if (!current) return;
-        setNotice(error instanceof Error ? error.message : "读取目标详情失败");
+        setNotice(error instanceof Error ? error.message : "读取任务详情失败");
         setDetails(null);
         setSearchParams({});
       });
@@ -89,6 +93,18 @@ export function BoardPage() {
   }
 
   function openConversation(item: WorkItemSummary) {
+    closeDetails();
+    const taskId = item.taskId;
+    if (taskId) {
+      void socketClient
+        .send("task.activate", {}, taskId)
+        .then(() => socketClient.send("snapshot.request", { taskId }, taskId))
+        .catch(() => undefined);
+    }
+    setConversationItem(item);
+  }
+
+  function openConversationFull(item: WorkItemSummary) {
     if (item.taskId) {
       void socketClient.send("task.activate", {}, item.taskId).catch(() => undefined);
     }
@@ -166,11 +182,12 @@ export function BoardPage() {
               onClick={() => setCreating(true)}
             >
               <Plus size={14} />
-              新建目标
+              新建任务
             </button>
           ) : null}
         </div>
         <div className="app-no-drag flex items-center gap-0.5">
+          <UpdateBanner />
           <ThemeToggle />
           <Link to="/settings" aria-label="设置" className="pressable icon-btn">
             <Settings size={15} />
@@ -190,9 +207,7 @@ export function BoardPage() {
           <div className="mx-auto w-full max-w-[1040px] px-4 pb-12 pt-5">
             <div className="mb-5">
               <h1 className="text-[22px] font-semibold tracking-tight">{project.name}</h1>
-              <p className="mt-1 text-[12px] text-mute">
-                {folderName(project.cwd)} · 用目标驱动 Agent，执行结束后由你验收或补充要求。
-              </p>
+              <p className="mt-1 text-[12px] text-mute">{folderName(project.cwd)}</p>
             </div>
             <WorkDashboard
               items={projectItems}
@@ -200,6 +215,8 @@ export function BoardPage() {
               pendingApprovals={pendingApprovals}
               pendingInteractions={pendingInteractions}
               filter={filter}
+              query={query}
+              onQuery={setQuery}
               onFilter={setFilter}
               onSelect={openDetails}
               onStart={startItem}
@@ -212,10 +229,7 @@ export function BoardPage() {
           </div>
         ) : (
           <div className="mx-auto flex h-full max-w-[440px] flex-col items-center justify-center px-6 pb-16 text-center">
-            <p className="text-[22px] font-semibold tracking-tight text-ink">从一个工作项目开始</p>
-            <p className="mt-3 text-[13px] leading-6 text-mute">
-              选定文件夹，写下目标与验收标准，再让 Agent 按轮次推进。单次提问仍然使用「对话」。
-            </p>
+            <p className="text-[22px] font-semibold tracking-tight text-ink">启动一个项目</p>
             <button
               type="button"
               className="pressable btn btn-primary mt-7"
@@ -245,8 +259,15 @@ export function BoardPage() {
             setCreating(false);
             void socketClient
               .send("workItem.create", { ...input, projectId: project.id })
-              .catch((error: unknown) => showError(error, "创建目标失败"));
+              .catch((error: unknown) => showError(error, "创建任务失败"));
           }}
+        />
+      ) : null}
+      {conversationItem ? (
+        <WorkConversationDrawer
+          item={conversationItem}
+          onClose={() => setConversationItem(null)}
+          onOpenFull={() => openConversationFull(conversationItem)}
         />
       ) : null}
       {focusItemId && details ? (
@@ -256,7 +277,7 @@ export function BoardPage() {
           onSave={(input) => {
             void socketClient
               .send("workItem.update", { id: focusItemId, ...input })
-              .catch((error: unknown) => showError(error, "更新目标失败"));
+              .catch((error: unknown) => showError(error, "更新任务失败"));
           }}
           onFeedback={(text) => {
             void socketClient

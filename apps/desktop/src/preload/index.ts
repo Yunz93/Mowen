@@ -14,4 +14,11 @@ contextBridge.exposeInMainWorld("mowen", {
       ipcRenderer.removeListener("mowen:open-setup", handler);
     };
   },
+  onCheckUpdate: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("mowen:check-update", handler);
+    return () => {
+      ipcRenderer.removeListener("mowen:check-update", handler);
+    };
+  },
 });
