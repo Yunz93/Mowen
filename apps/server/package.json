@@ -19,10 +19,10 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^9.0.3",
-    "@fastify/static": "^8.2.0",
+    "@fastify/static": "^10.1.3",
     "@fastify/websocket": "^11.2.0",
     "@mowen/protocol": "workspace:*",
-    "fastify": "^5.4.0",
+    "fastify": "^5.12.1",
     "node-pty": "^1.1.0",
     "thread-stream": "^4.2.0",
     "zod": "^3.25.76"

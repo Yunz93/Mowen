@@ -135,6 +135,17 @@ export function workItemCanContinue(state: WorkItemState): boolean {
   return state === "open";
 }
 
+const ACTIVE_RUN_STATUSES = new Set<WorkRunStatus>(["queued", "running", "waiting_approval", "waiting_input"]);
+const BUSY_TASK_STATUSES = new Set<TaskStatus>(["queued", "booting", "running", "aborting", "waiting_approval"]);
+
+export function workRunIsActive(status: WorkRunStatus): boolean {
+  return ACTIVE_RUN_STATUSES.has(status);
+}
+
+export function taskStatusIsBusy(status?: TaskStatus | null): boolean {
+  return Boolean(status && BUSY_TASK_STATUSES.has(status));
+}
+
 export function deriveWorkItemViewState(input: {
   item: Pick<WorkItemSummary, "state" | "latestRun">;
   taskStatus?: TaskStatus | null;
@@ -149,6 +160,9 @@ export function deriveWorkItemViewState(input: {
   if (input.taskStatus === "queued" || input.taskStatus === "booting") return "queued";
   if (input.taskStatus === "running" || input.taskStatus === "aborting") return "working";
   const run = input.item.latestRun;
+  if (run && workRunIsActive(run.status) && input.taskStatus != null && !taskStatusIsBusy(input.taskStatus)) {
+    return "paused";
+  }
   if (!run) return "ready";
   switch (run.status) {
     case "queued":

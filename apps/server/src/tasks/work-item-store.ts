@@ -9,6 +9,7 @@ import {
   workItemSchema,
   workItemSummarySchema,
   workProjectSchema,
+  workRunIsActive,
   workRunSchema,
   type WorkItem,
   type WorkItemDetails,
@@ -29,6 +30,9 @@ type PersistedState = {
   runs: WorkRun[];
   feedback: WorkItemFeedback[];
 };
+
+/** Shown when a busy work run is demoted after the server process restarts. */
+export const WORK_ITEM_RESTART_INTERRUPT_MESSAGE = "应用重启时中断，请检查现状后继续。";
 
 const emptyState = (): PersistedState => ({
   schemaVersion: WORK_ITEM_SCHEMA_VERSION,
@@ -123,9 +127,8 @@ export class WorkItemStore {
   }
 
   activeRunForTask(taskId: string): WorkRun | undefined {
-    const active = new Set<WorkRunStatus>(["queued", "running", "waiting_approval", "waiting_input"]);
     return this.state.runs
-      .filter((run) => run.taskId === taskId && active.has(run.status))
+      .filter((run) => run.taskId === taskId && workRunIsActive(run.status))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   }
 
@@ -155,7 +158,8 @@ export class WorkItemStore {
         await this.writeBackupIfMissing(rawText);
       }
       this.state = migrated;
-      if (previousVersion < WORK_ITEM_SCHEMA_VERSION) await this.flush();
+      const reconciled = this.reconcileInterruptedRuns();
+      if (previousVersion < WORK_ITEM_SCHEMA_VERSION || reconciled) await this.flush();
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         this.state = emptyState();
@@ -368,6 +372,22 @@ export class WorkItemStore {
     this.touchProject(item.projectId, now);
     await this.flush();
     return this.get(id)!;
+  }
+
+  private reconcileInterruptedRuns(): boolean {
+    let changed = false;
+    const now = new Date().toISOString();
+    this.state.runs = this.state.runs.map((run) => {
+      if (!workRunIsActive(run.status)) return run;
+      changed = true;
+      return workRunSchema.parse({
+        ...run,
+        status: "aborted",
+        errorMessage: run.errorMessage?.trim() || WORK_ITEM_RESTART_INTERRUPT_MESSAGE,
+        finishedAt: run.finishedAt ?? now,
+      });
+    });
+    return changed;
   }
 
   private summary(item: WorkItem): WorkItemSummary {

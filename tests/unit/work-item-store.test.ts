@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { WorkItemStore } from "../../apps/server/src/tasks/work-item-store.ts";
+import { WorkItemStore, WORK_ITEM_RESTART_INTERRUPT_MESSAGE } from "../../apps/server/src/tasks/work-item-store.ts";
 
 describe("WorkItemStore", () => {
   it("creates open objectives and persists their rank and acceptance criteria", async () => {
@@ -98,6 +98,30 @@ describe("WorkItemStore", () => {
     expect(store.getDetails(legacy.items[0]!.id)?.feedback[0]?.text).toBe("preserve feedback");
     expect(JSON.parse(await readFile(path.join(root, "work-items.v2.backup.json"), "utf8"))).toEqual(legacy);
     expect(JSON.parse(await readFile(path.join(root, "work-items.json"), "utf8")).schemaVersion).toBe(3);
+  });
+
+  it("aborts in-flight runs when the process reloads persisted state", async () => {
+    const root = await tempRoot();
+    const store = new WorkItemStore(root);
+    await store.load();
+    const item = await store.create({ title: "fix login", cwd: root });
+    const run = await store.createRun({
+      objectiveId: item.id,
+      taskId: "33333333-3333-4333-8333-333333333333",
+      kind: "initial",
+      instruction: "do it",
+    });
+    await store.updateRun(run.id, { status: "running" });
+    expect(store.activeRunForTask(run.taskId)?.status).toBe("running");
+
+    const restored = new WorkItemStore(root);
+    await restored.load();
+    expect(restored.activeRunForTask(run.taskId)).toBeUndefined();
+    expect(restored.getSummary(item.id)?.latestRun).toMatchObject({
+      status: "aborted",
+      errorMessage: WORK_ITEM_RESTART_INTERRUPT_MESSAGE,
+    });
+    expect(JSON.parse(await readFile(path.join(root, "work-items.json"), "utf8")).runs[0].status).toBe("aborted");
   });
 });
 

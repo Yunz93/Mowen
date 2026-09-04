@@ -42,5 +42,8 @@ describe("install-macos.sh", () => {
     expect(src.indexOf('"ohMyPi-mac-${arch}.zip"')).toBeGreaterThan(dmgIndex);
     expect(src).toContain("parse_hdiutil_mount");
     expect(src).not.toMatch(/awk '\/\\\/Volumes/);
+    expect(src).toContain("SHA256SUMS.txt");
+    expect(src).toContain("verify_release_file");
+    expect(src).toContain("Intel 需要 x64");
   });
 });

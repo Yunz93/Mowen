@@ -52,6 +52,33 @@ $names = @(
 $tmp = Join-Path $env:TEMP "mowen-install"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 $installer = $null
+$sumsPath = Join-Path $tmp "SHA256SUMS.txt"
+$sums = $null
+try {
+  Invoke-WebRequest -Uri "$base/SHA256SUMS.txt" -OutFile $sumsPath -UseBasicParsing
+  if (Test-Path $sumsPath) {
+    $sums = Get-Content -Path $sumsPath
+    Write-Host "OK  downloaded SHA256SUMS.txt"
+  }
+} catch {
+  Write-Host "warning: this release has no SHA256SUMS.txt; skipping integrity check."
+}
+
+function Assert-ReleaseChecksum([string] $FilePath) {
+  if (-not $sums) { return }
+  $name = Split-Path -Leaf $FilePath
+  $line = $sums | Where-Object { $_ -match "(^|\s)\*?$([regex]::Escape($name))\s*$" } | Select-Object -First 1
+  if (-not $line) {
+    Write-Host "warning: SHA256SUMS.txt does not list $name; skipping."
+    return
+  }
+  $expected = (($line -split '\s+')[0]).ToLowerInvariant()
+  $actual = (Get-FileHash -Algorithm SHA256 -Path $FilePath).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) {
+    throw "$name checksum mismatch."
+  }
+  Write-Host "OK  $name checksum verified"
+}
 
 foreach ($name in $names) {
   $url = "$base/$name"
@@ -60,11 +87,13 @@ foreach ($name in $names) {
   try {
     Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
     if (Test-Path $out) {
+      Assert-ReleaseChecksum $out
       $installer = $out
       break
     }
   } catch {
     Write-Host "   missed $name"
+    Remove-Item -Force -ErrorAction SilentlyContinue $out
   }
 }
 

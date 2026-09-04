@@ -6,7 +6,7 @@ import multipart from "@fastify/multipart";
 import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 import { loadDotEnv } from "./env.js";
-import { loadConfig, readPiVersion, resolvePiRuntime } from "./config.js";
+import { isAllowedHost, isAllowedOrigin, loadConfig, readPiVersion, resolvePiRuntime } from "./config.js";
 import { registerHealth } from "./routes/health.js";
 import { registerSetupRoutes, buildSetupStatus } from "./routes/setup.js";
 import { registerExportRoutes } from "./routes/exports.js";
@@ -28,6 +28,7 @@ import { TaskService } from "./tasks/task-service.js";
 import { WorkItemStore } from "./tasks/work-item-store.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
 import { registerUpdateRoutes } from "./routes/update.js";
+import { currentMowenVersion } from "./setup/mowen-update.js";
 
 loadDotEnv();
 
@@ -173,6 +174,13 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
   await app.register(websocket);
 
   app.addHook("onRequest", async (request, reply) => {
+    if (!isAllowedHost(request.headers.host, config.host)) {
+      return reply.code(403).send({ error: "host denied" });
+    }
+    const origin = request.headers.origin;
+    if (origin && !isAllowedOrigin(origin, config.allowedOrigins, config.host)) {
+      return reply.code(403).send({ error: "origin denied" });
+    }
     ensureSessionCookie(request, reply);
   });
 
@@ -201,7 +209,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
     },
   });
   registerUpdateRoutes(app, {
-    getCurrentVersion: () => env.MOWEN_VERSION ?? "0.1.7",
+    getCurrentVersion: () => currentMowenVersion(env),
     env,
   });
 

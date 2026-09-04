@@ -5,6 +5,8 @@ import {
   defaultAllowedRoots,
   defaultDataDir,
   expandHome,
+  isAllowedHost,
+  isAllowedOrigin,
   loadConfig,
   parseAllowedRoots,
   resolvePiRuntime,
@@ -100,5 +102,16 @@ describe("portable config", () => {
     const runtime = resolvePiRuntime({ PI_BIN: script });
     expect(runtime.command).toBe(process.execPath);
     expect(runtime.prefixArgs).toEqual([script]);
+  });
+
+  it("accepts loopback Host headers and rejects DNS-rebinding hosts", () => {
+    expect(isAllowedHost("127.0.0.1:4310")).toBe(true);
+    expect(isAllowedHost("localhost:5173")).toBe(true);
+    expect(isAllowedHost("[::1]:4310")).toBe(true);
+    expect(isAllowedHost("evil.example:4310")).toBe(false);
+    expect(isAllowedHost("evil.example:4310", "0.0.0.0")).toBe(false);
+    expect(isAllowedHost("10.0.0.8:4310", "10.0.0.8")).toBe(true);
+    expect(isAllowedOrigin("http://127.0.0.1:5173", [], "127.0.0.1")).toBe(true);
+    expect(isAllowedOrigin("https://evil.example", ["http://127.0.0.1:4310"], "127.0.0.1")).toBe(false);
   });
 });
