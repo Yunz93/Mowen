@@ -261,7 +261,7 @@ export function InspectorPanel({
                       chrome={false}
                     />
                   ) : (
-                    <p className="p-3 text-sm text-mute">点右侧文件预览。这里只能看，不能直接编辑。</p>
+                    <p className="p-3 text-sm text-mute">选择文件</p>
                   )}
                   {treeOpen && fileTree.length > 0 ? (
                     <aside
@@ -375,7 +375,7 @@ export function InspectorPanel({
               </>
             ) : (
               <div className="space-y-2">
-                <p className="text-sm text-mute">这里不是 Git 仓库，或读不到状态。</p>
+                <p className="text-sm text-mute">不是 Git 仓库。</p>
                 {onGitInit ? (
                   <button
                     type="button"

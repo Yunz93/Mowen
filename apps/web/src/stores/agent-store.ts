@@ -50,7 +50,7 @@ function patchTerm(
 ): Record<string, TermSession> {
   const prev = sessions[taskId] ?? emptyTerm;
   let text = patch.text ?? prev.text;
-  if (patch.append) text += cleanTerminalOutput(patch.append);
+  if (patch.append) text += patch.append;
   if (text.length > TERM_BUFFER_MAX) text = text.slice(text.length - TERM_BUFFER_MAX);
   return {
     ...sessions,
@@ -61,15 +61,6 @@ function patchTerm(
       shell: patch.shell === undefined ? prev.shell : patch.shell,
     },
   };
-}
-
-function cleanTerminalOutput(value: string): string {
-  const esc = String.fromCharCode(27);
-  return value
-    .replace(new RegExp(`${esc}\\[[0-9;?]*[ -/]*[@-~]`, "g"), "")
-    .replace(new RegExp(`${esc}\\][^${String.fromCharCode(7)}]*${String.fromCharCode(7)}`, "g"), "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
 }
 
 const WORKBENCH_CACHE_KEY = "mowen.workbench";

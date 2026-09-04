@@ -172,7 +172,6 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("开关会在下次启动对话时生效。")).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
@@ -520,7 +519,7 @@ test("sidebars can pin into the layout and the terminal tab embeds zsh", async (
   await expect(page.getByRole("complementary", { name: "详情" })).toBeVisible();
 
   await page.getByRole("button", { name: "终端" }).click();
-  await expect(page.getByLabel("内嵌 zsh 输入")).toBeVisible();
+  await expect(page.getByLabel("终端")).toBeVisible();
 });
 
 test("work mode creates an objective and starts an agent run", async ({ page }) => {
@@ -536,7 +535,7 @@ test("work mode creates an objective and starts an agent run", async ({ page }) 
   await page.getByLabel("目标说明").fill("echo from work mode");
   await page.getByLabel("验收标准").fill("the run finishes and reports a result");
   await page.getByRole("button", { name: "创建并开始" }).click();
-  const working = page.getByRole("region", { name: "Agent 工作中" });
+  const working = page.getByRole("region", { name: "进行中" });
   await expect(working.getByText("Board e2e job", { exact: true })).toBeVisible({
     timeout: 20_000,
   });

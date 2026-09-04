@@ -41,7 +41,7 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
             <h2 id="new-task-title" className="dialog-title">
               新对话
             </h2>
-            <p className="dialog-copy">选一个这个对话可以工作的文件夹。</p>
+            <p className="dialog-copy">工作文件夹</p>
           </div>
           <button type="button" className="pressable icon-btn -mr-1 -mt-1" aria-label="关闭" onClick={onCancel}>
             <X size={16} />

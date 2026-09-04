@@ -287,7 +287,7 @@ export function ConversationTimeline({
       ) : null}
       {messages.length === 0 ? (
         <div className="pt-20 text-center">
-          <p className="text-[13px] leading-6 text-mute">还没有消息。直接在下面输入，开始聊天。</p>
+          <p className="text-[13px] leading-6 text-mute">在下面输入。</p>
         </div>
       ) : null}
       {messages.length > 0 && onClone ? (

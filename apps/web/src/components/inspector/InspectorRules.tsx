@@ -91,7 +91,7 @@ export function InspectorRules({ files, cwd, onRead, onWrite, onCreate }: Props)
   if (ordered.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-        <p className="text-sm leading-6 text-mute">还没有约定文件。先建一份 AGENTS.md，对话会按里面的说明做事。</p>
+        <p className="text-sm leading-6 text-mute">还没有 AGENTS.md。</p>
         {onCreate ? (
           <button type="button" className="pressable btn btn-secondary self-start" onClick={() => onCreate()}>
             创建 AGENTS.md

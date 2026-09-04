@@ -5,8 +5,9 @@ import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
 import { socketClient } from "../transport/socket-client";
-import { getDesktop } from "../desktop-bridge";
 import { authStatusLabel, findAuthEntry, logoutNotice, mergeAuthCatalog, oauthButtonLabel, pickDefaultProvider, providersForMode, type AuthMode } from "../lib/settings-auth";
+import { useUpdateStore } from "../stores/update-store";
+import { UpdateBanner } from "../components/app/UpdateBanner";
 
 type ProviderOption = { id: string; label: string; hint: string };
 
@@ -16,19 +17,6 @@ type PiLatest = {
   updateAvailable: boolean;
   canUpdate: boolean;
   piBundled: boolean;
-  error: string | null;
-};
-
-type MowenLatest = {
-  current: string | null;
-  latest: string | null;
-  tagName: string | null;
-  name: string | null;
-  url: string | null;
-  body: string;
-  publishedAt: string | null;
-  updateAvailable: boolean;
-  canUpdate: boolean;
   error: string | null;
 };
 
@@ -61,10 +49,13 @@ export function SettingsPage() {
   const [flash, setFlash] = useState<{ id: string; tone: "ok" | "err"; text: string } | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("oauth");
   const [selectedProvider, setSelectedProvider] = useState("github");
-  const [mowenLatest, setMowenLatest] = useState<MowenLatest | null>(null);
-  const [mowenCheckBusy, setMowenCheckBusy] = useState(false);
-  const [mowenUpdateBusy, setMowenUpdateBusy] = useState(false);
-  const [mowenUpdateError, setMowenUpdateError] = useState("");
+  const mowenLatest = useUpdateStore((state) => state.current || state.latest ? state : null);
+  const mowenCheckBusy = useUpdateStore((state) => state.busy);
+  const mowenUpdateBusy = useUpdateStore((state) => state.installing);
+  const mowenUpdateError = useUpdateStore((state) => state.error);
+  const mowenNotice = useUpdateStore((state) => state.notice);
+  const checkMowenUpdate = useUpdateStore((state) => state.check);
+  const installMowenUpdate = useUpdateStore((state) => state.install);
 
   function applySetup(setup: SetupStatus) {
     setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
@@ -94,61 +85,7 @@ export function SettingsPage() {
         /* 打开设置页时检查失败不挡操作，可再点「检查更新」。 */
       });
     void checkMowenUpdate();
-  }, []);
-
-  async function checkMowenUpdate() {
-    setMowenCheckBusy(true);
-    try {
-      const response = await fetch("/api/update/latest", { credentials: "same-origin" });
-      const json = (await response.json()) as MowenLatest;
-      setMowenLatest(response.ok ? json : { ...json, error: json.error ?? "检查更新失败。" });
-    } catch {
-      setMowenLatest((current) => ({
-        current: current?.current ?? null,
-        latest: null,
-        tagName: null,
-        name: null,
-        url: null,
-        body: "",
-        publishedAt: null,
-        updateAvailable: false,
-        canUpdate: false,
-        error: "检查更新失败，请检查网络后重试。",
-      }));
-    } finally {
-      setMowenCheckBusy(false);
-    }
-  }
-
-  async function installMowenUpdate() {
-    if (!mowenLatest?.latest) return;
-    setMowenUpdateBusy(true);
-    setMowenUpdateError("");
-    try {
-      const response = await fetch("/api/update/install", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ version: mowenLatest.latest }),
-      });
-      const json = (await response.json()) as { error?: string; version?: string };
-      if (!response.ok) {
-        setMowenUpdateError(json.error ?? "启动更新失败。");
-        return;
-      }
-      const desktop = getDesktop();
-      if (desktop?.restart) {
-        setMowenUpdateError("更新程序已启动，墨问即将重启…");
-        window.setTimeout(() => void desktop.restart?.(), 400);
-      } else {
-        setMowenUpdateError("更新程序已启动，请关闭并重新打开墨问完成更新。");
-      }
-    } catch {
-      setMowenUpdateError("启动更新失败，请稍后重试。");
-    } finally {
-      setMowenUpdateBusy(false);
-    }
-  }
+  }, [checkMowenUpdate]);
 
   async function toggleTrust(next: boolean) {
     setTrustBusy(true);
@@ -359,18 +296,18 @@ export function SettingsPage() {
   let updateDetail: string | null = null;
   if (piLatest?.error) updateDetail = piLatest.error;
   else if (piLatest?.updateAvailable && piLatest.latest) {
-    updateDetail = piLatest.piBundled
-      ? `有新版本 ${piLatest.latest}。内置 Pi 会随墨问一起更新。`
-      : `有新版本 ${piLatest.latest}`;
+    updateDetail = `有新版本 ${piLatest.latest}`;
   } else if (piLatest && piVersion && !piLatest.updateAvailable && piLatest.latest) {
-    updateDetail = "已是最新版本";
+    updateDetail = "已是最新";
   }
-  const mowenDetail = mowenLatest?.error
-    ? mowenLatest.error
+  const mowenDetail = mowenUpdateError
+    ? mowenUpdateError
+    : mowenNotice
+      ? mowenNotice
     : mowenLatest?.updateAvailable && mowenLatest.latest
-      ? `发现新版本 ${mowenLatest.latest}`
+      ? `${mowenLatest.latest} 可用`
       : mowenLatest?.latest
-        ? "已是最新版本"
+        ? "已是最新"
         : "尚未检查";
 
   return (
@@ -389,39 +326,27 @@ export function SettingsPage() {
         <h1 className="flex-1 text-center text-[13px] font-semibold tracking-tight">设置</h1>
         <span className="w-[72px]" />
       </header>
+      <UpdateBanner />
       <main id="main-content" className="flex-1 overflow-y-auto px-5 py-8">
         <div className="settings-shell space-y-7">
-          <p className="px-1 text-[13px] leading-6 text-mute">
-            墨问只在这台电脑上运行。认证分两种方式：订阅登录，或粘贴 API Key。每种方式先选服务商，再配置。
-          </p>
-
           <section>
-            <h2 className="settings-label">墨问更新</h2>
+            <h2 className="settings-label">墨问</h2>
             <div className="settings-card">
               <div className="settings-row items-center">
                 <div className="min-w-0 pr-3">
-                  <p className="text-[13px] text-ink">应用版本</p>
-                  <p className="mt-0.5 text-[12px] text-mute">当前 {mowenLatest?.current ?? "—"} · {mowenDetail}</p>
-                  {mowenLatest?.name && mowenLatest.url ? (
-                    <a className="mt-1 inline-block text-[12px] text-accent" href={mowenLatest.url} target="_blank" rel="noreferrer">
-                      查看 GitHub Release
-                    </a>
-                  ) : null}
-                  {mowenUpdateError ? <p className="mt-1 text-[12px] text-danger">{mowenUpdateError}</p> : null}
+                  <p className="text-[13px] text-ink">版本 {mowenLatest?.current ?? "—"}</p>
+                  <p className={`mt-0.5 text-[12px] ${mowenUpdateError ? "text-danger" : "text-mute"}`}>{mowenDetail}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <button type="button" className="pressable btn btn-ghost" aria-label={mowenCheckBusy ? "正在检查墨问更新" : "检查墨问更新"} disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate()}>
+                  <button type="button" className="pressable btn btn-ghost" aria-label={mowenCheckBusy ? "正在检查墨问更新" : "检查墨问更新"} disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate(true)}>
                     {mowenCheckBusy ? "正在检查…" : "检查更新"}
                   </button>
                   {mowenLatest?.updateAvailable && mowenLatest.canUpdate ? (
                     <button type="button" className="pressable btn btn-primary" disabled={mowenUpdateBusy || mowenCheckBusy} onClick={() => void installMowenUpdate()}>
-                      {mowenUpdateBusy ? "正在准备…" : "更新墨问"}
+                      {mowenUpdateBusy ? "正在更新…" : "更新并重启"}
                     </button>
                   ) : null}
                 </div>
-              </div>
-              <div className="settings-row">
-                <p className="text-[12px] leading-5 text-mute">更新会下载对应 Release 的官方脚本，在应用内启动安装流程。开发模式只检查版本，不会替换当前源码。</p>
               </div>
             </div>
           </section>
@@ -477,11 +402,6 @@ export function SettingsPage() {
                     ))}
                   </div>
                 </div>
-                <p className="text-[12px] leading-5 text-mute">
-                  {authMode === "oauth"
-                    ? "先选服务商，再订阅登录。完整密钥不会显示在这里。"
-                    : "先选服务商，再粘贴 API Key。完整密钥不会显示在这里。"}
-                </p>
               </div>
 
               <div className="settings-row flex-col items-stretch gap-3">
@@ -591,13 +511,7 @@ export function SettingsPage() {
                             : "保存密钥"}
                       </button>
                     </div>
-                  ) : (
-                    <p className="text-[12px] leading-5 text-mute">
-                      点「订阅登录」会打开系统浏览器完成授权；成功后这里会自动同步。若浏览器没开，再点「刷新状态」，或在终端运行{" "}
-                      <code className="font-mono text-ink">pi</code> 后输入{" "}
-                      <code className="font-mono text-ink">/login</code>。
-                    </p>
-                  )}
+                  ) : null}
 
                   {activeFlash ? (
                     <p className={`text-[12px] ${activeFlash.tone === "err" ? "text-danger" : "text-success"}`}>
@@ -688,7 +602,7 @@ export function SettingsPage() {
                 <div>
                   <p className="text-[13px] text-ink">models.json</p>
                   <p className="mt-0.5 text-[12px] text-mute">
-                    {models.present ? `已找到${models.count ? ` · ${models.count} 个模型` : ""}` : "未找到。Pi 会用默认模型列表。"}
+                    {models.present ? `已找到${models.count ? ` · ${models.count} 个模型` : ""}` : "未找到"}
                   </p>
                 </div>
               </div>
@@ -701,9 +615,6 @@ export function SettingsPage() {
               <div className="settings-row items-center">
                 <div className="min-w-0 pr-3">
                   <p className="text-[13px] text-ink">信任当前项目</p>
-                  <p className="mt-0.5 text-[12px] leading-5 text-mute">
-                    加载这个文件夹里的项目技能和提示。下次启动对话才会生效。墨问仍不会加载项目里的 TypeScript 扩展。
-                  </p>
                 </div>
                 <label className="mac-toggle">
                   <input

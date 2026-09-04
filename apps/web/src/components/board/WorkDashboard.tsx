@@ -56,22 +56,22 @@ const ATTENTION_STATES = new Set<WorkItemViewState>([
 const WORKING_STATES = new Set<WorkItemViewState>(["queued", "working"]);
 
 const VIEW_COPY: Record<WorkItemViewState, { label: string; detail: string }> = {
-  ready: { label: "准备开始", detail: "目标已保存，尚未交给 Agent" },
-  queued: { label: "排队中", detail: "等待可用的 Agent 进程" },
-  working: { label: "Agent 工作中", detail: "正在推进这个目标" },
-  needs_approval: { label: "等待批准", detail: "Agent 有一项操作需要你确认" },
-  needs_input: { label: "等待回答", detail: "Agent 需要更多信息才能继续" },
-  needs_review: { label: "待验收", detail: "本轮已结束，请检查结果" },
-  failed: { label: "执行失败", detail: "查看原因并补充说明后继续" },
-  paused: { label: "已暂停", detail: "检查当前状态后再继续" },
-  completed: { label: "已完成", detail: "目标已经验收" },
-  archived: { label: "已归档", detail: "目标已从工作台隐藏" },
+  ready: { label: "准备开始", detail: "" },
+  queued: { label: "排队中", detail: "" },
+  working: { label: "进行中", detail: "" },
+  needs_approval: { label: "等待批准", detail: "" },
+  needs_input: { label: "等待回答", detail: "" },
+  needs_review: { label: "待验收", detail: "" },
+  failed: { label: "失败", detail: "" },
+  paused: { label: "已暂停", detail: "" },
+  completed: { label: "已完成", detail: "" },
+  archived: { label: "已归档", detail: "" },
 };
 
 const FILTERS: Array<{ id: WorkFilter; label: string }> = [
   { id: "all", label: "全部" },
   { id: "attention", label: "需要你处理" },
-  { id: "working", label: "Agent 工作中" },
+  { id: "working", label: "进行中" },
   { id: "ready", label: "准备开始" },
   { id: "completed", label: "已完成" },
   { id: "archived", label: "归档" },
@@ -122,11 +122,11 @@ export function WorkDashboard({
   };
 
   const sections = [
-    { id: "attention" as const, title: "需要你处理", copy: "批准、回答、验收或处理失败。", items: attention },
-    { id: "working" as const, title: "Agent 工作中", copy: "正在运行或等待可用进程。", items: working },
-    { id: "ready" as const, title: "准备开始", copy: "已经保存，还没有交给 Agent。", items: ready },
-    { id: "completed" as const, title: "最近完成", copy: "已验收的目标，可重新打开。", items: completed.slice(0, 8) },
-    { id: "archived" as const, title: "归档", copy: "已经移出日常工作台的目标。", items: archived },
+    { id: "attention" as const, title: "需要你处理", items: attention },
+    { id: "working" as const, title: "进行中", items: working },
+    { id: "ready" as const, title: "准备开始", items: ready },
+    { id: "completed" as const, title: "最近完成", items: completed.slice(0, 8) },
+    { id: "archived" as const, title: "归档", items: archived },
   ].filter((section) => (filter === "all" ? section.id !== "archived" : section.id === filter));
 
   return (
@@ -150,10 +150,7 @@ export function WorkDashboard({
         {sections.map((section) => (
           <section key={section.id} aria-labelledby={`work-section-${section.id}`} className="work-section">
             <header className="work-section-head">
-              <div>
-                <h2 id={`work-section-${section.id}`}>{section.title}</h2>
-                <p>{section.copy}</p>
-              </div>
+              <h2 id={`work-section-${section.id}`}>{section.title}</h2>
               <span className="tabular work-section-count">{section.items.length}</span>
             </header>
             {section.items.length > 0 ? (
@@ -227,7 +224,6 @@ function WorkObjectiveRow({
           <span className="work-objective-title">{item.title}</span>
           <span className="work-objective-meta">
             <strong>{copy.label}</strong>
-            <span>{copy.detail}</span>
           </span>
           {result ? <span className="work-objective-result">{result}</span> : null}
         </span>

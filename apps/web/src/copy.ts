@@ -75,14 +75,14 @@ export function folderName(cwd: string): string {
 }
 
 export function nextHint(status: string, hasTask: boolean): string {
-  if (!hasTask) return "从左侧选择会话，或点 + 开始聊天";
-  if (status === "waiting_approval") return "请确认是否允许这次操作";
+  if (!hasTask) return "点 + 开始聊天";
+  if (status === "waiting_approval") return "等待确认";
   if (status === "running") return taskStatusLabel("running");
-  if (status === "error") return "出了点问题。下面的红色说明可以看原因";
-  if (status === "queued") return "正在等待空闲";
+  if (status === "error") return "出错了";
+  if (status === "queued") return "排队中";
   if (status === "booting") return "正在启动";
   if (status === "aborting") return "正在停止";
-  return "输入消息，回车发送。可用 @ 点文件";
+  return "";
 }
 
 /** Header subtitle: folder only. Keyboard hints live in the composer; live progress is the status bar. */
@@ -93,6 +93,6 @@ export function headerSubtitle(cwd: string | undefined, hasTask: boolean, status
 
 /** Composer placeholder: steer/queue hints only while busy — do not repeat RunStatusBar progress copy. */
 export function composerPlaceholder(busy: boolean): string {
-  if (busy) return "回车补充，Shift+Enter 排队下一条。";
-  return "有什么想做的，直接说。用 @ 点文件，用 / 找技能";
+  if (busy) return "回车补充，Shift+Enter 排队";
+  return "输入消息";
 }

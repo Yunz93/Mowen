@@ -14,6 +14,7 @@ import { RunStatusBar } from "../components/status/RunStatusBar";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
 import { ModeSwitcher } from "../components/app/ModeSwitcher";
+import { UpdateBanner } from "../components/app/UpdateBanner";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
@@ -614,6 +615,7 @@ export function WorkbenchLayout() {
             </Link>
           </div>
         </header>
+        <UpdateBanner />
         <RunStatusBar
           status={status}
           tools={tools}
@@ -703,9 +705,6 @@ export function WorkbenchLayout() {
           ) : (
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
               <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是墨问</p>
-              <p className="mt-3 text-[13px] leading-6 text-mute">
-                对话是单次提问。长期项目请切换到「工作」，在项目里创建任务、追加，直到闭环。
-              </p>
               <div className="mt-7 flex items-center gap-2">
                 <button
                   type="button"

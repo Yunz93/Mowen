@@ -360,7 +360,7 @@ export function PromptComposer({
             <ImagePlus size={15} />
           </label>
           {attachedCount > 0 ? (
-            <span className="text-[11px] text-mute">{attachedCount} 个文件会随消息附上</span>
+            <span className="text-[11px] text-mute">{attachedCount} 个文件</span>
           ) : null}
           <div className="flex-1" />
           {running ? (
