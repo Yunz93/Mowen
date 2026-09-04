@@ -51,27 +51,31 @@ export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
   const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");
   const shown = open ? displayResult : preview;
   const truncated = !open && isBash && resultLines.length > BASH_PREVIEW_LINES;
-
   const tone = useMemo(() => toolTone(tool.status), [tool.status]);
 
   return (
     <div className={`overflow-hidden rounded-[10px] bg-fill ${toneClass(tone)}`}>
-      <button
-        type="button"
-        className="pressable flex min-h-8 w-full items-center gap-2.5 px-3 py-1.5 text-left"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-      >
-        <Icon
-          size={14}
-          className={
-            tool.status === "running" || tool.status === "pending" ? "text-accent" : "text-mute"
-          }
-        />
-        <span className="text-xs text-ink">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-mute">{target}</span>
+      <div className="flex min-h-8 items-center gap-1 px-1.5">
+        <button
+          type="button"
+          className="pressable flex min-h-8 min-w-0 flex-1 items-center gap-2.5 px-1.5 py-1.5 text-left"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+        >
+          <Icon
+            size={14}
+            className={
+              tool.status === "running" || tool.status === "pending" ? "text-accent" : "text-mute"
+            }
+          />
+          <span className="text-xs text-ink">{label}</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-mute">{target}</span>
+          {compact ? null : <span className="text-[11px] text-mute">{toolStatusLabel(tool.status)}</span>}
+          {duration ? <span className="text-[11px] text-mute">{duration}</span> : null}
+          <ChevronRight size={14} className={`text-mute transition-transform ${open ? "rotate-90" : ""}`} />
+        </button>
         {canOpen || canUndo ? (
-          <span className="tool-row-actions" onClick={(event) => event.stopPropagation()}>
+          <span className="tool-row-actions">
             {canOpen ? (
               <button
                 type="button"
@@ -92,10 +96,7 @@ export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
             ) : null}
           </span>
         ) : null}
-        {compact ? null : <span className="text-[11px] text-mute">{toolStatusLabel(tool.status)}</span>}
-        {duration ? <span className="text-[11px] text-mute">{duration}</span> : null}
-        <ChevronRight size={14} className={`text-mute transition-transform ${open ? "rotate-90" : ""}`} />
-      </button>
+      </div>
       {shown ? (
         <pre className="max-h-64 overflow-auto border-t border-line bg-canvas px-3 py-2 font-mono text-xs leading-5 text-mute fade-in">
           {truncated ? `…\n${shown}` : shown}

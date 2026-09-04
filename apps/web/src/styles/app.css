@@ -557,11 +557,11 @@ html.dark {
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .overflow-hidden > button .tool-row-actions {
+    .overflow-hidden .tool-row-actions {
       opacity: 0;
     }
 
-    .overflow-hidden:hover > button .tool-row-actions,
+    .overflow-hidden:hover .tool-row-actions,
     .overflow-hidden:focus-within .tool-row-actions {
       opacity: 1;
     }
