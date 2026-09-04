@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { MessageSquare, PanelRight, Plus, Settings } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { MessageSquare, PanelRight, Pencil, Plus, Settings } from "lucide-react";
 import { TaskSidebar } from "../components/tasks/TaskSidebar";
 import { ConversationTimeline } from "../components/timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../components/composer/PromptComposer";
@@ -19,18 +19,24 @@ import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
 import { stripModePrefix } from "@mowen/protocol";
-import { headerSubtitle } from "../copy";
+import { headerSubtitle, STARTER_PROMPTS } from "../copy";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
+import { isEditableTarget } from "../lib/hotkeys";
 import { getDesktop } from "../desktop-bridge";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   INSPECTOR_OPEN_KEY,
+  INSPECTOR_WIDTH_DEFAULT,
+  INSPECTOR_WIDTH_KEY,
   LEFT_PINNED_KEY,
   RIGHT_PINNED_KEY,
+  clampInspectorWidth,
   readUiFlag,
+  readUiNumber,
   writeUiFlag,
+  writeUiNumber,
 } from "../lib/ui-prefs";
 
 export function WorkbenchLayout() {
@@ -77,8 +83,12 @@ export function WorkbenchLayout() {
     () => readUiFlag(RIGHT_PINNED_KEY, false) && readUiFlag(INSPECTOR_OPEN_KEY, false),
   );
   const isMd = useMediaQuery("(min-width: 768px)");
+  const isXl = useMediaQuery("(min-width: 1100px)");
   const dockLeft = leftPinned && isMd;
-  const dockRight = rightPinned && inspectorOpen && isMd;
+  const dockRight = rightPinned && inspectorOpen && isXl;
+  const [inspectorWidth, setInspectorWidth] = useState(() =>
+    clampInspectorWidth(readUiNumber(INSPECTOR_WIDTH_KEY, INSPECTOR_WIDTH_DEFAULT)),
+  );
   const overlayLeft = taskOpen && !dockLeft;
   const overlayRight = inspectorOpen && !dockRight;
   const [notice, setNotice] = useState("");
@@ -89,6 +99,8 @@ export function WorkbenchLayout() {
   const composerImagesRef = useRef(composerImages);
   composerImagesRef.current = composerImages;
   const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     return () => {
@@ -130,12 +142,17 @@ export function WorkbenchLayout() {
     () => (task ? workItems.find((item) => item.taskId === task.id) : undefined),
     [task, workItems],
   );
+  const workTaskIds = useMemo(
+    () => new Set(workItems.map((item) => item.taskId).filter((id): id is string => Boolean(id))),
+    [workItems],
+  );
   const conversationTasks = useMemo(() => {
-    const workTaskIds = new Set(
-      workItems.map((item) => item.taskId).filter((id): id is string => Boolean(id)),
-    );
     return tasks.filter((entry) => !workTaskIds.has(entry.id) || entry.id === activeTaskId);
-  }, [activeTaskId, tasks, workItems]);
+  }, [activeTaskId, tasks, workTaskIds]);
+  const workTasks = useMemo(
+    () => tasks.filter((entry) => workTaskIds.has(entry.id) && entry.id !== activeTaskId),
+    [tasks, workTaskIds, activeTaskId],
+  );
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
   const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
@@ -162,6 +179,23 @@ export function WorkbenchLayout() {
   useEffect(() => {
     writeUiFlag(INSPECTOR_OPEN_KEY, inspectorOpen);
   }, [inspectorOpen]);
+
+  useEffect(() => {
+    writeUiNumber(INSPECTOR_WIDTH_KEY, inspectorWidth);
+  }, [inspectorWidth]);
+
+  useEffect(() => {
+    if (!pendingDraft || !task) return;
+    setDraft(pendingDraft);
+    setPendingDraft(null);
+  }, [pendingDraft, task]);
+
+  useEffect(() => {
+    if (!approval) return;
+    void showOsNotification("墨问需要确认", approval.rawCommand ?? approval.target ?? "等待批准", "warning");
+    // Notify once per request; the full approval object is read from the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- requestId is the identity
+  }, [approval?.requestId]);
 
   function toggleLeftPinned() {
     setLeftPinned((pinned) => {
@@ -235,10 +269,40 @@ export function WorkbenchLayout() {
         event.preventDefault();
         setCreating(true);
       }
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+        event.preventDefault();
+        navigate("/settings");
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+        event.preventDefault();
+        if (task) void socketClient.send("agent.abort", {}, task.id);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "i") {
+        event.preventDefault();
+        setInspectorOpen((open) => !open);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        navigate("/board");
+      }
+      if ((event.metaKey || event.ctrlKey) && !isEditableTarget(event.target) && /^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        const next = conversationTasks[Number(event.key) - 1];
+        if (next) void selectTask(next.id);
+      }
+      if ((event.metaKey || event.ctrlKey) && (event.key === "[" || event.key === "]") && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        const index = conversationTasks.findIndex((entry) => entry.id === activeTaskId);
+        const next =
+          event.key === "["
+            ? conversationTasks[index <= 0 ? conversationTasks.length - 1 : index - 1]
+            : conversationTasks[index >= conversationTasks.length - 1 ? 0 : index + 1];
+        if (next) void selectTask(next.id);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [approval, creating, editingTitle, inspectorOpen, interaction, paletteOpen, rightPinned, task, taskOpen]);
+  }, [activeTaskId, approval, conversationTasks, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, task, taskOpen]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -375,6 +439,8 @@ export function WorkbenchLayout() {
         onRename={(id, title) => void renameTask(id, title)}
         pinned={leftPinned}
         onPinToggle={toggleLeftPinned}
+        workTasks={workTasks}
+        onOpenBoard={() => navigate("/board")}
         onNew={() => {
           setTaskOpen(false);
           setCreating(true);
@@ -540,17 +606,32 @@ export function WorkbenchLayout() {
                 className="h-7 w-full max-w-[min(100%,360px)] rounded-md bg-fill-strong px-1.5 text-[13px] font-medium tracking-tight text-ink"
               />
             ) : (
-              <p
-                className="truncate text-[13px] font-medium tracking-tight text-ink"
-                title={task ? "双击重命名" : undefined}
-                onDoubleClick={() => {
-                  if (!task) return;
-                  setTitleDraft(task.title);
-                  setEditingTitle(true);
-                }}
-              >
-                {task?.title ?? "还没有对话"}
-              </p>
+              <div className="group/title flex min-w-0 items-center gap-1">
+                <p
+                  className="truncate text-[13px] font-medium tracking-tight text-ink"
+                  title={task ? "双击重命名" : undefined}
+                  onDoubleClick={() => {
+                    if (!task) return;
+                    setTitleDraft(task.title);
+                    setEditingTitle(true);
+                  }}
+                >
+                  {task?.title ?? "还没有对话"}
+                </p>
+                {task ? (
+                  <button
+                    type="button"
+                    className="pressable icon-btn title-rename-btn"
+                    aria-label="重命名会话"
+                    onClick={() => {
+                      setTitleDraft(task.title);
+                      setEditingTitle(true);
+                    }}
+                  >
+                    <Pencil size={12} />
+                  </button>
+                ) : null}
+              </div>
             )}
             <p className="hidden truncate text-[11px] text-mute sm:block">
               {headerSubtitle(task?.cwd, Boolean(task), status)}
@@ -580,7 +661,7 @@ export function WorkbenchLayout() {
               className="chip app-no-drag hidden max-w-[200px] truncate text-accent lg:inline-flex"
               title={linkedWorkItem.title}
             >
-              工作 · {linkedWorkItem.title}
+              任务 · {linkedWorkItem.title}
             </Link>
           ) : null}
           {task ? (
@@ -600,6 +681,7 @@ export function WorkbenchLayout() {
             </div>
           ) : null}
           <div className="app-no-drag flex items-center gap-0.5">
+            <UpdateBanner />
             <ThemeToggle />
             <button
               type="button"
@@ -615,7 +697,6 @@ export function WorkbenchLayout() {
             </Link>
           </div>
         </header>
-        <UpdateBanner />
         <RunStatusBar
           status={status}
           tools={tools}
@@ -701,6 +782,7 @@ export function WorkbenchLayout() {
               onClone={() => void socketClient.send("session.clone", {}, task.id)}
               onOpenFile={(filePath) => void openProjectFile(filePath)}
               onUndoFile={(filePath) => void undoProjectFile(filePath)}
+              onStarter={(prompt) => setDraft(prompt)}
             />
           ) : (
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
@@ -714,8 +796,23 @@ export function WorkbenchLayout() {
                   开始对话
                 </button>
                 <Link to="/board" className="pressable btn btn-secondary">
-                  去工作
+                  去任务
                 </Link>
+              </div>
+              <div className="mt-8 flex flex-col items-stretch gap-2">
+                {STARTER_PROMPTS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="pressable starter-prompt"
+                    onClick={() => {
+                      setPendingDraft(item.prompt);
+                      setCreating(true);
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -791,7 +888,30 @@ export function WorkbenchLayout() {
         ) : null}
       </div>
 
-      {dockRight ? <div className="flex h-full w-[360px] shrink-0">{renderInspector(false)}</div> : null}
+      {dockRight ? (
+        <div className="relative flex h-full shrink-0" style={{ width: inspectorWidth }}>
+          <button
+            type="button"
+            className="inspector-resize"
+            aria-label="调整详情宽度"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              const startX = event.clientX;
+              const startWidth = inspectorWidth;
+              const onMove = (move: MouseEvent) => {
+                setInspectorWidth(clampInspectorWidth(startWidth + (startX - move.clientX)));
+              };
+              const onUp = () => {
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+              };
+              window.addEventListener("mousemove", onMove);
+              window.addEventListener("mouseup", onUp);
+            }}
+          />
+          {renderInspector(false)}
+        </div>
+      ) : null}
 
       {overlayLeft ? (
         <div className="fixed inset-0 z-30">
@@ -813,7 +933,12 @@ export function WorkbenchLayout() {
             aria-label="关闭详情"
             onClick={() => setInspectorOpen(false)}
           />
-          <div className="slide-in-right absolute inset-y-0 right-0 z-40 w-[360px] max-w-full">{renderInspector(true)}</div>
+          <div
+            className="slide-in-right absolute inset-y-0 right-0 z-40 max-w-full"
+            style={{ width: Math.min(inspectorWidth, typeof window === "undefined" ? inspectorWidth : window.innerWidth) }}
+          >
+            {renderInspector(true)}
+          </div>
         </div>
       ) : null}
 

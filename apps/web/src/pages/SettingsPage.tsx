@@ -324,9 +324,10 @@ export function SettingsPage() {
           返回对话
         </Link>
         <h1 className="flex-1 text-center text-[13px] font-semibold tracking-tight">设置</h1>
-        <span className="w-[72px]" />
+        <div className="app-no-drag flex w-[72px] justify-end">
+          <UpdateBanner />
+        </div>
       </header>
-      <UpdateBanner />
       <main id="main-content" className="flex-1 overflow-y-auto px-5 py-8">
         <div className="settings-shell space-y-7">
           <section>

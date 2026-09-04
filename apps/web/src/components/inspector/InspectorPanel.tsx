@@ -16,7 +16,8 @@ import { InspectorRules } from "./InspectorRules";
 import { InspectorSkills } from "./InspectorSkills";
 import { InspectorExtensions } from "./InspectorExtensions";
 
-type Tab = "files" | "git" | "term" | "browser" | "rules" | "skills" | "plugins";
+type Tab = "files" | "git" | "term" | "browser" | "resources";
+type ResourceTab = "rules" | "skills" | "plugins";
 
 type FileEntry = InspectorFileEntry;
 type GitSnapshot = {
@@ -91,6 +92,8 @@ export function InspectorPanel({
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("files");
+  const [resourceTab, setResourceTab] = useState<ResourceTab>("rules");
+  const [awaitingTree, setAwaitingTree] = useState(files.length === 0);
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [commitMode, setCommitMode] = useState<"commit" | "push">("commit");
@@ -104,9 +107,16 @@ export function InspectorPanel({
   onLoadGitRef.current = onLoadGit;
 
   useEffect(() => {
+    setAwaitingTree(true);
     onLoadTreeRef.current();
     onLoadGitRef.current();
-  }, []);
+    const timer = window.setTimeout(() => setAwaitingTree(false), 600);
+    return () => window.clearTimeout(timer);
+  }, [taskId]);
+
+  useEffect(() => {
+    if (files.length > 0) setAwaitingTree(false);
+  }, [files]);
 
   const fileTree = useMemo(() => buildFileTree(files), [files]);
   const gitMarks = useMemo(() => gitMarksByPath(git?.entries ?? []), [git?.entries]);
@@ -169,12 +179,12 @@ export function InspectorPanel({
   return (
     <>
     <aside
-      className={`material-sidebar flex h-full shrink-0 flex-col border-l border-line ${drawer ? "w-full shadow-dialog" : "w-[360px]"}`}
+      className={`material-sidebar flex h-full w-full shrink-0 flex-col border-l border-line ${drawer ? "shadow-dialog" : ""}`}
       aria-label="详情"
     >
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {(["files", "git", "term", "browser", "rules", "skills", "plugins"] as const).map((item) => (
+          {(["files", "git", "term", "browser", "resources"] as const).map((item) => (
             <button
               key={item}
               type="button"
@@ -189,7 +199,7 @@ export function InspectorPanel({
                   onLoadGit();
                   onGitDiff?.();
                 }
-                if (item === "skills" || item === "rules" || item === "plugins") onLoadResources?.();
+                if (item === "resources") onLoadResources?.();
               }}
             >
               {item === "files"
@@ -200,11 +210,7 @@ export function InspectorPanel({
                     ? "终端"
                     : item === "browser"
                       ? "浏览器"
-                      : item === "rules"
-                        ? "约定"
-                        : item === "skills"
-                          ? "技能"
-                          : "插件"}
+                      : "资源"}
             </button>
           ))}
         </div>
@@ -226,10 +232,12 @@ export function InspectorPanel({
           </button>
         ) : null}
       </div>
-      <div className={`min-h-0 flex-1 ${tab === "files" || tab === "term" || tab === "browser" || tab === "rules" ? "flex flex-col overflow-hidden" : "overflow-y-auto p-3"}`}>
+      <div className={`min-h-0 flex-1 ${tab === "files" || tab === "term" || tab === "browser" || tab === "resources" ? "flex flex-col overflow-hidden" : "overflow-y-auto p-3"}`}>
         {tab === "files" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            {fileTree.length === 0 && !preview ? (
+            {awaitingTree && fileTree.length === 0 && !preview ? (
+              <InspectorSkeleton />
+            ) : fileTree.length === 0 && !preview ? (
               <p className="p-3 text-sm text-mute">这个文件夹里还没有可预览的文件。</p>
             ) : (
               <>
@@ -295,7 +303,7 @@ export function InspectorPanel({
         {tab === "git" ? (
           <div className="flex min-h-0 flex-col gap-3">
             {git == null ? (
-              <p className="text-sm text-mute">正在读取 Git 状态…</p>
+              <InspectorSkeleton />
             ) : git.isRepo !== false ? (
               <>
                 <div className="flex items-start justify-between gap-2">
@@ -391,34 +399,55 @@ export function InspectorPanel({
         ) : null}
         {tab === "term" ? <InspectorTerminal taskId={taskId} cwd={cwd} /> : null}
         {tab === "browser" ? <InspectorBrowser /> : null}
-        {tab === "rules" ? (
-          <InspectorRules
-            files={resources?.agentsFiles ?? []}
-            cwd={cwd}
-            onRead={onReadResource ?? (async () => ({ path: "", content: "", truncated: false }))}
-            onWrite={onWriteResource ?? (async () => {})}
-            onCreate={onCreateAgents}
-          />
-        ) : null}
-        {tab === "skills" ? (
-          <InspectorSkills
-            skills={resources?.skills ?? []}
-            trustProject={Boolean(resources?.trustProject)}
-            onToggle={(path, enabled) => onToggleSkill?.(path, enabled)}
-            lastExportPath={lastExportPath}
-            onExport={onExport}
-            onOpenExport={onOpenExport}
-            onReload={onReloadResources}
-          />
-        ) : null}
-        {tab === "plugins" ? (
-          <InspectorExtensions
-            extensions={resources?.extensions ?? []}
-            packages={resources?.packages ?? []}
-            trustProject={Boolean(resources?.trustProject)}
-            onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
-            onReload={onReloadResources}
-          />
+        {tab === "resources" ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex items-center gap-0.5 border-b border-line px-2 py-1">
+              {(["rules", "skills", "plugins"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`pressable h-7 rounded-md px-2 text-[12px] ${resourceTab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
+                  onClick={() => {
+                    setResourceTab(item);
+                    onLoadResources?.();
+                  }}
+                >
+                  {item === "rules" ? "约定" : item === "skills" ? "技能" : "插件"}
+                </button>
+              ))}
+            </div>
+            <div className={`min-h-0 flex-1 ${resourceTab === "rules" ? "flex flex-col overflow-hidden" : "overflow-y-auto p-3"}`}>
+              {resourceTab === "rules" ? (
+                <InspectorRules
+                  files={resources?.agentsFiles ?? []}
+                  cwd={cwd}
+                  onRead={onReadResource ?? (async () => ({ path: "", content: "", truncated: false }))}
+                  onWrite={onWriteResource ?? (async () => {})}
+                  onCreate={onCreateAgents}
+                />
+              ) : null}
+              {resourceTab === "skills" ? (
+                <InspectorSkills
+                  skills={resources?.skills ?? []}
+                  trustProject={Boolean(resources?.trustProject)}
+                  onToggle={(path, enabled) => onToggleSkill?.(path, enabled)}
+                  lastExportPath={lastExportPath}
+                  onExport={onExport}
+                  onOpenExport={onOpenExport}
+                  onReload={onReloadResources}
+                />
+              ) : null}
+              {resourceTab === "plugins" ? (
+                <InspectorExtensions
+                  extensions={resources?.extensions ?? []}
+                  packages={resources?.packages ?? []}
+                  trustProject={Boolean(resources?.trustProject)}
+                  onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
+                  onReload={onReloadResources}
+                />
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </div>
     </aside>
@@ -506,5 +535,16 @@ export function InspectorPanel({
       </div>
     ) : null}
     </>
+  );
+}
+
+function InspectorSkeleton() {
+  return (
+    <div className="inspector-skeleton" aria-busy="true" aria-label="加载中">
+      <div className="inspector-skeleton-line w-[72%]" />
+      <div className="inspector-skeleton-line w-[54%]" />
+      <div className="inspector-skeleton-line w-[86%]" />
+      <div className="inspector-skeleton-line w-[40%]" />
+    </div>
   );
 }

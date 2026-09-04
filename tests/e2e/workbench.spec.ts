@@ -47,7 +47,7 @@ test("workbench core loop", async ({ page }) => {
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
   await page.getByLabel("输入消息").fill("steer now");
-  await page.getByRole("button", { name: "发送" }).click();
+  await page.getByLabel("输入消息").press("Enter");
   await expect(page.getByText("Steered: steer now").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
@@ -55,9 +55,8 @@ test("workbench core loop", async ({ page }) => {
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("Echo: change course").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "选项" }).click();
-  await page.getByLabel("审批").selectOption("ask");
-  await page.getByRole("button", { name: "选项" }).click();
+  await page.getByRole("button", { name: "模式" }).click();
+  await page.getByRole("menuitem", { name: "每次确认" }).click();
 
   await page.getByLabel("输入消息").fill("WRITE:denied.txt:secret");
   await page.getByRole("button", { name: "发送" }).click();
@@ -78,8 +77,8 @@ test("workbench core loop", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("Steered: steer now").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "选项" }).click();
-  await page.getByLabel("思考深度").selectOption("high");
+  await page.getByRole("button", { name: "模型和思考" }).click();
+  await page.getByRole("menuitem", { name: "思考：较高" }).click();
   await page.getByRole("button", { name: /归档 E2E task/ }).click();
 });
 
@@ -166,6 +165,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByText("已加载 AGENTS.md")).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "详情" }).click();
+  await page.getByRole("button", { name: "资源" }).click();
   await page.getByRole("button", { name: "约定" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" }).first()).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
@@ -322,6 +322,7 @@ test("copy reply, rename session, find in conversation, and open export", async 
   await expect(search).toHaveCount(0);
 
   await page.getByRole("button", { name: "详情" }).click();
+  await page.getByRole("button", { name: "资源" }).click();
   await page.getByRole("button", { name: "技能" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
@@ -530,7 +531,7 @@ test("work mode creates an objective and starts an agent run", async ({ page }) 
   await page.getByLabel("项目文件夹").fill(project);
   await page.getByLabel("项目名称").fill("E2E project");
   await page.getByRole("dialog", { name: "启动项目" }).getByRole("button", { name: "启动项目" }).click();
-  await page.getByRole("button", { name: "新建目标" }).click();
+  await page.getByRole("button", { name: "新建任务" }).click();
   await page.getByLabel("标题").fill("Board e2e job");
   await page.getByLabel("目标说明").fill("echo from work mode");
   await page.getByLabel("验收标准").fill("the run finishes and reports a result");

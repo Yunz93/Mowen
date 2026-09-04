@@ -446,6 +446,269 @@ html.dark {
     color: var(--color-mute);
   }
 
+  .send-btn-stop {
+    background: var(--color-ink);
+  }
+
+  .mention-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 12px;
+    z-index: 20;
+    margin-bottom: 8px;
+    max-height: 12rem;
+    width: min(420px, calc(100% - 24px));
+    overflow: auto;
+    border-radius: 10px;
+    background: var(--color-elevated);
+    padding: 4px 0;
+    box-shadow: var(--shadow-dialog);
+  }
+
+  .mention-item {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  .mention-item-active,
+  .mention-item:hover {
+    background: var(--color-fill);
+  }
+
+  .mention-item-path {
+    display: block;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mention-item-desc {
+    color: var(--color-mute);
+    font-size: 11px;
+  }
+
+  .composer-capsules {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .composer-capsule {
+    height: 24px;
+    min-height: 24px;
+    border-radius: 99px;
+    background: var(--color-fill);
+    padding: 0 8px;
+    color: var(--color-ink);
+    font-size: 11px;
+  }
+
+  .composer-popover {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    min-width: 168px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--color-elevated);
+    padding: 4px;
+    box-shadow: var(--shadow-dialog);
+  }
+
+  .composer-popover-item {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  .composer-popover-item:hover,
+  .composer-popover-active {
+    background: var(--color-fill);
+  }
+
+  .composer-popover-sep {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--color-line);
+  }
+
+  .thinking-block {
+    padding-left: 10px;
+    border-left: 2px solid var(--color-line);
+  }
+
+  .thinking-body {
+    color: color-mix(in oklch, var(--color-mute) 86%, transparent);
+  }
+
+  .tool-row-actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .overflow-hidden:hover > button .tool-row-actions,
+    .overflow-hidden:focus-within .tool-row-actions {
+      display: inline-flex;
+    }
+  }
+
+  @media (hover: none) {
+    .tool-row-actions {
+      display: inline-flex;
+    }
+  }
+
+  .approval-risk {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .approval-risk-high {
+    color: var(--color-danger);
+  }
+
+  .approval-risk-medium {
+    color: color-mix(in oklch, var(--color-warn) 80%, var(--color-ink));
+  }
+
+  .approval-danger {
+    color: var(--color-danger);
+    font-weight: 650;
+  }
+
+  .approval-remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-mute);
+    font-size: 12px;
+  }
+
+  .approval-remember input {
+    min-height: 0;
+  }
+
+  .approval-allow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .approval-allow-progress {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    transform-origin: left;
+    background: color-mix(in oklch, white 18%, transparent);
+    pointer-events: none;
+  }
+
+  .inspector-resize {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 5;
+    width: 6px;
+    min-height: 0;
+    cursor: col-resize;
+  }
+
+  .inspector-skeleton {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .inspector-skeleton-line {
+    height: 10px;
+    border-radius: 99px;
+    background: var(--color-fill-strong);
+  }
+
+  .update-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--color-danger);
+  }
+
+  .update-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    width: 240px;
+    border-radius: 12px;
+    background: var(--color-elevated);
+    padding: 12px;
+    box-shadow: var(--shadow-dialog);
+    font-size: 13px;
+  }
+
+  .starter-prompt {
+    min-height: 36px;
+    border-radius: 10px;
+    background: var(--color-fill);
+    padding: 8px 12px;
+    color: var(--color-ink);
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .title-rename-btn {
+    opacity: 0;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .group\/title:hover .title-rename-btn,
+    .group\/title:focus-within .title-rename-btn {
+      opacity: 1;
+    }
+  }
+
+  @media (hover: none) {
+    .title-rename-btn {
+      opacity: 1;
+    }
+  }
+
+  .palette-key {
+    color: var(--color-mute);
+    font-size: 11px;
+    font-family: var(--font-sans);
+  }
+
+  .tone-busy {
+    --tone: var(--color-accent);
+  }
+
+  .tone-wait {
+    --tone: var(--color-warn);
+  }
+
+  .tone-ok {
+    --tone: var(--color-success);
+  }
+
+  .tone-danger {
+    --tone: var(--color-danger);
+  }
+
   .dialog-scrim {
     position: fixed;
     inset: 0;
@@ -698,15 +961,7 @@ html.dark {
   }
 
   .update-banner {
-    display: flex;
-    min-height: 36px;
-    flex-shrink: 0;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 0.5px solid var(--color-line, oklch(0.9 0.01 264));
-    background: var(--color-fill, oklch(0.96 0.008 264));
-    padding: 0 14px;
-    font-size: 13px;
+    display: none;
   }
 
   .term-run {
@@ -1347,6 +1602,33 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
+}
+
+.work-objective-more {
+  display: none;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .work-objective:hover .work-objective-more,
+  .work-objective:focus-within .work-objective-more {
+    display: flex;
+  }
+}
+
+@media (hover: none) {
+  .work-objective-more {
+    display: flex;
+  }
+}
+
+.work-search {
+  width: min(320px, 100%);
+}
+
+.work-conversation-panel {
+  width: min(720px, calc(100vw - 24px));
 }
 
 .work-panel-layer {

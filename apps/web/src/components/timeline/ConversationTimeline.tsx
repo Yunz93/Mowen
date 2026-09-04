@@ -1,9 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo, type ReactNode } from "react";
 import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
+import { ToolGroupRow } from "./ToolGroupRow";
 import { AssistantMarkdown } from "./AssistantMarkdown";
+import { groupToolExecutions } from "../../lib/tool-groups";
 import { ConversationSearchBar } from "./ConversationSearchBar";
 import { findScrollParent, isNearBottom } from "../../lib/stick-to-bottom";
+import { STARTER_PROMPTS } from "../../copy";
 import {
   conversationMessageDomId,
   matchConversationMessages,
@@ -20,6 +23,7 @@ type Props = {
   onClone?: () => void;
   onOpenFile?: (path: string) => void;
   onUndoFile?: (path: string) => void;
+  onStarter?: (prompt: string) => void;
 };
 
 async function copyText(text: string): Promise<boolean> {
@@ -52,16 +56,16 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
       ? `${Math.max(1, Math.round(message.thinkingDurationMs / 100) / 10)}s`
       : null;
   return (
-    <div className="mb-2">
+    <div className="thinking-block mb-2">
       <button
         type="button"
         className="pressable min-h-7 text-left text-[12px] text-mute"
         onClick={() => setOpen((value) => !value)}
       >
-        思考中{duration ? ` · ${duration}` : ""} {open ? "收起" : "展开"}
+        思考了 {duration ?? "片刻"} {open ? "▾" : "▸"}
       </button>
       {open ? (
-        <pre className="fade-in mt-1 whitespace-pre-wrap text-xs leading-6 text-mute">{message.thinking}</pre>
+        <pre className="thinking-body fade-in mt-1 whitespace-pre-wrap text-xs leading-6">{message.thinking}</pre>
       ) : null}
     </div>
   );
@@ -170,9 +174,10 @@ export function ConversationTimeline({
   canRewrite,
   error,
   onRetry,
-  onClone,
+  onClone: _onClone,
   onOpenFile,
   onUndoFile,
+  onStarter,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +270,63 @@ export function ConversationTimeline({
   const toolById = new Map(tools.map((tool) => [tool.toolCallId, tool]));
   const renderedTools = new Set<string>();
 
+  function renderToolEntries(entries: ReturnType<typeof groupToolExecutions>) {
+    return entries.map((entry) => {
+      if (entry.kind === "group") {
+        for (const tool of entry.tools) renderedTools.add(tool.toolCallId);
+        return <ToolGroupRow key={entry.tools[0]?.toolCallId} tools={entry.tools} onOpen={onOpenFile} />;
+      }
+      renderedTools.add(entry.tool.toolCallId);
+      return (
+        <ToolExecutionRow
+          key={entry.tool.toolCallId}
+          tool={entry.tool}
+          onOpen={onOpenFile}
+          onUndo={onUndoFile}
+        />
+      );
+    });
+  }
+
+  function renderTimelineRows() {
+    const rows: ReactNode[] = [];
+    let pendingTools: typeof tools = [];
+    const flushTools = () => {
+      if (pendingTools.length === 0) return;
+      rows.push(...renderToolEntries(groupToolExecutions(pendingTools)));
+      pendingTools = [];
+    };
+
+    for (const message of messages) {
+      const highlighted = searchOpen && Boolean(searchQuery.trim()) && message.id === activeMessageId;
+      if (message.role === "user") {
+        flushTools();
+        rows.push(
+          <UserMessage
+            key={message.id}
+            message={message}
+            canRewrite={canRewrite}
+            highlighted={highlighted}
+            onRetry={onRetry}
+          />,
+        );
+        continue;
+      }
+      if (message.role === "toolResult") {
+        const tool = message.toolCallId ? toolById.get(message.toolCallId) : undefined;
+        if (tool && !renderedTools.has(tool.toolCallId)) pendingTools.push(tool);
+        continue;
+      }
+      if (message.role === "assistant" && !message.text && !message.thinking) continue;
+      flushTools();
+      rows.push(<AssistantMessage key={message.id} message={message} highlighted={highlighted} />);
+    }
+    flushTools();
+    const leftovers = tools.filter((tool) => !renderedTools.has(tool.toolCallId));
+    rows.push(...renderToolEntries(groupToolExecutions(leftovers)));
+    return rows;
+  }
+
   return (
     <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6">
       {searchOpen ? (
@@ -286,60 +348,26 @@ export function ConversationTimeline({
         />
       ) : null}
       {messages.length === 0 ? (
-        <div className="pt-20 text-center">
-          <p className="text-[13px] leading-6 text-mute">在下面输入。</p>
+        <div className="flex flex-col items-center gap-3 pt-16 text-center">
+          {onStarter ? (
+            <div className="flex w-full max-w-[320px] flex-col gap-2">
+              {STARTER_PROMPTS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="pressable starter-prompt"
+                  onClick={() => onStarter(item.prompt)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[13px] leading-6 text-mute">在下面输入。</p>
+          )}
         </div>
       ) : null}
-      {messages.length > 0 && onClone ? (
-        <div className="flex justify-end">
-          <button type="button" className="pressable h-7 text-[12px] text-mute" onClick={onClone}>
-            复制对话
-          </button>
-        </div>
-      ) : null}
-      {messages.map((message) => {
-        const highlighted = searchOpen && Boolean(searchQuery.trim()) && message.id === activeMessageId;
-        if (message.role === "user") {
-          return (
-            <UserMessage
-              key={message.id}
-              message={message}
-              canRewrite={canRewrite}
-              highlighted={highlighted}
-              onRetry={onRetry}
-            />
-          );
-        }
-        if (message.role === "toolResult") {
-          const tool = message.toolCallId ? toolById.get(message.toolCallId) : undefined;
-          if (tool && !renderedTools.has(tool.toolCallId)) {
-            renderedTools.add(tool.toolCallId);
-            return (
-              <ToolExecutionRow
-                key={tool.toolCallId}
-                tool={tool}
-                onOpen={onOpenFile}
-                onUndo={onUndoFile}
-              />
-            );
-          }
-          return null;
-        }
-        if (message.role === "assistant" && !message.text && !message.thinking) {
-          return null;
-        }
-        return <AssistantMessage key={message.id} message={message} highlighted={highlighted} />;
-      })}
-      {tools
-        .filter((tool) => !renderedTools.has(tool.toolCallId))
-        .map((tool) => (
-          <ToolExecutionRow
-            key={tool.toolCallId}
-            tool={tool}
-            onOpen={onOpenFile}
-            onUndo={onUndoFile}
-          />
-        ))}
+      {renderTimelineRows()}
       {error ? (
         <div
           role="alert"

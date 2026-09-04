@@ -15,7 +15,7 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
 
   function submit(start: boolean) {
     if (!title.trim()) {
-      setError("请填写目标标题。");
+      setError("请填写任务标题。");
       return;
     }
     onCreate({
@@ -42,7 +42,7 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
         <div className="dialog-head">
           <div className="dialog-head-text">
             <h2 id="new-work-item-title" className="dialog-title">
-              新建目标
+              新建任务
             </h2>
             <p className="dialog-copy">{projectName}</p>
           </div>

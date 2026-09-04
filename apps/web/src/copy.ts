@@ -96,3 +96,9 @@ export function composerPlaceholder(busy: boolean): string {
   if (busy) return "回车补充，Shift+Enter 排队";
   return "输入消息";
 }
+
+export const STARTER_PROMPTS = [
+  { id: "explore", label: "看看这个仓库的结构", prompt: "看看这个仓库的结构，用几句话说明主要目录和入口。" },
+  { id: "tests", label: "帮我写测试", prompt: "帮我为当前改动补测试，先说明计划再动手。" },
+  { id: "explain", label: "解释这个项目", prompt: "解释这个项目是做什么的，以及我该从哪里读起。" },
+] as const;

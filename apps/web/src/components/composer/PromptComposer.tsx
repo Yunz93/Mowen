@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
-import { approvalPolicies, extractAtMentions, interactionModes } from "@mowen/protocol";
+import { extractAtMentions } from "@mowen/protocol";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";
+import { ComposerCapsules } from "./ComposerCapsules";
+import { MentionMenu, type MentionItem } from "./MentionMenu";
 
 type FileEntry = { path: string; name: string; kind: "file" | "dir" };
 type CommandItem = { name: string; description?: string; source?: string };
@@ -34,16 +36,6 @@ type Props = {
   onRemoveImage: (id: string) => void;
   onNeedFiles: () => void;
   images: ComposerImage[];
-};
-
-const THINKING_LABEL: Record<ThinkingLevel, string> = {
-  off: "关闭",
-  minimal: "很少",
-  low: "较低",
-  medium: "中等",
-  high: "较高",
-  xhigh: "很高",
-  max: "最大",
 };
 
 function mentionQuery(value: string, caret: number): { start: number; query: string } | null {
@@ -88,8 +80,8 @@ export function PromptComposer({
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
   const [caret, setCaret] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
   const mention = mentionQuery(value, caret);
@@ -112,7 +104,8 @@ export function PromptComposer({
     const q = mention.query.toLowerCase();
     return files
       .filter((entry) => entry.kind === "file" && (!q || entry.path.toLowerCase().includes(q)))
-      .slice(0, 8);
+      .slice(0, 8)
+      .map((entry) => ({ id: entry.path, primary: entry.path }));
   }, [files, mention]);
 
   const commandHits = useMemo(() => {
@@ -120,7 +113,8 @@ export function PromptComposer({
     const q = slash.query.toLowerCase();
     return commands
       .filter((item) => item.name.toLowerCase().includes(q) || item.description?.toLowerCase().includes(q))
-      .slice(0, 8);
+      .slice(0, 8)
+      .map((item) => ({ id: item.name, primary: `/${item.name}`, secondary: item.description }));
   }, [commands, slash]);
 
   const submit = () => {
@@ -142,8 +136,13 @@ export function PromptComposer({
     });
   };
 
+  const pickMention = (item: MentionItem) => {
+    if (mention) insert(mention.start, `@${mention.query}`, `@${item.primary} `);
+    else if (slash) insert(slash.start, `/${slash.query}`, `${item.primary} `);
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (mention || slash) return;
+    if (menuOpen) return;
     if (event.key === "Enter" && event.shiftKey && running && !composingRef.current) {
       event.preventDefault();
       onFollowUp();
@@ -216,136 +215,26 @@ export function PromptComposer({
           placeholder={composerPlaceholder(running)}
           aria-label="输入消息"
           disabled={disabled}
-          className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 text-[15px] leading-6 text-ink placeholder:text-mute"
+          className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 pr-10 text-[15px] leading-6 text-ink placeholder:text-mute"
         />
         {fileHits.length > 0 ? (
-          <ul className="absolute bottom-full left-3 z-20 mb-2 max-h-48 w-[min(420px,calc(100%-24px))] overflow-auto rounded-lg bg-elevated py-1 shadow-dialog">
-            {fileHits.map((entry) => (
-              <li key={entry.path}>
-                <button
-                  type="button"
-                  className="pressable hover-fill block h-8 w-full truncate px-3 text-left font-mono text-xs text-ink"
-                  onClick={() => mention && insert(mention.start, `@${mention.query}`, `@${entry.path} `)}
-                >
-                  {entry.path}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <MentionMenu items={fileHits} label="文件" onPick={pickMention} onNavigate={setMenuOpen} />
         ) : null}
         {commandHits.length > 0 ? (
-          <ul className="absolute bottom-full left-3 z-20 mb-2 max-h-48 w-[min(420px,calc(100%-24px))] overflow-auto rounded-lg bg-elevated py-1 shadow-dialog">
-            {commandHits.map((item) => (
-              <li key={item.name}>
-                <button
-                  type="button"
-                  className="pressable hover-fill block h-8 w-full truncate px-3 text-left text-xs text-ink"
-                  onClick={() => slash && insert(slash.start, `/${slash.query}`, `/${item.name} `)}
-                >
-                  /{item.name}
-                  {item.description ? <span className="ml-2 text-mute">{item.description}</span> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {optionsOpen ? (
-          <div className="flex flex-wrap items-center gap-1.5 pb-2">
-            <label className="sr-only" htmlFor="mode-select">
-              模式
-            </label>
-            <select
-              id="mode-select"
-              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
-              value={mode}
-              onChange={(event) => onPolicy(event.target.value as InteractionMode, approvalPolicy)}
-            >
-              {interactionModes.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <label className="sr-only" htmlFor="policy-select">
-              审批
-            </label>
-            <select
-              id="policy-select"
-              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
-              value={approvalPolicy}
-              disabled={mode !== "agent"}
-              onChange={(event) => onPolicy(mode, event.target.value as ApprovalPolicy)}
-            >
-              {approvalPolicies.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            {models.length === 0 ? (
-              <span
-                id="model-select"
-                className="field inline-flex h-7 min-w-[9rem] max-w-[200px] shrink-0 items-center rounded-md bg-fill px-2 text-[12px] text-mute"
-                aria-live="polite"
-              >
-                暂无模型
-              </span>
-            ) : (
-              <>
-                <label className="sr-only" htmlFor="model-select">
-                  模型
-                </label>
-                <select
-                  id="model-select"
-                  className="field h-7 min-w-[9rem] max-w-[200px] shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
-                  value={models.some((model) => `${model.provider}/${model.id}` === modelId) ? (modelId ?? "") : ""}
-                  onChange={(event) => {
-                    const [provider, ...rest] = event.target.value.split("/");
-                    onModel(provider ?? "", rest.join("/"));
-                  }}
-                >
-                  {!models.some((model) => `${model.provider}/${model.id}` === modelId) ? (
-                    <option value="">选择模型</option>
-                  ) : null}
-                  {models.map((model) => (
-                    <option key={`${model.provider}/${model.id}`} value={`${model.provider}/${model.id}`}>
-                      {model.name ?? model.id}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-            <label className="sr-only" htmlFor="thinking-select">
-              思考深度
-            </label>
-            <select
-              id="thinking-select"
-              className="field h-7 shrink-0 rounded-md bg-fill px-2 text-[12px] text-ink"
-              value={thinkingLevel}
-              onChange={(event) => onThinking(event.target.value as ThinkingLevel)}
-            >
-              {thinkingLevels.map((level) => (
-                <option key={level} value={level}>
-                  思考：{THINKING_LABEL[level] ?? level}
-                </option>
-              ))}
-            </select>
-          </div>
+          <MentionMenu items={commandHits} label="命令" onPick={pickMention} onNavigate={setMenuOpen} />
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5 pt-0.5">
-          <button
-            type="button"
-            className="pressable btn btn-ghost min-w-0 px-2 text-[12px]"
-            onClick={() => setOptionsOpen((open) => !open)}
-          >
-            选项
-          </button>
-          <span className="text-[11px] text-mute">
-            {interactionModes.find((item) => item.value === mode)?.label}
-            {mode === "agent"
-              ? ` · ${approvalPolicies.find((item) => item.value === approvalPolicy)?.label}`
-              : " · 只读"}
-          </span>
+          <ComposerCapsules
+            mode={mode}
+            approvalPolicy={approvalPolicy}
+            models={models}
+            modelId={modelId}
+            thinkingLevel={thinkingLevel}
+            thinkingLevels={thinkingLevels}
+            onPolicy={onPolicy}
+            onModel={onModel}
+            onThinking={onThinking}
+          />
           <label className="pressable icon-btn cursor-pointer" aria-label="添加图片">
             <input
               type="file"
@@ -364,12 +253,6 @@ export function PromptComposer({
           ) : null}
           <div className="flex-1" />
           {running ? (
-            <button type="button" className="pressable btn btn-danger gap-1.5" onClick={onAbort}>
-              <Square size={10} fill="currentColor" />
-              停止
-            </button>
-          ) : null}
-          {running ? (
             <button
               type="button"
               className="pressable btn btn-ghost"
@@ -380,16 +263,22 @@ export function PromptComposer({
               排队
             </button>
           ) : null}
-          <button
-            type="button"
-            className="pressable send-btn"
-            onClick={submit}
-            disabled={disabled || !composerCanSubmit(value, images.length)}
-            aria-label="发送"
-            title="发送"
-          >
-            <ArrowUp size={15} strokeWidth={2.4} />
-          </button>
+          {running ? (
+            <button type="button" className="pressable send-btn send-btn-stop" onClick={onAbort} aria-label="停止">
+              <Square size={10} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="pressable send-btn"
+              onClick={submit}
+              disabled={disabled || !composerCanSubmit(value, images.length)}
+              aria-label="发送"
+              title="发送"
+            >
+              <ArrowUp size={15} strokeWidth={2.4} />
+            </button>
+          )}
         </div>
       </div>
     </div>

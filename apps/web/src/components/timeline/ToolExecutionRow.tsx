@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { sanitizeToolResultText, type ToolExecution } from "@mowen/protocol";
 import { Ban, Check, CircleAlert, LoaderCircle, Shield } from "lucide-react";
 import { toolNameLabel, toolStatusLabel } from "../../copy";
+import { toneClass } from "../../lib/status-tone";
 
 const ICONS = {
   pending: LoaderCircle,
@@ -16,14 +17,30 @@ const ICONS = {
 
 const FILE_TOOLS = new Set(["write", "edit", "read"]);
 const UNDO_TOOLS = new Set(["write", "edit"]);
+const BASH_PREVIEW_LINES = 5;
 
 type Props = {
   tool: ToolExecution;
   onOpen?: (path: string) => void;
   onUndo?: (path: string) => void;
+  compact?: boolean;
 };
 
-export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
+function toolTone(status: ToolExecution["status"]): "idle" | "busy" | "wait" | "ok" | "danger" {
+  if (status === "failed" || status === "blocked" || status === "aborted") return "danger";
+  if (status === "waiting_approval") return "wait";
+  if (status === "running" || status === "pending") return "busy";
+  if (status === "succeeded") return "ok";
+  return "idle";
+}
+
+export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
+  const isBash = tool.toolName === "bash";
+  const displayResult = tool.resultText ? sanitizeToolResultText(tool.resultText) : "";
+  const resultLines = displayResult ? displayResult.split("\n") : [];
+  const preview = isBash && resultLines.length > BASH_PREVIEW_LINES
+    ? resultLines.slice(-BASH_PREVIEW_LINES).join("\n")
+    : displayResult;
   const [open, setOpen] = useState(Boolean(tool.isError) || tool.status === "failed");
   const Icon = ICONS[tool.status];
   const duration =
@@ -32,10 +49,13 @@ export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
   const target = tool.target?.trim() ?? "";
   const canOpen = Boolean(onOpen && target && FILE_TOOLS.has(tool.toolName));
   const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");
-  const displayResult = tool.resultText ? sanitizeToolResultText(tool.resultText) : "";
+  const shown = open ? displayResult : preview;
+  const truncated = !open && isBash && resultLines.length > BASH_PREVIEW_LINES;
+
+  const tone = useMemo(() => toolTone(tool.status), [tool.status]);
 
   return (
-    <div className="overflow-hidden rounded-[10px] bg-fill">
+    <div className={`overflow-hidden rounded-[10px] bg-fill ${toneClass(tone)}`}>
       <button
         type="button"
         className="pressable flex min-h-8 w-full items-center gap-2.5 px-3 py-1.5 text-left"
@@ -50,41 +70,35 @@ export function ToolExecutionRow({ tool, onOpen, onUndo }: Props) {
         />
         <span className="text-xs text-ink">{label}</span>
         <span className="min-w-0 flex-1 truncate text-xs text-mute">{target}</span>
-        <span className="text-[11px] text-mute">{toolStatusLabel(tool.status)}</span>
+        {canOpen || canUndo ? (
+          <span className="tool-row-actions" onClick={(event) => event.stopPropagation()}>
+            {canOpen ? (
+              <button
+                type="button"
+                className="pressable h-6 rounded-md px-1.5 text-[11px] text-accent"
+                onClick={() => onOpen?.(target)}
+              >
+                打开
+              </button>
+            ) : null}
+            {canUndo ? (
+              <button
+                type="button"
+                className="pressable h-6 rounded-md px-1.5 text-[11px] text-ink"
+                onClick={() => onUndo?.(target)}
+              >
+                撤回
+              </button>
+            ) : null}
+          </span>
+        ) : null}
+        {compact ? null : <span className="text-[11px] text-mute">{toolStatusLabel(tool.status)}</span>}
         {duration ? <span className="text-[11px] text-mute">{duration}</span> : null}
         <ChevronRight size={14} className={`text-mute transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
-      {canOpen || canUndo ? (
-        <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-1.5">
-          {canOpen ? (
-            <button
-              type="button"
-              className="pressable h-7 rounded-md px-2 text-[12px] text-accent"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen?.(target);
-              }}
-            >
-              打开
-            </button>
-          ) : null}
-          {canUndo ? (
-            <button
-              type="button"
-              className="pressable h-7 rounded-md px-2 text-[12px] text-ink"
-              onClick={(event) => {
-                event.stopPropagation();
-                onUndo?.(target);
-              }}
-            >
-              撤回这次
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {open && displayResult ? (
+      {shown ? (
         <pre className="max-h-64 overflow-auto border-t border-line bg-canvas px-3 py-2 font-mono text-xs leading-5 text-mute fade-in">
-          {displayResult}
+          {truncated ? `…\n${shown}` : shown}
         </pre>
       ) : null}
     </div>

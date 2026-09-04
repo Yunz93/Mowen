@@ -27,6 +27,8 @@ type Props = {
   pendingApprovals: ApprovalRequest[];
   pendingInteractions: InteractionRequest[];
   filter: WorkFilter;
+  query: string;
+  onQuery: (value: string) => void;
   onFilter: (filter: WorkFilter) => void;
   onSelect: (item: WorkItemSummary) => void;
   onStart: (id: string) => void;
@@ -83,6 +85,8 @@ export function WorkDashboard({
   pendingApprovals,
   pendingInteractions,
   filter,
+  query,
+  onQuery,
   onFilter,
   onSelect,
   onStart,
@@ -92,7 +96,15 @@ export function WorkDashboard({
   onArchive,
   onOpenConversation,
 }: Props) {
-  const presented = items.map((item): PresentedItem => {
+  const presented = items
+    .slice()
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .filter((item) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      return item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q);
+    })
+    .map((item): PresentedItem => {
       const task = item.taskId ? tasks.find((entry) => entry.id === item.taskId) : undefined;
       return {
         item,
@@ -127,10 +139,23 @@ export function WorkDashboard({
     { id: "ready" as const, title: "准备开始", items: ready },
     { id: "completed" as const, title: "最近完成", items: completed.slice(0, 8) },
     { id: "archived" as const, title: "归档", items: archived },
-  ].filter((section) => (filter === "all" ? section.id !== "archived" : section.id === filter));
+  ].filter((section) => {
+    if (filter === "all") return section.id !== "archived" && section.items.length > 0;
+    return section.id === filter;
+  });
 
   return (
     <div className="work-dashboard">
+      <label className="search-field work-search">
+        <span className="sr-only">搜索任务</span>
+        <input
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          placeholder="搜索任务"
+          aria-label="搜索任务"
+          className="h-7 w-full bg-transparent text-[13px] text-ink placeholder:text-mute"
+        />
+      </label>
       <div className="work-filter-strip" aria-label="工作筛选">
         {FILTERS.map((entry) => (
           <button
@@ -147,6 +172,7 @@ export function WorkDashboard({
       </div>
 
       <div className="work-sections">
+        {sections.length === 0 ? <p className="work-section-empty">—</p> : null}
         {sections.map((section) => (
           <section key={section.id} aria-labelledby={`work-section-${section.id}`} className="work-section">
             <header className="work-section-head">
@@ -171,17 +197,7 @@ export function WorkDashboard({
                 ))}
               </ul>
             ) : (
-              <p className="work-section-empty">
-                {section.id === "attention"
-                  ? "现在没有事情在等你。"
-                  : section.id === "working"
-                    ? "Agent 当前没有运行中的目标。"
-                      : section.id === "ready"
-                      ? "没有尚未开始的目标。"
-                      : section.id === "completed"
-                        ? "还没有已完成的目标。"
-                        : "归档中没有目标。"}
-              </p>
+              <p className="work-section-empty">—</p>
             )}
           </section>
         ))}
@@ -236,14 +252,9 @@ function WorkObjectiveRow({
           </button>
         ) : null}
         {viewState === "queued" || viewState === "working" ? (
-          <>
-            <button type="button" className="pressable btn btn-secondary" onClick={() => onOpenConversation(item)}>
-              查看执行
-            </button>
-            <button type="button" className="pressable btn btn-ghost" onClick={() => onStop(item.id)}>
-              停止
-            </button>
-          </>
+          <button type="button" className="pressable btn btn-secondary" onClick={() => onOpenConversation(item)}>
+            查看执行
+          </button>
         ) : null}
         {viewState === "needs_approval" || viewState === "needs_input" ? (
           <button type="button" className="pressable btn btn-primary" onClick={() => onOpenConversation(item)}>
@@ -251,15 +262,10 @@ function WorkObjectiveRow({
           </button>
         ) : null}
         {viewState === "needs_review" ? (
-          <>
-            <button type="button" className="pressable btn btn-primary" onClick={() => onAccept(item.id)}>
-              <Check size={13} />
-              接受并完成
-            </button>
-            <button type="button" className="pressable btn btn-secondary" onClick={() => onSelect(item)}>
-              补充要求
-            </button>
-          </>
+          <button type="button" className="pressable btn btn-primary" onClick={() => onAccept(item.id)}>
+            <Check size={13} />
+            接受并完成
+          </button>
         ) : null}
         {viewState === "failed" || viewState === "paused" ? (
           <button type="button" className="pressable btn btn-primary" onClick={() => onSelect(item)}>
@@ -267,10 +273,27 @@ function WorkObjectiveRow({
           </button>
         ) : null}
         {viewState === "completed" ? (
-          <>
-            <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
-              重新打开
+          <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
+            重新打开
+          </button>
+        ) : null}
+        {viewState === "archived" ? (
+          <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
+            重新打开
+          </button>
+        ) : null}
+        <div className="work-objective-more">
+          {viewState === "queued" || viewState === "working" ? (
+            <button type="button" className="pressable btn btn-ghost" onClick={() => onStop(item.id)}>
+              停止
             </button>
+          ) : null}
+          {viewState === "needs_review" ? (
+            <button type="button" className="pressable btn btn-ghost" onClick={() => onSelect(item)}>
+              补充要求
+            </button>
+          ) : null}
+          {viewState === "completed" ? (
             <button
               type="button"
               className="pressable icon-btn"
@@ -279,13 +302,8 @@ function WorkObjectiveRow({
             >
               <Archive size={14} />
             </button>
-          </>
-        ) : null}
-        {viewState === "archived" ? (
-          <button type="button" className="pressable btn btn-secondary" onClick={() => onReopen(item.id)}>
-            重新打开
-          </button>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </article>
   );
