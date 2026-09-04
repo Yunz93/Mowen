@@ -503,10 +503,10 @@ test("sidebars can pin into the layout and the terminal tab embeds zsh", async (
   const sessions = page.getByRole("complementary", { name: "会话" });
   await expect(sessions).toBeVisible();
   await sessions.getByRole("button", { name: "取消固定会话列表" }).click();
-  await expect(page.getByRole("button", { name: "会话" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "会话", exact: true })).toBeVisible();
   await expect(sessions).toHaveCount(0);
 
-  await page.getByRole("button", { name: "会话" }).click();
+  await page.getByRole("button", { name: "会话", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();
   await page.getByRole("button", { name: "固定会话列表" }).click();
   await expect(page.getByRole("complementary", { name: "会话" })).toBeVisible();

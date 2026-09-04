@@ -87,7 +87,7 @@ export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
                 className="pressable h-6 rounded-md px-1.5 text-[11px] text-ink"
                 onClick={() => onUndo?.(target)}
               >
-                撤回
+                撤回这次
               </button>
             ) : null}
           </span>

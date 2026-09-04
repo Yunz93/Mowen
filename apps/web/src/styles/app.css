@@ -551,21 +551,19 @@ html.dark {
   }
 
   .tool-row-actions {
-    display: none;
+    display: inline-flex;
     align-items: center;
     gap: 2px;
   }
 
   @media (hover: hover) and (pointer: fine) {
+    .overflow-hidden > button .tool-row-actions {
+      opacity: 0;
+    }
+
     .overflow-hidden:hover > button .tool-row-actions,
     .overflow-hidden:focus-within .tool-row-actions {
-      display: inline-flex;
-    }
-  }
-
-  @media (hover: none) {
-    .tool-row-actions {
-      display: inline-flex;
+      opacity: 1;
     }
   }
 

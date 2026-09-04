@@ -622,7 +622,7 @@ export function WorkbenchLayout() {
                   <button
                     type="button"
                     className="pressable icon-btn title-rename-btn"
-                    aria-label="重命名会话"
+                    aria-label="重命名"
                     onClick={() => {
                       setTitleDraft(task.title);
                       setEditingTitle(true);
