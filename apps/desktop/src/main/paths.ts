@@ -19,6 +19,8 @@ export function applyDesktopEnv(): void {
   const piEntry = resolvePiEntry();
   if (piEntry) {
     process.env.MOWEN_PI_ENTRY = piEntry;
+    // Electron binary used as Node. Children must set ELECTRON_RUN_AS_NODE=1
+    // or macOS shows a second Dock icon (often the default Electron atom).
     process.env.MOWEN_NODE_BIN = process.execPath;
     process.env.MOWEN_PI_BUNDLED = "1";
   }
