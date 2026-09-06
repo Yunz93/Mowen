@@ -71,9 +71,6 @@ export function InspectorExtensions({ extensions, packages, trustProject, onTogg
           </ul>
         </div>
       ) : null}
-      {extensions.length > 0 ? (
-        <p className="text-[11px] text-mute">开关会在下次启动对话时生效。</p>
-      ) : null}
     </div>
   );
 }

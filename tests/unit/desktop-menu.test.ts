@@ -9,6 +9,7 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/mowen:open-path/);
     expect(src).toMatch(/mowen:open-setup/);
     expect(src).toMatch(/mowen:notify/);
+    expect(src).toMatch(/mowen:check-update/);
   });
 
   it("main process opens html paths and forwards the setup menu", () => {
@@ -16,6 +17,7 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/mowen:open-path/);
     expect(src).toMatch(/mowen:open-setup/);
     expect(src).toMatch(/再次打开设置/);
+    expect(src).toMatch(/检查更新/);
     expect(src).toMatch(/mowen:notify/);
     expect(src).not.toMatch(/extname\(filePath\)\.toLowerCase\(\) !== "\.html"/);
   });

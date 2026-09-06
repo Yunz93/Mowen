@@ -6,6 +6,7 @@ export type MowenDesktopApi = {
   notify?: (payload: { title: string; body: string }) => Promise<void>;
   restart?: () => Promise<void>;
   onOpenSetup?: (callback: () => void) => () => void;
+  onCheckUpdate?: (callback: () => void) => () => void;
 };
 
 declare global {

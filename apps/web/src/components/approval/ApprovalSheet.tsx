@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ApprovalRequest } from "@mowen/protocol";
+import { AlertTriangle, Shield, ShieldAlert } from "lucide-react";
 import { toolNameLabel } from "../../copy";
+import { approvalRiskLabel, approvalRiskLevel, splitDangerousCommand } from "../../lib/approval-risk";
 import { DiffView } from "../diff/DiffView";
 
 type Props = {
@@ -17,12 +19,25 @@ function heading(toolName: string): string {
 export function ApprovalSheet({ approval, onRespond }: Props) {
   const [remember, setRemember] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const remaining = Math.max(0, Date.parse(approval.expiresAt) - Date.now());
+  const expiresAt = Date.parse(approval.expiresAt);
+  const totalMs = useRef(Math.max(1, expiresAt - Date.now()));
+  const [now, setNow] = useState(() => Date.now());
+  const remaining = Math.max(0, expiresAt - now);
   const seconds = Math.ceil(remaining / 1000);
+  const progress = Math.max(0, Math.min(1, remaining / totalMs.current));
   const hasDiff = Boolean(approval.oldText || approval.newText || approval.content);
+  const level = approvalRiskLevel(approval);
+  const command = approval.rawCommand ?? approval.target;
+  const commandParts = approval.toolName === "bash" ? splitDangerousCommand(command) : null;
+  const RiskIcon = level === "high" ? ShieldAlert : level === "medium" ? AlertTriangle : Shield;
 
   useEffect(() => {
     panelRef.current?.focus();
+  }, [approval.requestId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
   }, [approval.requestId]);
 
   return (
@@ -39,7 +54,11 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
           <h2 id="approval-title" className="dialog-title">
             {heading(approval.toolName)}
           </h2>
-          <p className="dialog-copy">{approval.risk}</p>
+          <p className={`approval-risk approval-risk-${level}`}>
+            <RiskIcon size={13} />
+            {approvalRiskLabel(level)}
+            {approval.risk ? <span className="text-mute"> · {approval.risk}</span> : null}
+          </p>
         </div>
       </div>
       <div className="dialog-body">
@@ -51,7 +70,13 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
           <div>
             <dt className="text-mute">{approval.toolName === "bash" ? "命令" : "目标"}</dt>
             <dd className="mt-1 whitespace-pre-wrap break-all font-mono text-[12px]">
-              {approval.rawCommand ?? approval.target}
+              {commandParts
+                ? commandParts.map((part, index) => (
+                    <span key={`${part.text}-${index}`} className={part.danger ? "approval-danger" : undefined}>
+                      {part.text}
+                    </span>
+                  ))
+                : command}
             </dd>
           </div>
         </dl>
@@ -61,29 +86,30 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
             <DiffView oldText={approval.oldText} newText={approval.newText} content={approval.content} />
           </div>
         ) : null}
-        <div className="settings-card mt-3">
-          <div className="settings-row items-center">
-            <p className="text-[13px] text-ink">记住这次（同样的路径或命令不再问）</p>
-            <label className="mac-toggle">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(event) => setRemember(event.target.checked)}
-                aria-label="记住这次（同样的路径或命令不再问）"
-              />
-              <span />
-            </label>
-          </div>
-        </div>
-        <p className="mt-3 text-[12px] text-mute">{seconds} 秒后自动拒绝</p>
       </div>
       <div className="dialog-actions dialog-actions-split">
-        <button type="button" className="pressable btn btn-danger" onClick={() => onRespond(false, false)}>
-          拒绝
-        </button>
-        <button type="button" className="pressable btn btn-primary" onClick={() => onRespond(true, remember)}>
-          允许这次
-        </button>
+        <label className="approval-remember">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+          />
+          记住这次
+        </label>
+        <div className="flex flex-1 items-center justify-end gap-2">
+          <button type="button" className="pressable btn btn-danger" onClick={() => onRespond(false, false)}>
+            拒绝
+          </button>
+          <button
+            type="button"
+            className="pressable btn btn-primary approval-allow"
+            aria-label="允许这次"
+            onClick={() => onRespond(true, remember)}
+          >
+            <span className="approval-allow-progress" style={{ transform: `scaleX(${progress})` }} />
+            <span className="relative">允许这次 · {seconds}s</span>
+          </button>
+        </div>
       </div>
     </div>
   );

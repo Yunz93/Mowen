@@ -16,6 +16,8 @@ type Props = {
   onClose?: () => void;
   pinned?: boolean;
   onPinToggle?: () => void;
+  workTasks?: TaskRecord[];
+  onOpenBoard?: () => void;
 };
 
 function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
@@ -41,6 +43,8 @@ export function TaskSidebar({
   onClose,
   pinned = true,
   onPinToggle,
+  workTasks = [],
+  onOpenBoard,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -123,7 +127,7 @@ export function TaskSidebar({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {groups.length === 0 ? (
-          <p className="px-2 py-4 text-[12px] leading-5 text-mute">还没有会话。点上方 + 开始一个新对话。</p>
+          <p className="px-2 py-4 text-[12px] leading-5 text-mute">点 + 开始。</p>
         ) : (
           groups.map(([cwd, items]) => (
             <section key={cwd} className="mb-3">
@@ -202,6 +206,18 @@ export function TaskSidebar({
           ))
         )}
       </div>
+      {workTasks.length > 0 && onOpenBoard ? (
+        <div className="border-t border-line px-3 py-2">
+          <button
+            type="button"
+            className="pressable hover-fill flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-[12px] text-mute"
+            onClick={onOpenBoard}
+          >
+            <span>任务中的会话</span>
+            <span className="tabular">{workTasks.length}</span>
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

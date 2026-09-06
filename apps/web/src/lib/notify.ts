@@ -6,7 +6,7 @@ export async function showOsNotification(
   notifyType: "info" | "warning" | "error" = "info",
 ): Promise<void> {
   try {
-    if (typeof document !== "undefined" && document.hasFocus() && notifyType !== "error") {
+    if (typeof document !== "undefined" && document.hasFocus() && notifyType === "info") {
       return;
     }
     const desktop = getDesktop();
