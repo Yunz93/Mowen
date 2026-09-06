@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.9
+
 - 产品名改为轻舟 / Qingzhou。旧的 `MOWEN_*` 环境变量和 `~/.mowen` 数据目录仍可用。
 - 应用图标改为暗底折纸小船，不再用 π。
 - Release 不再等待 GitHub `macos-13` Intel 排队，先发 Apple 芯片和 Windows。
