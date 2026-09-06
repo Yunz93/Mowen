@@ -77,6 +77,28 @@ describe("event normalizer", () => {
       kind: "agent_error",
       error: "EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'",
     });
+    expect(
+      normalizePiEvent({
+        type: "agent_error",
+        error: { type: "rate_limit_error", message: "Request would exceed rate limit" },
+      }),
+    ).toEqual({
+      kind: "agent_error",
+      error: "rate_limit_error: Request would exceed rate limit",
+    });
+    expect(
+      normalizePiEvent({
+        type: "auto_retry_end",
+        success: false,
+        attempt: 2,
+        finalError: { error: { message: "HTTP 429 Too Many Requests" } },
+      }),
+    ).toEqual({
+      kind: "runtime.retry",
+      phase: "end",
+      attempt: 2,
+      error: "HTTP 429 Too Many Requests",
+    });
   });
 
   it("restores user and assistant messages from Pi history", () => {
