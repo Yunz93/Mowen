@@ -57,7 +57,7 @@ describe("POST /api/setup/install-pi", () => {
   let scriptUrl = "";
 
   beforeAll(async () => {
-    root.current = await mkdtemp(path.join(os.tmpdir(), "mowen-install-pi-"));
+    root.current = await mkdtemp(path.join(os.tmpdir(), "qingzhou-install-pi-"));
     scriptServer = http.createServer((_request, response) => {
       response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       response.end(FAKE_INSTALL_SH);
@@ -82,10 +82,10 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: path.join(home, "missing-pi"),
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
-      MOWEN_PI_INSTALL_SCRIPT_URL: scriptUrl,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
+      QINGZHOU_PI_INSTALL_SCRIPT_URL: scriptUrl,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -125,11 +125,11 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: path.join(home, "missing-pi"),
-      MOWEN_PI_ENTRY: path.join(home, "missing-entry.js"),
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
-      MOWEN_PI_INSTALL_SCRIPT_URL: scriptUrl,
+      QINGZHOU_PI_ENTRY: path.join(home, "missing-entry.js"),
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
+      QINGZHOU_PI_INSTALL_SCRIPT_URL: scriptUrl,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -162,10 +162,10 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
-      MOWEN_PI_INSTALL_SCRIPT_URL: countingUrl,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
+      QINGZHOU_PI_INSTALL_SCRIPT_URL: countingUrl,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -198,10 +198,10 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
-      MOWEN_PI_NPM_LATEST_URL: latestUrl,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
+      QINGZHOU_PI_NPM_LATEST_URL: latestUrl,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -242,10 +242,10 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
-      MOWEN_PI_INSTALL_SCRIPT_URL: countingUrl,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
+      QINGZHOU_PI_INSTALL_SCRIPT_URL: countingUrl,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -273,9 +273,9 @@ describe("POST /api/setup/install-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
     });
     try {
       const cookie = await sessionCookie(ctx.base);
@@ -304,7 +304,7 @@ describe("POST /api/setup/install-pi", () => {
 
 describe("GET /api/setup", () => {
   it("reloads restored auth.json into live setup hints", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-setup-refresh-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-setup-refresh-"));
     await mkdir(path.join(home, ".pi", "agent"), { recursive: true });
     const authPath = path.join(home, ".pi", "agent", "auth.json");
     await writeFile(authPath, JSON.stringify({ github: { type: "oauth" } }));
@@ -314,9 +314,9 @@ describe("GET /api/setup", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(home, "data"),
-      MOWEN_HOME_DIR: home,
-      MOWEN_ALLOWED_ROOTS: home,
+      QINGZHOU_DATA_DIR: path.join(home, "data"),
+      QINGZHOU_HOME_DIR: home,
+      QINGZHOU_ALLOWED_ROOTS: home,
     });
     try {
       const cookie = await sessionCookie(ctx.base);

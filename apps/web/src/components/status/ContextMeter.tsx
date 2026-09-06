@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RuntimeState, SessionStats } from "@mowen/protocol";
+import type { RuntimeState, SessionStats } from "@qingzhou/protocol";
 import { Gauge, X } from "lucide-react";
 
 type Props = {

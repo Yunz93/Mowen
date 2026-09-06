@@ -2,8 +2,9 @@
 
 ## Unreleased
 
+- 产品名改为轻舟 / Qingzhou。旧的 `MOWEN_*` 环境变量和 `~/.mowen` 数据目录仍可用。
 - API 请求失败时在界面展示服务商返回的原因，不再变成空白或 `[object Object]`。
-- OpenAI 订阅登录换 token 会走 `HTTPS_PROXY` / 系统代理，避免浏览器过了、墨问进程不过。
+- OpenAI 订阅登录换 token 会走 `HTTPS_PROXY` / 系统代理，避免浏览器过了、轻舟进程不过。
 
 ## 0.1.8
 
@@ -15,5 +16,5 @@
 - HTTP 接口拒绝非本机 Host 和外来 Origin，降低 DNS rebinding 风险。
 - 桌面更新会校验 Release 里的 `SHA256SUMS.txt`。
 - Release 同时打包 macOS arm64 与 Intel x64。
-- 修复桌面版重复注册 `mowen:pick-folder` 导致启动失败。
+- 修复桌面版重复注册 `qingzhou:pick-folder` 导致启动失败。
 - 修复桌面版启动时再拉起一个带独立图标的 Electron 进程。

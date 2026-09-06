@@ -74,16 +74,16 @@ describe("Pi agent dir and auth errors", () => {
   });
 
   it("keeps ~/.pi/agent when it is writable", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-agent-ok-"));
-    const data = await mkdtemp(path.join(os.tmpdir(), "mowen-data-ok-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-agent-ok-"));
+    const data = await mkdtemp(path.join(os.tmpdir(), "qingzhou-data-ok-"));
     dirs.push(home, data);
     const resolved = await resolvePiAgentDir(home, data);
     expect(resolved).toBe(path.join(home, ".pi", "agent"));
   });
 
   it("falls back when ~/.pi/agent cannot be used as a directory", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-agent-bad-"));
-    const data = await mkdtemp(path.join(os.tmpdir(), "mowen-data-bad-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-agent-bad-"));
+    const data = await mkdtemp(path.join(os.tmpdir(), "qingzhou-data-bad-"));
     dirs.push(home, data);
     await mkdir(path.join(home, ".pi"), { recursive: true });
     await writeFile(path.join(home, ".pi", "agent"), "not a directory");
@@ -92,7 +92,7 @@ describe("Pi agent dir and auth errors", () => {
   });
 
   it("repairs an owner-locked auth.json then writes the key", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-fix-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-fix-"));
     dirs.push(home);
     const agentDir = path.join(home, ".pi", "agent");
     const authPath = path.join(agentDir, "auth.json");

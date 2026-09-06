@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
-import { mowenEnv } from "../config.js";
+import { qingzhouEnv } from "../config.js";
 import { redactSecrets } from "../security/redact.js";
 
 const execFileAsync = promisify(execFile);
@@ -28,11 +28,11 @@ export class InstallPiError extends Error {
 }
 
 export function piInstallScriptUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return mowenEnv(env, "PI_INSTALL_SCRIPT_URL")?.trim() || DEFAULT_PI_INSTALL_SCRIPT_URL;
+  return qingzhouEnv(env, "PI_INSTALL_SCRIPT_URL")?.trim() || DEFAULT_PI_INSTALL_SCRIPT_URL;
 }
 
 export function piNpmLatestUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return mowenEnv(env, "PI_NPM_LATEST_URL")?.trim() || DEFAULT_PI_NPM_LATEST_URL;
+  return qingzhouEnv(env, "PI_NPM_LATEST_URL")?.trim() || DEFAULT_PI_NPM_LATEST_URL;
 }
 
 export function parsePiVersion(raw: string | null | undefined): [number, number, number] | null {
@@ -90,7 +90,7 @@ async function fetchLatestDocument(url: string): Promise<string> {
     const response = await fetch(url, {
       signal: ac.signal,
       redirect: "follow",
-      headers: { "user-agent": "mowen-pi-update-check", accept: "application/json" },
+      headers: { "user-agent": "qingzhou-pi-update-check", accept: "application/json" },
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -286,7 +286,7 @@ async function runOfficialPiInstallUnserialized(options: {
     if (!script.trim()) {
       throw new InstallPiError("下载的 Pi 安装脚本是空的。");
     }
-    const dir = mkdtempSync(path.join(tmpdir(), "mowen-pi-install-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "qingzhou-pi-install-"));
     const scriptPath = path.join(dir, "install.sh");
     try {
       writeFileSync(scriptPath, script, { mode: 0o700 });
@@ -338,7 +338,7 @@ async function downloadText(url: string): Promise<string> {
     const response = await fetch(url, {
       signal: ac.signal,
       redirect: "follow",
-      headers: { "user-agent": "mowen-pi-installer" },
+      headers: { "user-agent": "qingzhou-pi-installer" },
     });
     if (!response.ok) {
       throw new InstallPiError(`无法下载 Pi 官方安装脚本（HTTP ${response.status}）。`);

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { PiResources } from "@mowen/protocol";
+import type { PiResources } from "@qingzhou/protocol";
 import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
 import { isInsideRoot } from "../security/path-policy.js";
 

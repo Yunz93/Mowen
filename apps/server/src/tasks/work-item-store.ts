@@ -20,7 +20,7 @@ import {
   type WorkRun,
   type WorkRunKind,
   type WorkRunStatus,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";
 
 type PersistedState = {
   schemaVersion: number;

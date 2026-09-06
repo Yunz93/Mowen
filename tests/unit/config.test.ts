@@ -18,16 +18,26 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 
 describe("portable config", () => {
   it("defaults data dir and roots to the home directory", () => {
-    const home = path.resolve(os.tmpdir(), "mowen-home-test");
-    expect(defaultDataDir(home)).toBe(path.join(home, ".mowen"));
+    const home = path.resolve(os.tmpdir(), "qingzhou-home-test");
+    expect(defaultDataDir(home)).toBe(path.join(home, ".qingzhou"));
     expect(defaultAllowedRoots(home)).toEqual([home]);
     const config = loadConfig({}, { homeDir: home });
-    expect(config.dataDir).toBe(path.join(home, ".mowen"));
+    expect(config.dataDir).toBe(path.join(home, ".qingzhou"));
     expect(config.allowedRoots).toEqual([home]);
   });
 
+  it("keeps using a legacy ~/.mowen data dir when it already exists", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-mowen-"));
+    const legacy = path.join(home, ".mowen");
+    await mkdir(legacy);
+    expect(defaultDataDir(home)).toBe(legacy);
+    const config = loadConfig({}, { homeDir: home });
+    expect(config.dataDir).toBe(legacy);
+    await rm(home, { recursive: true, force: true });
+  });
+
   it("keeps using a legacy ~/.ohmypi data dir when it already exists", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ohmypi-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-ohmypi-"));
     const legacy = path.join(home, ".ohmypi");
     await mkdir(legacy);
     expect(defaultDataDir(home)).toBe(legacy);
@@ -37,7 +47,7 @@ describe("portable config", () => {
   });
 
   it("keeps using a legacy ~/.mypi-web data dir when it already exists", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-legacy-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-legacy-"));
     const legacy = path.join(home, ".mypi-web");
     await mkdir(legacy);
     expect(defaultDataDir(home)).toBe(legacy);
@@ -57,20 +67,35 @@ describe("portable config", () => {
   });
 
   it("loads .env without overriding existing env", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "mowen-env-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-env-"));
     const file = path.join(dir, ".env");
-    await writeFile(file, "MOWEN_TEST_UNIQUE=from-file\nHOST=should-not-win\n");
+    await writeFile(file, "QINGZHOU_TEST_UNIQUE=from-file\nHOST=should-not-win\n");
     process.env.HOST = "already-set";
-    delete process.env.MOWEN_TEST_UNIQUE;
+    delete process.env.QINGZHOU_TEST_UNIQUE;
     loadDotEnv(file);
-    expect(process.env.MOWEN_TEST_UNIQUE).toBe("from-file");
+    expect(process.env.QINGZHOU_TEST_UNIQUE).toBe("from-file");
     expect(process.env.HOST).toBe("already-set");
-    delete process.env.MOWEN_TEST_UNIQUE;
+    delete process.env.QINGZHOU_TEST_UNIQUE;
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("still reads MOWEN_* environment variables", () => {
+    const home = path.resolve(os.tmpdir(), "qingzhou-mowen-env-home");
+    const config = loadConfig(
+      {
+        MOWEN_DATA_DIR: path.join(home, "old-mowen-data"),
+        MOWEN_ALLOWED_ROOTS: "/old-mowen-root",
+        MOWEN_MAX_PROCESSES: "5",
+      },
+      { homeDir: home },
+    );
+    expect(config.dataDir).toBe(path.join(home, "old-mowen-data"));
+    expect(config.allowedRoots).toEqual(["/old-mowen-root"]);
+    expect(config.maxProcesses).toBe(5);
+  });
+
   it("still reads OHMYPI_* environment variables", () => {
-    const home = path.resolve(os.tmpdir(), "mowen-legacy-env-home");
+    const home = path.resolve(os.tmpdir(), "qingzhou-legacy-env-home");
     const config = loadConfig(
       {
         OHMYPI_DATA_DIR: path.join(home, "old-data"),
@@ -84,16 +109,16 @@ describe("portable config", () => {
     expect(config.maxProcesses).toBe(7);
   });
 
-  it("resolves a relative MOWEN_HOME_DIR against the process cwd", () => {
-    const config = loadConfig({ MOWEN_HOME_DIR: "./.relative-mowen-home" });
-    expect(config.homeDir).toBe(path.resolve("./.relative-mowen-home"));
+  it("resolves a relative QINGZHOU_HOME_DIR against the process cwd", () => {
+    const config = loadConfig({ QINGZHOU_HOME_DIR: "./.relative-qingzhou-home" });
+    expect(config.homeDir).toBe(path.resolve("./.relative-qingzhou-home"));
   });
 
   it("launches bundled Pi via node entry", () => {
     const entry = path.resolve(os.tmpdir(), "pi-cli.js");
     const runtime = resolvePiRuntime({
-      MOWEN_PI_ENTRY: entry,
-      MOWEN_NODE_BIN: process.execPath,
+      QINGZHOU_PI_ENTRY: entry,
+      QINGZHOU_NODE_BIN: process.execPath,
     });
     expect(runtime.command).toBe(process.execPath);
     expect(runtime.prefixArgs[0]).toBe(entry);
@@ -114,7 +139,7 @@ describe("portable config", () => {
   });
 
   it("reads bundled Pi version from package.json without spawning", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-pkg-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-pkg-"));
     const dist = path.join(root, "dist");
     await mkdir(dist);
     await writeFile(path.join(root, "package.json"), JSON.stringify({ name: "@earendil-works/pi-coding-agent", version: "9.9.9" }));

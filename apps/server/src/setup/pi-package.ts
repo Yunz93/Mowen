@@ -43,7 +43,7 @@ function whichPi(): string | null {
 }
 
 /**
- * Locate the installed pi-coding-agent package from the same runtime Mowen uses
+ * Locate the installed pi-coding-agent package from the same runtime Qingzhou uses
  * to spawn Pi (bundled entry, PI_BIN, or `pi` on PATH).
  */
 export function resolvePiCodingAgentRoot(options: {

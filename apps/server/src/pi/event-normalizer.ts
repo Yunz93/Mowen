@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { sanitizeToolResultText, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
+import { sanitizeToolResultText, type TimelineMessage, type ToolExecution } from "@qingzhou/protocol";
 import { extractErrorText } from "../setup/pi-agent-dir.js";
 import type { RpcEvent } from "./rpc-client.js";
 

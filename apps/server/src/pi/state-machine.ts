@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@mowen/protocol";
+import type { TaskStatus } from "@qingzhou/protocol";
 
 export type MachineEvent =
   | "activate"

@@ -4,7 +4,7 @@ import { clampInspectorWidth, INSPECTOR_WIDTH_MIN } from "../../apps/web/src/lib
 import { groupToolExecutions, toolGroupLabel } from "../../apps/web/src/lib/tool-groups.ts";
 import { shortcutLabel } from "../../apps/web/src/lib/hotkeys.ts";
 import { taskStatusTone, workViewTone } from "../../apps/web/src/lib/status-tone.ts";
-import type { ToolExecution } from "@mowen/protocol";
+import type { ToolExecution } from "@qingzhou/protocol";
 
 function tool(name: string, id = name): ToolExecution {
   return {

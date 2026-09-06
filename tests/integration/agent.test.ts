@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { serverFrameSchema } from "@mowen/protocol";
+import { serverFrameSchema } from "@qingzhou/protocol";
 import { createApp } from "../../apps/server/src/index.ts";
 
 const fakePi = fileURLToPath(new URL("../fixtures/fake-pi.mjs", import.meta.url));
@@ -85,7 +85,7 @@ describe("integration fake-pi", () => {
   let ctx: Awaited<ReturnType<typeof listen>>;
 
   beforeAll(async () => {
-    root.current = await mkdtemp(path.join(os.tmpdir(), "mowen-int-"));
+    root.current = await mkdtemp(path.join(os.tmpdir(), "qingzhou-int-"));
     const project = path.join(root.current, "project");
     await mkdir(project);
     await writeFile(path.join(project, "README.md"), "hello");
@@ -94,11 +94,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "3",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "3",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
   });
 
@@ -228,11 +228,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-401"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "1",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-401"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "1",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     try {
       const project = path.join(root.current, "project");
@@ -278,11 +278,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-429"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "1",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-429"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "1",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     try {
       const project = path.join(root.current, "project");
@@ -366,11 +366,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-policy"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "1",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-policy"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "1",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     try {
       const sock = await openSocket(isolated.base);
@@ -453,11 +453,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-mvp"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "3",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-mvp"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "3",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     const project = path.join(root.current, "project");
     await writeFile(path.join(project, "AGENTS.md"), "# project agents");
@@ -561,11 +561,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-timeout"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "3",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_APPROVAL_TIMEOUT_MS: "200",
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-timeout"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "3",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_APPROVAL_TIMEOUT_MS: "200",
     });
     try {
       const project = path.join(root.current, "project");
@@ -621,11 +621,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-models-refresh"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "3",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-models-refresh"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "3",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     const project = path.join(root.current, "project");
     try {
@@ -671,11 +671,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-gui"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "3",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-gui"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "3",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     const project = path.join(root.current, "project");
     try {
@@ -863,11 +863,11 @@ describe("integration fake-pi", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: path.join(root.current, "data-board"),
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "2",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: path.join(root.current, "data-board"),
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "2",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     try {
       const project = path.join(root.current, "project");

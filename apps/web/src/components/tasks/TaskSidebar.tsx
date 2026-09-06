@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Archive, Pin, PinOff, Plus, Search, X } from "lucide-react";
-import type { TaskRecord } from "@mowen/protocol";
+import type { TaskRecord } from "@qingzhou/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
 import { folderName, taskStatusLabel } from "../../copy";
 

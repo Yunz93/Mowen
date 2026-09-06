@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const e2eHome = path.resolve(root, ".mowen-test/e2e-home");
-const e2eData = path.resolve(root, ".mowen-test/e2e");
-const e2eProject = path.resolve(root, ".mowen-test/e2e-project");
+const e2eHome = path.resolve(root, ".qingzhou-test/e2e-home");
+const e2eData = path.resolve(root, ".qingzhou-test/e2e");
+const e2eProject = path.resolve(root, ".qingzhou-test/e2e-project");
 const fakePi = path.resolve(root, "tests/fixtures/fake-pi.mjs");
 
 export default defineConfig({
@@ -25,14 +25,14 @@ export default defineConfig({
     command: [
       `rm -rf ${e2eData}`,
       `mkdir -p ${e2eProject} ${e2eHome}`,
-      "MOWEN_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build",
+      "QINGZHOU_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production pnpm build",
       [
-        "MOWEN_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production",
-        `MOWEN_DATA_DIR=${e2eData}`,
-        `MOWEN_HOME_DIR=${e2eHome}`,
+        "QINGZHOU_E2E=1 HOST=127.0.0.1 PORT=4310 NODE_ENV=production",
+        `QINGZHOU_DATA_DIR=${e2eData}`,
+        `QINGZHOU_HOME_DIR=${e2eHome}`,
         `PI_BIN=${fakePi}`,
-        `MOWEN_ALLOWED_ROOTS=${e2eProject}`,
-        "MOWEN_MAX_PROCESSES=8 MOWEN_MUTATIONS=approval pnpm start",
+        `QINGZHOU_ALLOWED_ROOTS=${e2eProject}`,
+        "QINGZHOU_MAX_PROCESSES=8 QINGZHOU_MUTATIONS=approval pnpm start",
       ].join(" "),
     ].join(" && "),
     url: "http://127.0.0.1:4310/health",

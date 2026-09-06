@@ -1,6 +1,6 @@
 import { opendir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import type { PiSessionRef } from "@mowen/protocol";
+import type { PiSessionRef } from "@qingzhou/protocol";
 import { isInsideRoot } from "../security/path-policy.js";
 import { defaultPiAgentDir } from "../setup/pi-agent-dir.js";
 

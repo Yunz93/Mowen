@@ -1,7 +1,7 @@
 import { copyFile, mkdir, open, readFile, rename } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord, type TaskStatus } from "@mowen/protocol";
+import { TASK_SCHEMA_VERSION, taskRecordSchema, type TaskRecord, type TaskStatus } from "@qingzhou/protocol";
 
 export type PersistedState = {
   schemaVersion: number;

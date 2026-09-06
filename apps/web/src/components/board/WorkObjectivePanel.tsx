@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Check, RotateCcw, Send, X } from "lucide-react";
-import type { WorkItemDetails, WorkRun } from "@mowen/protocol";
+import type { WorkItemDetails, WorkRun } from "@qingzhou/protocol";
 
 type Props = {
   details: WorkItemDetails;

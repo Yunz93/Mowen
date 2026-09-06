@@ -28,18 +28,19 @@ describe("install-macos.sh", () => {
   it("passes a nounset self-test without GitHub tokens", () => {
     const out = execFileSync("bash", [script], {
       encoding: "utf8",
-      env: { ...process.env, MOWEN_SELF_TEST: "1", GITHUB_TOKEN: "", GH_TOKEN: "" },
+      env: { ...process.env, QINGZHOU_SELF_TEST: "1", GITHUB_TOKEN: "", GH_TOKEN: "" },
     });
     expect(out).toContain("self-test passed");
   });
 
   it("prefers zip over dmg and parses volume paths that contain spaces", () => {
     const src = readFileSync(script, "utf8");
-    const zipIndex = src.indexOf('"Mowen-mac-${arch}.zip"');
-    const dmgIndex = src.indexOf('"Mowen-mac-${arch}.dmg"');
+    const zipIndex = src.indexOf('"Qingzhou-mac-${arch}.zip"');
+    const dmgIndex = src.indexOf('"Qingzhou-mac-${arch}.dmg"');
     expect(zipIndex).toBeGreaterThan(0);
     expect(dmgIndex).toBeGreaterThan(zipIndex);
-    expect(src.indexOf('"ohMyPi-mac-${arch}.zip"')).toBeGreaterThan(dmgIndex);
+    expect(src.indexOf('"Mowen-mac-${arch}.zip"')).toBeGreaterThan(dmgIndex);
+    expect(src.indexOf('"ohMyPi-mac-${arch}.zip"')).toBeGreaterThan(src.indexOf('"Mowen-mac-${arch}.dmg"'));
     expect(src).toContain("parse_hdiutil_mount");
     expect(src).not.toMatch(/awk '\/\\\/Volumes/);
     expect(src).toContain("SHA256SUMS.txt");

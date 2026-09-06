@@ -39,19 +39,21 @@ export type AppConfig = {
   trustProject: boolean;
 };
 
-export function mowenEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const current = env[`MOWEN_${name}`];
-  if (current != null && current !== "") return current;
-  const legacy = env[`OHMYPI_${name}`];
-  if (legacy != null && legacy !== "") return legacy;
-  return current ?? legacy;
+export function qingzhouEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  for (const prefix of ["QINGZHOU_", "MOWEN_", "OHMYPI_"]) {
+    const current = env[`${prefix}${name}`];
+    if (current != null && current !== "") return current;
+  }
+  return undefined;
 }
 
 export function defaultDataDir(homeDir = os.homedir()): string {
-  const current = path.join(homeDir, ".mowen");
+  const current = path.join(homeDir, ".qingzhou");
+  const mowen = path.join(homeDir, ".mowen");
   const ohmypi = path.join(homeDir, ".ohmypi");
   const legacy = path.join(homeDir, ".mypi-web");
   if (existsSync(current)) return current;
+  if (existsSync(mowen)) return mowen;
   if (existsSync(ohmypi)) return ohmypi;
   if (existsSync(legacy)) return legacy;
   return current;
@@ -117,15 +119,15 @@ export function readPiPackageVersion(entryFile: string): string | null {
 }
 
 /**
- * Desktop builds set MOWEN_PI_ENTRY to Pi's CLI file and run it with Electron's
+ * Desktop builds set QINGZHOU_PI_ENTRY (or legacy MOWEN_PI_ENTRY) to Pi's CLI file and run it with Electron's
  * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
  * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
  * Node executable so Windows can run it (shebang spawn is Unix-only).
  */
 export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
-  const entry = mowenEnv(env, "PI_ENTRY")?.trim();
+  const entry = qingzhouEnv(env, "PI_ENTRY")?.trim();
   if (entry) {
-    const command = mowenEnv(env, "NODE_BIN")?.trim() || process.execPath;
+    const command = qingzhouEnv(env, "NODE_BIN")?.trim() || process.execPath;
     return { command, prefixArgs: [path.resolve(entry)], extraEnv: asNodeEnv(command) };
   }
   const bin = resolvePiBin(env.PI_BIN ?? "pi");
@@ -149,7 +151,7 @@ export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   options: { workspaceRoot?: string | null; homeDir?: string; trustProject?: boolean } = {},
 ): AppConfig {
-  const homeDir = path.resolve(expandHome(options.homeDir ?? mowenEnv(env, "HOME_DIR") ?? os.homedir()));
+  const homeDir = path.resolve(expandHome(options.homeDir ?? qingzhouEnv(env, "HOME_DIR") ?? os.homedir()));
   const host = env.HOST ?? "127.0.0.1";
   const port = Number(env.PORT ?? "4310");
   const nodeEnv = env.NODE_ENV ?? "development";
@@ -163,7 +165,7 @@ export function loadConfig(
     origins.add("http://localhost:5173");
   }
 
-  const allowedRootsValue = mowenEnv(env, "ALLOWED_ROOTS");
+  const allowedRootsValue = qingzhouEnv(env, "ALLOWED_ROOTS");
   const envRoots = parseAllowedRoots(
     allowedRootsValue,
     options.workspaceRoot
@@ -188,26 +190,26 @@ export function loadConfig(
     piCommand: pi.command,
     piPrefixArgs: pi.prefixArgs,
     piExtraEnv: pi.extraEnv,
-    dataDir: path.resolve(expandHome(mowenEnv(env, "DATA_DIR") ?? defaultDataDir(homeDir), homeDir)),
+    dataDir: path.resolve(expandHome(qingzhouEnv(env, "DATA_DIR") ?? defaultDataDir(homeDir), homeDir)),
     allowedRoots: envRoots,
-    maxProcesses: Number(mowenEnv(env, "MAX_PROCESSES") ?? "3"),
-    mutations: mutationsSchema.parse(mowenEnv(env, "MUTATIONS") ?? "approval"),
+    maxProcesses: Number(qingzhouEnv(env, "MAX_PROCESSES") ?? "3"),
+    mutations: mutationsSchema.parse(qingzhouEnv(env, "MUTATIONS") ?? "approval"),
     nodeEnv,
-    approvalTimeoutMs: Number(mowenEnv(env, "APPROVAL_TIMEOUT_MS") ?? String(5 * 60 * 1000)),
+    approvalTimeoutMs: Number(qingzhouEnv(env, "APPROVAL_TIMEOUT_MS") ?? String(5 * 60 * 1000)),
     allowedOrigins: [...origins],
-    webDistDir: mowenEnv(env, "WEB_DIST") ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
+    webDistDir: qingzhouEnv(env, "WEB_DIST") ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     approvalExtensionPath:
-      mowenEnv(env, "APPROVAL_EXTENSION") ??
+      qingzhouEnv(env, "APPROVAL_EXTENSION") ??
       fileURLToPath(new URL("../extensions/approval.ts", import.meta.url)),
     homeDir,
-    piBundled: mowenEnv(env, "PI_BUNDLED") === "1" || Boolean(mowenEnv(env, "PI_ENTRY")?.trim()),
+    piBundled: qingzhouEnv(env, "PI_BUNDLED") === "1" || Boolean(qingzhouEnv(env, "PI_ENTRY")?.trim()),
     piAgentDir: defaultPiAgentDir(homeDir),
     trustProject: options.trustProject === true,
   };
 }
 
 function entryDisplay(env: NodeJS.ProcessEnv, pi: PiRuntime): string {
-  return mowenEnv(env, "PI_ENTRY")?.trim() || pi.command;
+  return qingzhouEnv(env, "PI_ENTRY")?.trim() || pi.command;
 }
 
 export async function readPiVersion(

@@ -1,4 +1,4 @@
-import { isHighRiskCommand, type ApprovalRequest } from "@mowen/protocol";
+import { isHighRiskCommand, type ApprovalRequest } from "@qingzhou/protocol";
 
 export type ApprovalRiskLevel = "low" | "medium" | "high";
 

@@ -19,7 +19,7 @@ export function isDevSelfWorkspace(
 ): boolean {
   const watchEnabled =
     options?.watchEnabled ??
-    (process.env.MOWEN_DEV_WATCH === "1" || Boolean(process.env.TSX_WATCH));
+    (process.env.QINGZHOU_DEV_WATCH === "1" || Boolean(process.env.TSX_WATCH));
   if (!watchEnabled) return false;
   if (!workspaceRoot?.trim()) return false;
   const serverRoot = path.resolve(options?.serverRoot ?? serverPackageRoot());

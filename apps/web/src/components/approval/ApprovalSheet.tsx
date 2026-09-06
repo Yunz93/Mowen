@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ApprovalRequest } from "@mowen/protocol";
+import type { ApprovalRequest } from "@qingzhou/protocol";
 import { AlertTriangle, Shield, ShieldAlert } from "lucide-react";
 import { toolNameLabel } from "../../copy";
 import { approvalRiskLabel, approvalRiskLevel, splitDangerousCommand } from "../../lib/approval-risk";

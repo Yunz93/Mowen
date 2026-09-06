@@ -22,7 +22,7 @@ import {
   type WorkItemColumn,
   type WorkRunKind,
   type WorkRunStatus,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";
 import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
@@ -576,7 +576,7 @@ export class TaskService {
       this.emit(taskId, "server.error", {
         code: authHint ? "pi.auth" : "pi.prompt",
         message: authHint
-          ? "连不上 AI 服务商。打开设置登录或粘贴密钥。墨问不会显示完整密钥。"
+          ? "连不上 AI 服务商。打开设置登录或粘贴密钥。轻舟不会显示完整密钥。"
           : text,
         authHint,
       });
@@ -717,7 +717,7 @@ export class TaskService {
     return { ok: true };
   }
 
-  private async applyStoredPolicy(taskId: string, approval: import("@mowen/protocol").ApprovalRequest): Promise<void> {
+  private async applyStoredPolicy(taskId: string, approval: import("@qingzhou/protocol").ApprovalRequest): Promise<void> {
     const task = this.store.get(taskId);
     if (!task) return;
     const policy = effectiveApprovalPolicy(task.mode ?? "agent", task.approvalPolicy ?? "auto");
@@ -730,7 +730,7 @@ export class TaskService {
 
   private async checkpointMutation(
     taskId: string,
-    approval: import("@mowen/protocol").ApprovalRequest,
+    approval: import("@qingzhou/protocol").ApprovalRequest,
   ): Promise<void> {
     if (approval.toolName !== "write" && approval.toolName !== "edit") return;
     const task = this.store.get(taskId);

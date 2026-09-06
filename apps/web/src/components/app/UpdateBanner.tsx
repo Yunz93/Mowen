@@ -28,7 +28,7 @@ export function UpdateBanner() {
       <button
         type="button"
         className="pressable icon-btn text-accent"
-        aria-label={`墨问 ${latest} 可用`}
+        aria-label={`轻舟 ${latest} 可用`}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -37,7 +37,7 @@ export function UpdateBanner() {
       </button>
       {open ? (
         <div className="update-popover" role="status">
-          <p>{installing || notice ? notice || "正在更新…" : `墨问 ${latest} 可用`}</p>
+          <p>{installing || notice ? notice || "正在更新…" : `轻舟 ${latest} 可用`}</p>
           {installing || notice ? null : (
             <div className="mt-2 flex justify-end gap-1.5">
               <button type="button" className="pressable btn btn-ghost h-7" onClick={dismiss}>

@@ -16,7 +16,7 @@ describe("setup helpers", () => {
   });
 
   it("writes api keys into a pi auth.json under a fake home", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-"));
     dirs.push(home);
     await saveApiKey("anthropic", "sk-ant-test-key-123456", home);
     const raw = await readFile(path.join(home, ".pi", "agent", "auth.json"), "utf8");
@@ -27,7 +27,7 @@ describe("setup helpers", () => {
   });
 
   it("overwrites an existing API key for the same provider", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-update-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-update-"));
     dirs.push(home);
     await saveApiKey("anthropic", "sk-ant-old-key-123456", home);
     await saveApiKey("anthropic", "sk-ant-new-key-654321", home);
@@ -37,7 +37,7 @@ describe("setup helpers", () => {
   });
 
   it("persists workspace settings", async () => {
-    const dataDir = await mkdtemp(path.join(os.tmpdir(), "mowen-settings-"));
+    const dataDir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-settings-"));
     dirs.push(dataDir);
     const store = new SettingsStore(dataDir);
     await store.save({ workspaceRoot: "/tmp/work", setupCompletedAt: "2026-01-01T00:00:00.000Z" });
@@ -53,7 +53,7 @@ describe("setup helpers", () => {
   });
 
   it("lists only child folders inside browse roots", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-folders-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-folders-"));
     dirs.push(root);
     await mkdir(path.join(root, "docs"));
     await mkdir(path.join(root, "node_modules"));

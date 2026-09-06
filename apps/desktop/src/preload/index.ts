@@ -1,24 +1,24 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld("mowen", {
+contextBridge.exposeInMainWorld("qingzhou", {
   isDesktop: true,
   platform: process.platform,
-  pickFolder: (defaultPath?: string) => ipcRenderer.invoke("mowen:pick-folder", defaultPath) as Promise<string | null>,
-  openPath: (filePath: string) => ipcRenderer.invoke("mowen:open-path", filePath) as Promise<string>,
-  notify: (payload: { title: string; body: string }) => ipcRenderer.invoke("mowen:notify", payload) as Promise<void>,
-  restart: () => ipcRenderer.invoke("mowen:restart") as Promise<void>,
+  pickFolder: (defaultPath?: string) => ipcRenderer.invoke("qingzhou:pick-folder", defaultPath) as Promise<string | null>,
+  openPath: (filePath: string) => ipcRenderer.invoke("qingzhou:open-path", filePath) as Promise<string>,
+  notify: (payload: { title: string; body: string }) => ipcRenderer.invoke("qingzhou:notify", payload) as Promise<void>,
+  restart: () => ipcRenderer.invoke("qingzhou:restart") as Promise<void>,
   onOpenSetup: (callback: () => void) => {
     const handler = () => callback();
-    ipcRenderer.on("mowen:open-setup", handler);
+    ipcRenderer.on("qingzhou:open-setup", handler);
     return () => {
-      ipcRenderer.removeListener("mowen:open-setup", handler);
+      ipcRenderer.removeListener("qingzhou:open-setup", handler);
     };
   },
   onCheckUpdate: (callback: () => void) => {
     const handler = () => callback();
-    ipcRenderer.on("mowen:check-update", handler);
+    ipcRenderer.on("qingzhou:check-update", handler);
     return () => {
-      ipcRenderer.removeListener("mowen:check-update", handler);
+      ipcRenderer.removeListener("qingzhou:check-update", handler);
     };
   },
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { sanitizeToolResultText, type ToolExecution } from "@mowen/protocol";
+import { sanitizeToolResultText, type ToolExecution } from "@qingzhou/protocol";
 import { Ban, Check, CircleAlert, LoaderCircle, Shield } from "lucide-react";
 import { toolNameLabel, toolStatusLabel } from "../../copy";
 import { toneClass } from "../../lib/status-tone";

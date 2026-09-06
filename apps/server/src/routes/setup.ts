@@ -14,7 +14,7 @@ import {
   tryPiLogin,
   type BeginnerProviderId,
 } from "../setup/auth-status.js";
-import type { AuthEntry } from "@mowen/protocol";
+import type { AuthEntry } from "@qingzhou/protocol";
 import { listFolders } from "../setup/folder-browser.js";
 import {
   fetchLatestPiVersion,
@@ -70,7 +70,13 @@ export async function buildSetupStatus(
   const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir, agentDir));
   const models = await inspectModelsFile(config.homeDir, agentDir);
   const piAvailable = Boolean(pi.version) && !pi.error;
-  const e2e = process.env.MOWEN_E2E === "1" || process.env.OHMYPI_E2E === "1" || process.env.MOWEN_SKIP_SETUP === "1" || process.env.OHMYPI_SKIP_SETUP === "1";
+  const e2e =
+    process.env.QINGZHOU_E2E === "1" ||
+    process.env.MOWEN_E2E === "1" ||
+    process.env.OHMYPI_E2E === "1" ||
+    process.env.QINGZHOU_SKIP_SETUP === "1" ||
+    process.env.MOWEN_SKIP_SETUP === "1" ||
+    process.env.OHMYPI_SKIP_SETUP === "1";
   const setupCompleted = e2e || Boolean(userSettings.setupCompletedAt);
   const effectiveAuth = e2e || authConfigured;
   const needsSetup = !e2e && (!piAvailable || !effectiveAuth || !setupCompleted);
@@ -240,7 +246,7 @@ export function registerSetupRoutes(
 
   app.post("/api/setup/install-pi", async (request, reply) => {
     if (!options.installPi) {
-      return reply.code(501).send({ error: "这台墨问不支持在界面里安装 Pi。" });
+      return reply.code(501).send({ error: "这台轻舟不支持在界面里安装 Pi。" });
     }
     const force =
       z.object({ force: z.boolean().optional() }).safeParse(request.body ?? {}).data?.force === true;

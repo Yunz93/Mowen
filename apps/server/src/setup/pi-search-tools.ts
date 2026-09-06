@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { mowenEnv } from "../config.js";
+import { qingzhouEnv } from "../config.js";
 import { pathEnvKey, prependPath } from "./install-pi.js";
 
 export const PINNED_FD_VERSION = "10.2.0";
@@ -69,8 +69,8 @@ export function guiSearchToolDirs(homeDir: string, platform = process.platform):
 
 export function shouldFetchPinnedSearchTools(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.VITEST === "true") return false;
-  if (mowenEnv(env, "E2E") === "1") return false;
-  if (mowenEnv(env, "SKIP_PI_TOOLS_FETCH") === "1") return false;
+  if (qingzhouEnv(env, "E2E") === "1") return false;
+  if (qingzhouEnv(env, "SKIP_PI_TOOLS_FETCH") === "1") return false;
   return true;
 }
 
@@ -83,12 +83,12 @@ export function humanizeSearchToolDownloadError(text: string): string | null {
     "找不到搜索工具 fd / ripgrep，GitHub 拒绝了自动下载。",
     "在终端运行：",
     "  brew install fd ripgrep",
-    "然后重新打开墨问。",
+    "然后重新打开轻舟。",
   ].join("\n");
 }
 
 export function resolveBundledSearchToolsDir(env: NodeJS.ProcessEnv = process.env): string | null {
-  const fromEnv = mowenEnv(env, "PI_TOOLS")?.trim();
+  const fromEnv = qingzhouEnv(env, "PI_TOOLS")?.trim();
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
   return null;
 }
@@ -169,14 +169,14 @@ export async function downloadPinnedSearchTool(
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const response = await fetchImpl(url, {
-    headers: { "User-Agent": "mowen-desktop" },
+    headers: { "User-Agent": "qingzhou-desktop" },
     signal: AbortSignal.timeout(120_000),
   });
   if (!response.ok || !response.body) {
     throw new Error(`Failed to download ${tool}: ${response.status}`);
   }
 
-  const tmp = await mkdtemp(path.join(os.tmpdir(), `mowen-${tool}-`));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), `qingzhou-${tool}-`));
   try {
     const archivePath = path.join(tmp, path.basename(url));
     await pipeline(Readable.fromWeb(response.body as never), createWriteStream(archivePath));
@@ -241,7 +241,7 @@ export async function ensurePiSearchTools(options: {
         installed[tool] = await installSearchToolFrom(source, binDir, destName);
         continue;
       } catch (error) {
-        console.warn(`[mowen] could not copy ${tool} into ${binDir}: ${error instanceof Error ? error.message : error}`);
+        console.warn(`[qingzhou] could not copy ${tool} into ${binDir}: ${error instanceof Error ? error.message : error}`);
         installed[tool] = source;
         continue;
       }
@@ -251,7 +251,7 @@ export async function ensurePiSearchTools(options: {
     try {
       installed[tool] = await download(tool, binDir, { platform });
     } catch (error) {
-      console.warn(`[mowen] could not download ${tool}: ${error instanceof Error ? error.message : error}`);
+      console.warn(`[qingzhou] could not download ${tool}: ${error instanceof Error ? error.message : error}`);
     }
   }
 

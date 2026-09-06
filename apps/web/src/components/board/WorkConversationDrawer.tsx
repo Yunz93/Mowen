@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
-import type { ApprovalPolicy, InteractionMode, ThinkingLevel, WorkItemSummary } from "@mowen/protocol";
+import type { ApprovalPolicy, InteractionMode, ThinkingLevel, WorkItemSummary } from "@qingzhou/protocol";
 import { ConversationTimeline } from "../timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../composer/PromptComposer";
 import { useAgentStore } from "../../stores/agent-store";

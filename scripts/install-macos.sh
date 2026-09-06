@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 墨问 / Mowen one-click installer for macOS.
+# 轻舟 / Qingzhou one-click installer for macOS.
 # Official install path: download the GitHub Release, copy into Applications,
 # then apply local trust (quarantine + ad-hoc codesign + optional spctl).
 # There is no Apple Developer ID / notarization; do not double-click the DMG.
@@ -8,14 +8,14 @@
 #   curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh | bash
 #   ./scripts/install-macos.sh
 #   ./scripts/install-macos.sh --nightly
-#   ./scripts/install-macos.sh /path/to/Mowen.dmg
+#   ./scripts/install-macos.sh /path/to/Qingzhou.dmg
 #   ./scripts/install-macos.sh --build
-#   ./scripts/install-macos.sh --trust-only /Applications/Mowen.app
+#   ./scripts/install-macos.sh --trust-only /Applications/Qingzhou.app
 
 set -euo pipefail
 
-APP_NAME="Mowen"
-REPO="${MOWEN_REPO:-${OHMYPI_REPO:-Yunz93/Mowen}}"
+APP_NAME="Qingzhou"
+REPO="${QINGZHOU_REPO:-${MOWEN_REPO:-${OHMYPI_REPO:-Yunz93/Mowen}}}"
 DEST_DIR="/Applications"
 BUILD=0
 LOCAL=0
@@ -23,7 +23,7 @@ NIGHTLY=0
 TRUST_ONLY=0
 OPEN_AFTER=1
 SOURCE=""
-VERSION="${MOWEN_VERSION:-latest}"
+VERSION="${QINGZHOU_VERSION:-${MOWEN_VERSION:-latest}}"
 
 die() {
   echo "错误: $*" >&2
@@ -65,13 +65,13 @@ mac_arch() {
 
 usage() {
   cat <<EOF
-墨问 macOS 一键安装（官方方式：从 GitHub Release 下载并在本机完成信任）
+轻舟 macOS 一键安装（官方方式：从 GitHub Release 下载并在本机完成信任）
 
 没有 Apple 公证。请用这个脚本，不要双击 .dmg。
 
 用法:
   curl -fsSL https://github.com/${REPO}/releases/latest/download/install-macos.sh | bash
-  $0 [选项] [Mowen.app|Mowen.dmg|Mowen.zip]
+  $0 [选项] [Qingzhou.app|Qingzhou.dmg|Qingzhou.zip]
 
 选项:
   --nightly       安装 nightly 预发布包
@@ -105,8 +105,9 @@ done
 
 # In-app updates launch this script detached, then quit the running Electron
 # process. Wait for it to disappear before replacing the application bundle.
-if [[ -n "${MOWEN_UPDATE_PARENT_PID:-}" && "${MOWEN_UPDATE_PARENT_PID}" =~ ^[0-9]+$ ]]; then
-  while kill -0 "${MOWEN_UPDATE_PARENT_PID}" 2>/dev/null; do sleep 0.2; done
+UPDATE_PARENT_PID="${QINGZHOU_UPDATE_PARENT_PID:-${MOWEN_UPDATE_PARENT_PID:-}}"
+if [[ -n "${UPDATE_PARENT_PID}" && "${UPDATE_PARENT_PID}" =~ ^[0-9]+$ ]]; then
+  while kill -0 "${UPDATE_PARENT_PID}" 2>/dev/null; do sleep 0.2; done
 fi
 
 ROOT=""
@@ -130,21 +131,21 @@ trap cleanup EXIT
 
 ensure_tmp_dir() {
   if [[ -z "${TMP_DIR}" ]]; then
-    TMP_DIR="$(mktemp -d -t mowen-install)"
+    TMP_DIR="$(mktemp -d -t qingzhou-install)"
   fi
 }
 
 find_app_in_dir() {
   local dir="$1"
   local found
-  found="$(find "$dir" -maxdepth 5 \( -name "${APP_NAME}.app" -o -name "ohMyPi.app" -o -name "MyPi.app" \) -type d 2>/dev/null | head -n 1 || true)"
+  found="$(find "$dir" -maxdepth 5 \( -name "${APP_NAME}.app" -o -name "Mowen.app" -o -name "ohMyPi.app" -o -name "MyPi.app" \) -type d 2>/dev/null | head -n 1 || true)"
   if [[ -z "$found" ]]; then
     found="$(find "$dir" -maxdepth 5 -name "*.app" -type d 2>/dev/null | head -n 1 || true)"
   fi
   echo "$found"
 }
 
-# hdiutil prints: /dev/disk4s1  Apple_HFS  /Volumes/Mowen 0.1.0
+# hdiutil prints: /dev/disk4s1  Apple_HFS  /Volumes/Qingzhou 0.1.0
 # awk $NF would be "0.1.0" because the volume name has a space.
 parse_hdiutil_mount() {
   sed -n 's/.*\(\/Volumes\/.*\)$/\1/p' | tail -n 1
@@ -221,7 +222,7 @@ maybe_build() {
 
 download_release() {
   local arch="$1"
-  TMP_DIR="$(mktemp -d -t mowen-install)"
+  TMP_DIR="$(mktemp -d -t qingzhou-install)"
   local tag="$VERSION"
   local base
   if [[ "$tag" == "latest" ]]; then
@@ -232,6 +233,8 @@ download_release() {
   fi
 
   local names=(
+    "Qingzhou-mac-${arch}.zip"
+    "Qingzhou-mac-${arch}.dmg"
     "Mowen-mac-${arch}.zip"
     "Mowen-mac-${arch}.dmg"
     "ohMyPi-mac-${arch}.zip"
@@ -341,6 +344,7 @@ trust_app() {
 copy_app() {
   local src="${1:-}"
   local dest="${DEST_DIR}/${APP_NAME}.app"
+  local legacy_mowen="${DEST_DIR}/Mowen.app"
   local legacy_ohmypi="${DEST_DIR}/ohMyPi.app"
   local legacy="${DEST_DIR}/MyPi.app"
   [[ -d "$src" ]] || die "找不到要安装的应用: ${src:-<empty>}"
@@ -348,6 +352,10 @@ copy_app() {
   if [[ -d "$dest" ]]; then
     info "正在替换已有安装: $dest"
     rm -rf "$dest" 2>/dev/null || sudo rm -rf "$dest" || die "无法删除旧版本。"
+  fi
+  if [[ "$dest" != "$legacy_mowen" && -d "$legacy_mowen" ]]; then
+    info "正在移除旧版 Mowen.app"
+    rm -rf "$legacy_mowen" 2>/dev/null || sudo rm -rf "$legacy_mowen" || true
   fi
   if [[ "$dest" != "$legacy_ohmypi" && -d "$legacy_ohmypi" ]]; then
     info "正在移除旧版 ohMyPi.app"
@@ -369,7 +377,7 @@ copy_app() {
   echo "$dest"
 }
 
-if [[ "${MOWEN_SELF_TEST:-${OHMYPI_SELF_TEST:-}}" == "1" ]]; then
+if [[ "${QINGZHOU_SELF_TEST:-${MOWEN_SELF_TEST:-${OHMYPI_SELF_TEST:-}}}" == "1" ]]; then
   GITHUB_TOKEN=""
   GH_TOKEN=""
   curl_github --version >/dev/null
@@ -379,11 +387,11 @@ if [[ "${MOWEN_SELF_TEST:-${OHMYPI_SELF_TEST:-}}" == "1" ]]; then
   if ( copy_app "" ) 2>/dev/null; then
     die "copy_app should reject an empty path"
   fi
-  parsed="$(printf '%s\n' '/dev/disk4s1        	Apple_HFS                      	/Volumes/Mowen 0.1.0' | parse_hdiutil_mount)"
-  if [[ "$parsed" != "/Volumes/Mowen 0.1.0" ]]; then
+  parsed="$(printf '%s\n' '/dev/disk4s1        	Apple_HFS                      	/Volumes/Qingzhou 0.1.0' | parse_hdiutil_mount)"
+  if [[ "$parsed" != "/Volumes/Qingzhou 0.1.0" ]]; then
     die "parse_hdiutil_mount should keep spaces in the volume path, got: ${parsed}"
   fi
-  TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mowen-self-test.XXXXXX")"
+  TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/qingzhou-self-test.XXXXXX")"
   printf '%s\n' 'ok' > "${TMP_DIR}/payload.txt"
   if command -v shasum >/dev/null; then
     good="$(shasum -a 256 "${TMP_DIR}/payload.txt" | awk '{print $1}')"

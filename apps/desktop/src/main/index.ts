@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, Notification, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createApp } from "@mowen/server";
+import { createApp } from "@qingzhou/server";
 import { applyDesktopEnv, preloadPath, resolvePiEntry } from "./paths.js";
 import { adoptSystemProxy } from "./system-proxy.js";
 
@@ -55,14 +55,14 @@ function installMenu(): void {
       submenu: [
         {
           label: "再次打开设置",
-          click: () => mainWindow?.webContents.send("mowen:open-setup"),
+          click: () => mainWindow?.webContents.send("qingzhou:open-setup"),
         },
         {
           label: "检查更新…",
-          click: () => mainWindow?.webContents.send("mowen:check-update"),
+          click: () => mainWindow?.webContents.send("qingzhou:check-update"),
         },
         {
-          label: "在 GitHub 查看墨问",
+          label: "在 GitHub 查看轻舟",
           click: () => void shell.openExternal("https://github.com/Yunz93/Mowen"),
         },
       ],
@@ -76,13 +76,13 @@ async function startBackend(): Promise<number> {
   applyDesktopEnv();
   const proxy = await adoptSystemProxy();
   if (proxy) {
-    console.log(`[mowen-desktop] HTTP proxy: ${proxy}`);
+    console.log(`[qingzhou-desktop] HTTP proxy: ${proxy}`);
   }
   const piEntry = resolvePiEntry();
   if (piEntry) {
-    console.log(`[mowen-desktop] bundled Pi: ${piEntry}`);
+    console.log(`[qingzhou-desktop] bundled Pi: ${piEntry}`);
   } else {
-    console.warn("[mowen-desktop] bundled Pi not found; falling back to PATH");
+    console.warn("[qingzhou-desktop] bundled Pi not found; falling back to PATH");
   }
 
   const { app: server, config, service } = await createApp(process.env);
@@ -113,7 +113,7 @@ async function createMainWindow(port: number): Promise<void> {
     height: 840,
     minWidth: 800,
     minHeight: 600,
-    title: "墨问",
+    title: "轻舟",
     backgroundColor: "#f5f5f7",
     show: false,
     autoHideMenuBar: process.platform === "win32",
@@ -164,9 +164,16 @@ async function createMainWindow(port: number): Promise<void> {
   });
 
   const packaged = app.isPackaged;
-  const url = packaged || process.env.MOWEN_DESKTOP_USE_SERVER === "1" || process.env.OHMYPI_DESKTOP_USE_SERVER === "1"
+  const url =
+    packaged ||
+    process.env.QINGZHOU_DESKTOP_USE_SERVER === "1" ||
+    process.env.MOWEN_DESKTOP_USE_SERVER === "1" ||
+    process.env.OHMYPI_DESKTOP_USE_SERVER === "1"
     ? `http://127.0.0.1:${port}`
-    : process.env.MOWEN_RENDERER_URL ?? process.env.OHMYPI_RENDERER_URL ?? "http://127.0.0.1:5173";
+    : process.env.QINGZHOU_RENDERER_URL ??
+      process.env.MOWEN_RENDERER_URL ??
+      process.env.OHMYPI_RENDERER_URL ??
+      "http://127.0.0.1:5173";
   await loadWithRetry(mainWindow, url);
 }
 
@@ -178,7 +185,7 @@ function registerHandle(channel: string, handler: Parameters<typeof ipcMain.hand
 function registerIpc(): void {
   if (ipcReady) return;
   ipcReady = true;
-  registerHandle("mowen:pick-folder", async (_event, defaultPath?: string) => {
+  registerHandle("qingzhou:pick-folder", async (_event, defaultPath?: string) => {
     const options: Electron.OpenDialogOptions = {
       title: "选择文件夹",
       defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
@@ -190,21 +197,21 @@ function registerIpc(): void {
     if (result.canceled) return null;
     return result.filePaths[0] ?? null;
   });
-  registerHandle("mowen:open-path", async (_event, filePath: unknown) => {
+  registerHandle("qingzhou:open-path", async (_event, filePath: unknown) => {
     if (typeof filePath !== "string" || !filePath.trim() || filePath.includes("\0")) {
       return "invalid path";
     }
     return shell.openPath(filePath);
   });
-  registerHandle("mowen:notify", async (_event, payload: unknown) => {
+  registerHandle("qingzhou:notify", async (_event, payload: unknown) => {
     const record = payload && typeof payload === "object" ? (payload as { title?: unknown; body?: unknown }) : {};
-    const title = typeof record.title === "string" && record.title.trim() ? record.title.trim() : "墨问";
+    const title = typeof record.title === "string" && record.title.trim() ? record.title.trim() : "轻舟";
     const body = typeof record.body === "string" ? record.body : "";
     if (Notification.isSupported()) {
       new Notification({ title, body }).show();
     }
   });
-  registerHandle("mowen:restart", async () => {
+  registerHandle("qingzhou:restart", async () => {
     app.relaunch();
     app.exit(0);
   });
@@ -241,7 +248,7 @@ app.on("before-quit", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     void boot().catch((error) => {
-      dialog.showErrorBox("墨问启动失败", error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox("轻舟启动失败", error instanceof Error ? error.message : String(error));
       app.quit();
     });
   }
@@ -249,7 +256,7 @@ app.on("activate", () => {
 
 app.whenReady().then(() => {
   void boot().catch((error) => {
-    dialog.showErrorBox("墨问启动失败", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox("轻舟启动失败", error instanceof Error ? error.message : String(error));
     app.quit();
   });
 });

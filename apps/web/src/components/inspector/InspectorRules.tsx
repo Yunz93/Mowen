@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PiResources } from "@mowen/protocol";
+import type { PiResources } from "@qingzhou/protocol";
 
 type AgentFile = PiResources["agentsFiles"][number];
 type Preview = { path: string; content: string; truncated: boolean };

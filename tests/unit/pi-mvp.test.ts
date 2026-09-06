@@ -9,7 +9,7 @@ import { flattenSessionTree } from "../../apps/server/src/tasks/session-tree.ts"
 
 describe("pi mvp helpers", () => {
   it("lists oauth and api key entries without exposing secrets", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-entries-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-entries-"));
     await mkdir(path.join(home, ".pi", "agent"), { recursive: true });
     await writeFile(
       path.join(home, ".pi", "agent", "auth.json"),
@@ -29,7 +29,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("removes a provider from auth.json", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-auth-logout-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-logout-"));
     await mkdir(path.join(home, ".pi", "agent"), { recursive: true });
     await writeFile(
       path.join(home, ".pi", "agent", "auth.json"),
@@ -44,7 +44,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("scans AGENTS.md and only project skills when trusted", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-resources-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-resources-"));
     const cwd = path.join(home, "project");
     await mkdir(path.join(cwd, ".agents", "skills", "review"), { recursive: true });
     await mkdir(path.join(home, ".pi", "agent", "skills", "user-skill"), { recursive: true });
@@ -62,7 +62,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("marks skills disabled from settings.json exclusions", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-skill-off-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-off-"));
     const cwd = path.join(home, "project");
     const agentDir = path.join(home, ".pi", "agent");
     await mkdir(path.join(agentDir, "skills", "demo"), { recursive: true });
@@ -85,7 +85,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("scans user and project extensions, packages, and extra settings paths", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ext-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-ext-"));
     const cwd = path.join(home, "project");
     const agentDir = path.join(home, ".pi", "agent");
     await mkdir(path.join(agentDir, "extensions", "pack"), { recursive: true });
@@ -121,7 +121,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("marks extensions disabled from settings.json exclusions and can re-enable them", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-ext-off-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-ext-off-"));
     const cwd = path.join(home, "project");
     const agentDir = path.join(home, ".pi", "agent");
     await mkdir(path.join(agentDir, "extensions", "pack"), { recursive: true });
@@ -165,7 +165,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("creates project AGENTS.md once and refuses to overwrite", async () => {
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "mowen-create-agents-"));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "qingzhou-create-agents-"));
     const relative = await createProjectAgentsFile(cwd);
     expect(relative).toBe("AGENTS.md");
     const content = await readFile(path.join(cwd, "AGENTS.md"), "utf8");
@@ -174,7 +174,7 @@ describe("pi mvp helpers", () => {
   });
 
   it("lists Pi session files and can filter by cwd", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-sessions-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-sessions-"));
     const cwd = path.join(home, "repo");
     const dir = path.join(home, ".pi", "agent", "sessions", "--repo--");
     await mkdir(dir, { recursive: true });

@@ -1,4 +1,4 @@
-import type { TaskStatus, WorkItemViewState } from "@mowen/protocol";
+import type { TaskStatus, WorkItemViewState } from "@qingzhou/protocol";
 
 export type StatusTone = "idle" | "busy" | "wait" | "ok" | "danger";
 

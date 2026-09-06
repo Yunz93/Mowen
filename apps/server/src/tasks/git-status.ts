@@ -5,7 +5,7 @@ const execFileAsync = promisify(execFile);
 
 const GIT_TIMEOUT_MS = 8000;
 
-const gitIdentity = ["-c", "user.name=Mowen", "-c", "user.email=mowen@local"];
+const gitIdentity = ["-c", "user.name=Qingzhou", "-c", "user.email=qingzhou@local"];
 
 export type GitEntry = { path: string; status: string };
 

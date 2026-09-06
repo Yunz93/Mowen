@@ -49,13 +49,13 @@ export function SettingsPage() {
   const [flash, setFlash] = useState<{ id: string; tone: "ok" | "err"; text: string } | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("oauth");
   const [selectedProvider, setSelectedProvider] = useState("github");
-  const mowenLatest = useUpdateStore((state) => state.current || state.latest ? state : null);
-  const mowenCheckBusy = useUpdateStore((state) => state.busy);
-  const mowenUpdateBusy = useUpdateStore((state) => state.installing);
-  const mowenUpdateError = useUpdateStore((state) => state.error);
-  const mowenNotice = useUpdateStore((state) => state.notice);
-  const checkMowenUpdate = useUpdateStore((state) => state.check);
-  const installMowenUpdate = useUpdateStore((state) => state.install);
+  const qingzhouLatest = useUpdateStore((state) => state.current || state.latest ? state : null);
+  const qingzhouCheckBusy = useUpdateStore((state) => state.busy);
+  const qingzhouUpdateBusy = useUpdateStore((state) => state.installing);
+  const qingzhouUpdateError = useUpdateStore((state) => state.error);
+  const qingzhouNotice = useUpdateStore((state) => state.notice);
+  const checkQingzhouUpdate = useUpdateStore((state) => state.check);
+  const installQingzhouUpdate = useUpdateStore((state) => state.install);
 
   function applySetup(setup: SetupStatus) {
     setModels({ present: Boolean(setup.hasModelsFile), count: setup.modelCount ?? 0 });
@@ -84,8 +84,8 @@ export function SettingsPage() {
       .catch(() => {
         /* 打开设置页时检查失败不挡操作，可再点「检查更新」。 */
       });
-    void checkMowenUpdate();
-  }, [checkMowenUpdate]);
+    void checkQingzhouUpdate();
+  }, [checkQingzhouUpdate]);
 
   async function toggleTrust(next: boolean) {
     setTrustBusy(true);
@@ -300,13 +300,13 @@ export function SettingsPage() {
   } else if (piLatest && piVersion && !piLatest.updateAvailable && piLatest.latest) {
     updateDetail = "已是最新";
   }
-  const mowenDetail = mowenUpdateError
-    ? mowenUpdateError
-    : mowenNotice
-      ? mowenNotice
-    : mowenLatest?.updateAvailable && mowenLatest.latest
-      ? `${mowenLatest.latest} 可用`
-      : mowenLatest?.latest
+  const qingzhouDetail = qingzhouUpdateError
+    ? qingzhouUpdateError
+    : qingzhouNotice
+      ? qingzhouNotice
+    : qingzhouLatest?.updateAvailable && qingzhouLatest.latest
+      ? `${qingzhouLatest.latest} 可用`
+      : qingzhouLatest?.latest
         ? "已是最新"
         : "尚未检查";
 
@@ -331,20 +331,20 @@ export function SettingsPage() {
       <main id="main-content" className="flex-1 overflow-y-auto px-5 py-8">
         <div className="settings-shell space-y-7">
           <section>
-            <h2 className="settings-label">墨问</h2>
+            <h2 className="settings-label">轻舟</h2>
             <div className="settings-card">
               <div className="settings-row items-center">
                 <div className="min-w-0 pr-3">
-                  <p className="text-[13px] text-ink">版本 {mowenLatest?.current ?? "—"}</p>
-                  <p className={`mt-0.5 text-[12px] ${mowenUpdateError ? "text-danger" : "text-mute"}`}>{mowenDetail}</p>
+                  <p className="text-[13px] text-ink">版本 {qingzhouLatest?.current ?? "—"}</p>
+                  <p className={`mt-0.5 text-[12px] ${qingzhouUpdateError ? "text-danger" : "text-mute"}`}>{qingzhouDetail}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <button type="button" className="pressable btn btn-ghost" aria-label={mowenCheckBusy ? "正在检查墨问更新" : "检查墨问更新"} disabled={mowenCheckBusy || mowenUpdateBusy} onClick={() => void checkMowenUpdate(true)}>
-                    {mowenCheckBusy ? "正在检查…" : "检查更新"}
+                  <button type="button" className="pressable btn btn-ghost" aria-label={qingzhouCheckBusy ? "正在检查轻舟更新" : "检查轻舟更新"} disabled={qingzhouCheckBusy || qingzhouUpdateBusy} onClick={() => void checkQingzhouUpdate(true)}>
+                    {qingzhouCheckBusy ? "正在检查…" : "检查更新"}
                   </button>
-                  {mowenLatest?.updateAvailable && mowenLatest.canUpdate ? (
-                    <button type="button" className="pressable btn btn-primary" disabled={mowenUpdateBusy || mowenCheckBusy} onClick={() => void installMowenUpdate()}>
-                      {mowenUpdateBusy ? "正在更新…" : "更新并重启"}
+                  {qingzhouLatest?.updateAvailable && qingzhouLatest.canUpdate ? (
+                    <button type="button" className="pressable btn btn-primary" disabled={qingzhouUpdateBusy || qingzhouCheckBusy} onClick={() => void installQingzhouUpdate()}>
+                      {qingzhouUpdateBusy ? "正在更新…" : "更新并重启"}
                     </button>
                   ) : null}
                 </div>

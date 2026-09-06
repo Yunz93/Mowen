@@ -1,8 +1,8 @@
 {
-  "name": "@mowen/desktop",
+  "name": "@qingzhou/desktop",
   "version": "0.1.8",
-  "description": "Local-first 墨问 / Mowen workbench for Windows and macOS",
-  "author": "Mowen",
+  "description": "Local-first 轻舟 / Qingzhou workbench for Windows and macOS",
+  "author": "Qingzhou",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "pack:dir": "pnpm build && electron-builder --config electron-builder.yml --dir"
   },
   "dependencies": {
-    "@mowen/server": "workspace:*",
+    "@qingzhou/server": "workspace:*",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {

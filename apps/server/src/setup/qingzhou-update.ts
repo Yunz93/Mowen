@@ -6,10 +6,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_MOWEN_REPO = "Yunz93/Mowen";
+export const DEFAULT_QINGZHOU_REPO = "Yunz93/Mowen";
 const GITHUB_TIMEOUT_MS = 8_000;
 
-export type MowenRelease = {
+export type QingzhouRelease = {
   tagName: string;
   version: string;
   name: string;
@@ -20,18 +20,18 @@ export type MowenRelease = {
   assets: Array<{ name: string; url: string; size: number }>;
 };
 
-export function mowenRepo(env: NodeJS.ProcessEnv = process.env): string {
-  const value = env.MOWEN_REPO?.trim() || DEFAULT_MOWEN_REPO;
-  if (!/^[\w.-]+\/[\w.-]+$/.test(value)) throw new Error("墨问更新仓库配置无效。");
+export function qingzhouRepo(env: NodeJS.ProcessEnv = process.env): string {
+  const value = env.QINGZHOU_REPO?.trim() || env.MOWEN_REPO?.trim() || DEFAULT_QINGZHOU_REPO;
+  if (!/^[\w.-]+\/[\w.-]+$/.test(value)) throw new Error("轻舟更新仓库配置无效。");
   return value;
 }
 
-export function parseMowenRelease(raw: unknown): MowenRelease {
-  if (!raw || typeof raw !== "object") throw new Error("无法解析墨问 Release。");
+export function parseQingzhouRelease(raw: unknown): QingzhouRelease {
+  if (!raw || typeof raw !== "object") throw new Error("无法解析轻舟 Release。");
   const item = raw as Record<string, unknown>;
   const tagName = typeof item.tag_name === "string" ? item.tag_name.trim() : "";
   const version = normalizeVersion(tagName);
-  if (!tagName || !version) throw new Error("墨问 Release 没有有效版本号。");
+  if (!tagName || !version) throw new Error("轻舟 Release 没有有效版本号。");
   const assets = Array.isArray(item.assets)
     ? item.assets.flatMap((asset) => {
         if (!asset || typeof asset !== "object") return [];
@@ -45,7 +45,7 @@ export function parseMowenRelease(raw: unknown): MowenRelease {
     tagName,
     version,
     name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : tagName,
-    url: typeof item.html_url === "string" ? item.html_url : `https://github.com/${mowenRepo()}/releases/tag/${tagName}`,
+    url: typeof item.html_url === "string" ? item.html_url : `https://github.com/${qingzhouRepo()}/releases/tag/${tagName}`,
     body: typeof item.body === "string" ? item.body : "",
     publishedAt: typeof item.published_at === "string" ? item.published_at : null,
     prerelease: item.prerelease === true,
@@ -58,8 +58,8 @@ export function normalizeVersion(value: string | null | undefined): string | nul
   return match ? `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}` : null;
 }
 
-export function currentMowenVersion(env: NodeJS.ProcessEnv = process.env): string {
-  const fromEnv = env.MOWEN_VERSION?.trim() || env.OHMYPI_VERSION?.trim();
+export function currentQingzhouVersion(env: NodeJS.ProcessEnv = process.env): string {
+  const fromEnv = env.QINGZHOU_VERSION?.trim() || env.MOWEN_VERSION?.trim() || env.OHMYPI_VERSION?.trim();
   if (fromEnv) return fromEnv.replace(/^v/i, "");
   try {
     const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as {
@@ -91,7 +91,7 @@ export function assertChecksum(name: string, content: string | Buffer, sums: Map
   if (sha256Hex(content) !== expected) throw new Error(`${name} 校验和不匹配，已中止更新。`);
 }
 
-export function isMowenUpdateAvailable(latest: string | null | undefined, current: string | null | undefined): boolean {
+export function isQingzhouUpdateAvailable(latest: string | null | undefined, current: string | null | undefined): boolean {
   const next = normalizeVersion(latest);
   const have = normalizeVersion(current);
   if (!next) return false;
@@ -105,21 +105,21 @@ export function isMowenUpdateAvailable(latest: string | null | undefined, curren
   return false;
 }
 
-export async function fetchLatestMowenRelease(options: {
+export async function fetchLatestQingzhouRelease(options: {
   env?: NodeJS.ProcessEnv;
   fetchJson?: (url: string) => Promise<unknown>;
-} = {}): Promise<{ release: MowenRelease | null; error: string | null }> {
+} = {}): Promise<{ release: QingzhouRelease | null; error: string | null }> {
   try {
-    const repo = mowenRepo(options.env);
+    const repo = qingzhouRepo(options.env);
     const fetchJson = options.fetchJson ?? fetchGithubJson;
     const raw = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
-    return { release: parseMowenRelease(raw), error: null };
+    return { release: parseQingzhouRelease(raw), error: null };
   } catch (error) {
-    return { release: null, error: error instanceof Error ? error.message : "无法检查墨问更新。" };
+    return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
   }
 }
 
-export async function startMowenUpdate(options: {
+export async function startQingzhouUpdate(options: {
   version: string;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
@@ -130,7 +130,7 @@ export async function startMowenUpdate(options: {
   if (!version) throw new Error("更新版本号无效。");
   const platform = options.platform ?? process.platform;
   if (platform !== "darwin" && platform !== "win32") throw new Error("当前平台暂不支持应用内更新。");
-  const repo = mowenRepo(env);
+  const repo = qingzhouRepo(env);
   const tag = `v${version}`;
   const extension = platform === "darwin" ? "install-macos.sh" : "install-windows.ps1";
   const scriptUrl = `https://github.com/${repo}/releases/download/${tag}/${extension}`;
@@ -138,7 +138,7 @@ export async function startMowenUpdate(options: {
   const fetchText = options.fetchText ?? fetchTextDocument;
   const [script, sumsText] = await Promise.all([fetchText(scriptUrl), fetchText(sumsUrl)]);
   assertChecksum(extension, script, parseSha256Sums(sumsText));
-  const dir = await mkdtemp(path.join(tmpdir(), "mowen-update-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "qingzhou-update-"));
   const scriptPath = path.join(dir, extension);
   await writeFile(scriptPath, script, "utf8");
   if (platform === "darwin") await chmod(scriptPath, 0o700);
@@ -149,7 +149,15 @@ export async function startMowenUpdate(options: {
   const child = spawn(command, args, {
     detached: true,
     stdio: "ignore",
-    env: { ...env, MOWEN_REPO: repo, MOWEN_VERSION: tag, MOWEN_UPDATE_PARENT_PID: String(process.pid) },
+    env: {
+      ...env,
+      QINGZHOU_REPO: repo,
+      QINGZHOU_VERSION: tag,
+      QINGZHOU_UPDATE_PARENT_PID: String(process.pid),
+      MOWEN_REPO: repo,
+      MOWEN_VERSION: tag,
+      MOWEN_UPDATE_PARENT_PID: String(process.pid),
+    },
   });
   child.unref();
   return { ok: true, version: tag, platform };
@@ -158,14 +166,14 @@ export async function startMowenUpdate(options: {
 async function fetchGithubJson(url: string): Promise<unknown> {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
-    headers: { "user-agent": "mowen-update-check", accept: "application/vnd.github+json" },
+    headers: { "user-agent": "qingzhou-update-check", accept: "application/vnd.github+json" },
   });
   if (!response.ok) throw new Error(`GitHub 返回 HTTP ${response.status}`);
   return response.json();
 }
 
 async function fetchTextDocument(url: string): Promise<string> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), headers: { "user-agent": "mowen-updater" } });
+  const response = await fetch(url, { signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), headers: { "user-agent": "qingzhou-updater" } });
   if (!response.ok) throw new Error(`无法下载更新脚本（HTTP ${response.status}）。`);
   return response.text();
 }

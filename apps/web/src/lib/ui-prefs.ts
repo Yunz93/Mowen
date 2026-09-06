@@ -1,15 +1,20 @@
-export const LEFT_PINNED_KEY = "mowen.ui.leftPinned";
-export const RIGHT_PINNED_KEY = "mowen.ui.rightPinned";
-export const INSPECTOR_OPEN_KEY = "mowen.ui.inspectorOpen";
-export const INSPECTOR_WIDTH_KEY = "mowen.ui.inspectorWidth";
-export const BOARD_SHOW_ARCHIVED_KEY = "mowen.ui.boardShowArchived";
+export const LEFT_PINNED_KEY = "qingzhou.ui.leftPinned";
+export const RIGHT_PINNED_KEY = "qingzhou.ui.rightPinned";
+export const INSPECTOR_OPEN_KEY = "qingzhou.ui.inspectorOpen";
+export const INSPECTOR_WIDTH_KEY = "qingzhou.ui.inspectorWidth";
+export const BOARD_SHOW_ARCHIVED_KEY = "qingzhou.ui.boardShowArchived";
 
 export const INSPECTOR_WIDTH_MIN = 320;
 export const INSPECTOR_WIDTH_DEFAULT = 360;
 
+function legacyUiKey(key: string): string | null {
+  if (key.startsWith("qingzhou.")) return `mowen.${key.slice("qingzhou.".length)}`;
+  return null;
+}
+
 export function readUiFlag(key: string, fallback: boolean): boolean {
   try {
-    const stored = localStorage.getItem(key);
+    const stored = localStorage.getItem(key) ?? (legacyUiKey(key) ? localStorage.getItem(legacyUiKey(key)!) : null);
     if (stored === "1") return true;
     if (stored === "0") return false;
   } catch {

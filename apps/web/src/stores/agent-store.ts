@@ -18,8 +18,8 @@ import type {
   ToolExecution,
   WorkItemSummary,
   WorkProject,
-} from "@mowen/protocol";
-import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
+} from "@qingzhou/protocol";
+import { emptyRuntime, mergeCompletedTimelineMessage } from "@qingzhou/protocol";
 
 export type AgentCommand = { name: string; description?: string; source?: string };
 export type GitSnapshot = {
@@ -63,7 +63,7 @@ function patchTerm(
   };
 }
 
-const WORKBENCH_CACHE_KEY = "mowen.workbench";
+const WORKBENCH_CACHE_KEY = "qingzhou.workbench";
 
 type WorkbenchCache = {
   tasks: TaskRecord[];

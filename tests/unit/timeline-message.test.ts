@@ -3,7 +3,7 @@ import {
   mergeCompletedTimelineMessage,
   preferAccumulatedThinking,
   type TimelineMessage,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";
 
 const base = (overrides: Partial<TimelineMessage> = {}): TimelineMessage => ({
   id: "asst-1",

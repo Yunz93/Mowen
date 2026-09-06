@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ApprovalRequest } from "@mowen/protocol";
+import type { ApprovalRequest } from "@qingzhou/protocol";
 import {
   applyModePrefix,
   approvalDecision,

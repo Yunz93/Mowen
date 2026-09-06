@@ -21,9 +21,11 @@ apps/desktop/vendor/
 !.env.example
 
 # Runtime data created by local development or tests
+/.qingzhou/
 /.mowen/
 /.ohmypi/
 /.mypi-web/
+.qingzhou-test/
 .mowen-test/
 .ohmypi-test/
 .mypi-test/

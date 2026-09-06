@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo, type ReactNode } from "react";
-import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
+import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@qingzhou/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 import { ToolGroupRow } from "./ToolGroupRow";
 import { AssistantMarkdown } from "./AssistantMarkdown";

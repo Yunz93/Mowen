@@ -1,4 +1,4 @@
-import type { RuntimeState, TaskStatus, ToolExecution } from "@mowen/protocol";
+import type { RuntimeState, TaskStatus, ToolExecution } from "@qingzhou/protocol";
 
 export type RunStatusKind = "spin" | "wait" | "queue" | "error" | "done";
 

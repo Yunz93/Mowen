@@ -7,13 +7,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@mowen/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
+      "@qingzhou/protocol": path.resolve(__dirname, "../../packages/protocol/src/index.ts"),
     },
   },
   server: {
     host: "127.0.0.1",
     port: 5173,
-    watch: process.env.MOWEN_STABLE === "1" ? null : undefined,
+    watch: process.env.QINGZHOU_STABLE === "1" ? null : undefined,
     proxy: {
       "/ws": { target: "ws://127.0.0.1:4310", ws: true },
       "/api": { target: "http://127.0.0.1:4310" },
