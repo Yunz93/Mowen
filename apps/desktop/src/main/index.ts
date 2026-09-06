@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, Notification, dialog, ipcMain, shell } from "electron";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "@qingzhou/server";
@@ -6,6 +7,7 @@ import { applyDesktopEnv, preloadPath, resolvePiEntry } from "./paths.js";
 import { adoptSystemProxy } from "./system-proxy.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const unpackagedIcon = path.resolve(here, "../../build/icon.png");
 
 let mainWindow: BrowserWindow | null = null;
 let stopServer: (() => Promise<void>) | null = null;
@@ -116,6 +118,7 @@ async function createMainWindow(port: number): Promise<void> {
     title: "轻舟",
     backgroundColor: "#f5f5f7",
     show: false,
+    ...(!app.isPackaged && existsSync(unpackagedIcon) ? { icon: unpackagedIcon } : {}),
     autoHideMenuBar: process.platform === "win32",
     ...(process.platform === "darwin"
       ? {
@@ -255,6 +258,9 @@ app.on("activate", () => {
 });
 
 app.whenReady().then(() => {
+  if (!app.isPackaged && process.platform === "darwin" && existsSync(unpackagedIcon)) {
+    app.dock?.setIcon(unpackagedIcon);
+  }
   void boot().catch((error) => {
     dialog.showErrorBox("轻舟启动失败", error instanceof Error ? error.message : String(error));
     app.quit();
