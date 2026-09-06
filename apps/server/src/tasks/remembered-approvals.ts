@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { rememberKey, type ApprovalRequest } from "@mowen/protocol";
+import { rememberKey, type ApprovalRequest } from "@qingzhou/protocol";
 
 export type RememberedGrant = {
   cwd: string;

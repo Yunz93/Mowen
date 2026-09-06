@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 
 describe("git helpers", () => {
   it("reads status/diff and commits in a temp repo", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-git-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-git-"));
     await execFileAsync("git", ["init"], { cwd: root });
     await execFileAsync("git", ["-c", "user.name=T", "-c", "user.email=t@t", "commit", "--allow-empty", "-m", "init"], {
       cwd: root,
@@ -30,7 +30,7 @@ describe("git helpers", () => {
   });
 
   it("initializes a non-repo folder and reports remote when configured", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-git-init-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-git-init-"));
     const before = await readGitStatus(root);
     expect(before.isRepo).toBe(false);
 
@@ -44,7 +44,7 @@ describe("git helpers", () => {
   });
 
   it("push without a remote fails clearly", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-git-push-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-git-push-"));
     await execFileAsync("git", ["init"], { cwd: root });
     await execFileAsync("git", ["-c", "user.name=T", "-c", "user.email=t@t", "commit", "--allow-empty", "-m", "init"], {
       cwd: root,

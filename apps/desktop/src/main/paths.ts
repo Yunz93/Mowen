@@ -3,30 +3,30 @@ import fs from "node:fs";
 import path from "node:path";
 
 export function applyDesktopEnv(): void {
-  process.env.MOWEN_DESKTOP = "1";
+  process.env.QINGZHOU_DESKTOP = "1";
   process.env.HOST = process.env.HOST ?? "127.0.0.1";
   process.env.PORT = process.env.PORT ?? "4310";
-  process.env.MOWEN_VERSION = process.env.MOWEN_VERSION ?? app.getVersion();
+  process.env.QINGZHOU_VERSION = process.env.QINGZHOU_VERSION ?? app.getVersion();
   if (app.isPackaged) {
     process.env.NODE_ENV = "production";
   } else if (!process.env.NODE_ENV) {
     process.env.NODE_ENV = "development";
   }
 
-  process.env.MOWEN_WEB_DIST = webDistDir();
-  process.env.MOWEN_APPROVAL_EXTENSION = approvalExtensionPath();
+  process.env.QINGZHOU_WEB_DIST = webDistDir();
+  process.env.QINGZHOU_APPROVAL_EXTENSION = approvalExtensionPath();
 
   const piEntry = resolvePiEntry();
   if (piEntry) {
-    process.env.MOWEN_PI_ENTRY = piEntry;
+    process.env.QINGZHOU_PI_ENTRY = piEntry;
     // Electron binary used as Node. Children must set ELECTRON_RUN_AS_NODE=1
     // or macOS shows a second Dock icon (often the default Electron atom).
-    process.env.MOWEN_NODE_BIN = process.execPath;
-    process.env.MOWEN_PI_BUNDLED = "1";
+    process.env.QINGZHOU_NODE_BIN = process.execPath;
+    process.env.QINGZHOU_PI_BUNDLED = "1";
   }
   const toolsDir = resolvePiToolsDir();
   if (toolsDir) {
-    process.env.MOWEN_PI_TOOLS = toolsDir;
+    process.env.QINGZHOU_PI_TOOLS = toolsDir;
   }
 }
 

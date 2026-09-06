@@ -13,8 +13,8 @@ import type {
   ThinkingLevel,
   TimelineMessage,
   ToolExecution,
-} from "@mowen/protocol";
-import { emptyRuntime, mergeCompletedTimelineMessage } from "@mowen/protocol";
+} from "@qingzhou/protocol";
+import { emptyRuntime, mergeCompletedTimelineMessage } from "@qingzhou/protocol";
 import type { AppConfig } from "../config.js";
 import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
@@ -68,7 +68,7 @@ function parseApprovalMessage(
   message: string | undefined,
   timeoutMs: number,
 ): ApprovalRequest | null {
-  if (!message || (!message.includes("MOWEN_APPROVAL_V1") && !message.includes("OHMYPI_APPROVAL_V1"))) {
+  if (!message || (!message.includes("QINGZHOU_APPROVAL_V1") && !message.includes("MOWEN_APPROVAL_V1") && !message.includes("OHMYPI_APPROVAL_V1"))) {
     if (title?.startsWith("Allow ")) {
       return {
         requestId,
@@ -86,7 +86,7 @@ function parseApprovalMessage(
   const jsonLine = message
     .split("\n")
     .map((line) => line.trim())
-    .find((line, index, lines) => lines[index - 1] === "MOWEN_APPROVAL_V1" || lines[index - 1] === "OHMYPI_APPROVAL_V1");
+    .find((line, index, lines) => lines[index - 1] === "QINGZHOU_APPROVAL_V1" || lines[index - 1] === "MOWEN_APPROVAL_V1" || lines[index - 1] === "OHMYPI_APPROVAL_V1");
   if (!jsonLine) return null;
   try {
     const parsed = JSON.parse(jsonLine) as {
@@ -265,6 +265,9 @@ export class ProcessSupervisor {
       args,
       cwd: task.cwd,
       env: {
+        QINGZHOU_MUTATIONS: this.config.mutations,
+        QINGZHOU_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
+        QINGZHOU_TASK_ID: task.id,
         MOWEN_MUTATIONS: this.config.mutations,
         MOWEN_ALLOWED_ROOTS: this.config.allowedRoots.join(","),
         MOWEN_TASK_ID: task.id,

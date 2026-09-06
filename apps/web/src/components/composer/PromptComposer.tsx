@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@mowen/protocol";
-import { extractAtMentions } from "@mowen/protocol";
+import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@qingzhou/protocol";
+import { extractAtMentions } from "@qingzhou/protocol";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";

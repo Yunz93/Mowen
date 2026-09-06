@@ -1,5 +1,5 @@
 import { session } from "electron";
-import { normalizeProxyEnv, parsePacProxyResult, readProxyUrl } from "@mowen/server";
+import { normalizeProxyEnv, parsePacProxyResult, readProxyUrl } from "@qingzhou/server";
 
 /** If the user did not set HTTP(S)_PROXY, copy the OS/Clash system proxy into env. */
 export async function adoptSystemProxy(env: NodeJS.ProcessEnv = process.env): Promise<string | null> {

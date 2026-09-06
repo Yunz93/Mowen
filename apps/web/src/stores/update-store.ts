@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { getDesktop } from "../desktop-bridge";
 
-export type MowenUpdateSnapshot = {
+export type QingzhouUpdateSnapshot = {
   current: string | null;
   latest: string | null;
   tagName: string | null;
@@ -14,7 +14,7 @@ export type MowenUpdateSnapshot = {
   error: string | null;
 };
 
-type UpdateState = MowenUpdateSnapshot & {
+type UpdateState = QingzhouUpdateSnapshot & {
   busy: boolean;
   installing: boolean;
   notice: string;
@@ -24,7 +24,7 @@ type UpdateState = MowenUpdateSnapshot & {
   dismiss: () => void;
 };
 
-const empty: MowenUpdateSnapshot = {
+const empty: QingzhouUpdateSnapshot = {
   current: null,
   latest: null,
   tagName: null,
@@ -51,7 +51,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     set({ busy: true, error: null, notice: "" });
     try {
       const response = await fetch("/api/update/latest", { credentials: "same-origin" });
-      const json = (await response.json()) as MowenUpdateSnapshot;
+      const json = (await response.json()) as QingzhouUpdateSnapshot;
       set({
         ...(response.ok ? json : { ...empty, ...json, error: json.error ?? "检查更新失败。" }),
         busy: false,
@@ -87,7 +87,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         set({ notice: "即将重启…" });
         window.setTimeout(() => void desktop.restart?.(), 400);
       } else {
-        set({ installing: false, notice: "请重新打开墨问。" });
+        set({ installing: false, notice: "请重新打开轻舟。" });
       }
     } catch {
       set({ installing: false, error: "更新失败。" });

@@ -14,7 +14,7 @@ describe("html export route", () => {
   let dataDir = "";
 
   beforeAll(async () => {
-    root.current = await mkdtemp(path.join(os.tmpdir(), "mowen-export-"));
+    root.current = await mkdtemp(path.join(os.tmpdir(), "qingzhou-export-"));
     const project = path.join(root.current, "project");
     await mkdir(project);
     dataDir = path.join(root.current, "data");
@@ -23,11 +23,11 @@ describe("html export route", () => {
       PORT: "0",
       NODE_ENV: "test",
       PI_BIN: fakePi,
-      MOWEN_DATA_DIR: dataDir,
-      MOWEN_ALLOWED_ROOTS: root.current,
-      MOWEN_MAX_PROCESSES: "1",
-      MOWEN_MUTATIONS: "approval",
-      MOWEN_HOME_DIR: root.current,
+      QINGZHOU_DATA_DIR: dataDir,
+      QINGZHOU_ALLOWED_ROOTS: root.current,
+      QINGZHOU_MAX_PROCESSES: "1",
+      QINGZHOU_MUTATIONS: "approval",
+      QINGZHOU_HOME_DIR: root.current,
     });
     app = created.app;
     await app.listen({ host: created.config.host, port: 0 });

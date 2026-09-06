@@ -6,7 +6,7 @@ import { TaskShells } from "../../apps/server/src/tasks/task-shell.ts";
 
 describe("TaskShells", () => {
   it("runs a command in the given cwd and streams output", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-term-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-term-"));
     const shells = new TaskShells();
     const chunks: string[] = [];
     const done = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
@@ -23,7 +23,7 @@ describe("TaskShells", () => {
   });
 
   it("rejects a second command while one is running", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-term-busy-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-term-busy-"));
     const shells = new TaskShells();
     const done = new Promise<void>((resolve) => {
       shells.run("task-1", {

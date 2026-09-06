@@ -13,7 +13,7 @@ import {
 
 describe("path policy", () => {
   it("rejects cwd outside allowed roots", async () => {
-    const allowed = await mkdtemp(path.join(os.tmpdir(), "mowen-allowed-"));
+    const allowed = await mkdtemp(path.join(os.tmpdir(), "qingzhou-allowed-"));
     await expect(assertAllowedCwd("/tmp", [allowed])).rejects.toBeInstanceOf(PathPolicyError);
   });
 
@@ -22,8 +22,8 @@ describe("path policy", () => {
   });
 
   it("blocks symlink escape", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-root-"));
-    const outside = await mkdtemp(path.join(os.tmpdir(), "mowen-out-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-root-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "qingzhou-out-"));
     const secret = path.join(outside, "secret.txt");
     await writeFile(secret, "nope");
     const link = path.join(root, "escape");
@@ -32,14 +32,14 @@ describe("path policy", () => {
   });
 
   it("allows writes inside cwd", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-ok-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-ok-"));
     await mkdir(path.join(root, "src"));
     const resolved = await resolveAllowedPath("src/app.ts", root, [root]);
     expect(resolved.endsWith(`${path.sep}src${path.sep}app.ts`)).toBe(true);
   });
 
   it("serves html exports only from allowed roots", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-home-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-home-"));
     const data = path.join(home, "data");
     await mkdir(data);
     const html = path.join(data, "chat.html");
@@ -59,7 +59,7 @@ describe("path policy", () => {
     const missing = path.join(data, "gone.html");
     await expect(resolveReadableExportPath(missing, roots)).rejects.toMatchObject({ status: 404 });
 
-    const outsideDir = await mkdtemp(path.join(os.tmpdir(), "mowen-export-deny-"));
+    const outsideDir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-export-deny-"));
     const outside = path.join(outsideDir, "secret.html");
     await writeFile(outside, "<html>no</html>");
     await expect(resolveReadableExportPath(outside, roots)).rejects.toMatchObject({ status: 403 });

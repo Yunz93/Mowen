@@ -17,8 +17,8 @@ import { ModeSwitcher } from "../components/app/ModeSwitcher";
 import { UpdateBanner } from "../components/app/UpdateBanner";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
-import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
-import { stripModePrefix } from "@mowen/protocol";
+import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@qingzhou/protocol";
+import { stripModePrefix } from "@qingzhou/protocol";
 import { headerSubtitle, STARTER_PROMPTS } from "../copy";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
@@ -159,7 +159,7 @@ export function WorkbenchLayout() {
 
   useEffect(() => {
     if (!toast?.message) return;
-    void showOsNotification("墨问", toast.message, toast.notifyType);
+    void showOsNotification("轻舟", toast.message, toast.notifyType);
     const timer = window.setTimeout(() => {
       if (useAgentStore.getState().toast === toast) {
         useAgentStore.setState({ toast: null });
@@ -192,7 +192,7 @@ export function WorkbenchLayout() {
 
   useEffect(() => {
     if (!approval) return;
-    void showOsNotification("墨问需要确认", approval.rawCommand ?? approval.target ?? "等待批准", "warning");
+    void showOsNotification("轻舟需要确认", approval.rawCommand ?? approval.target ?? "等待批准", "warning");
     // Notify once per request; the full approval object is read from the latest render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- requestId is the identity
   }, [approval?.requestId]);
@@ -711,7 +711,7 @@ export function WorkbenchLayout() {
         ) : null}
         {devSelfWorkspace ? (
           <div className="banner-note text-mute">
-            当前工作区是墨问源码目录，热重载会中断正在跑的任务。请换文件夹，或用{" "}
+            当前工作区是轻舟源码目录，热重载会中断正在跑的任务。请换文件夹，或用{" "}
             <code className="text-ink">pnpm dev:stable</code>。
           </div>
         ) : null}
@@ -786,7 +786,7 @@ export function WorkbenchLayout() {
             />
           ) : (
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
-              <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是墨问</p>
+              <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是轻舟</p>
               <div className="mt-7 flex items-center gap-2">
                 <button
                   type="button"

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Settings } from "lucide-react";
-import type { WorkItemDetails, WorkItemSummary } from "@mowen/protocol";
+import type { WorkItemDetails, WorkItemSummary } from "@qingzhou/protocol";
 import { WorkDashboard, type WorkFilter } from "../components/board/WorkDashboard";
 import { WorkObjectivePanel } from "../components/board/WorkObjectivePanel";
 import { WorkConversationDrawer } from "../components/board/WorkConversationDrawer";

@@ -1,4 +1,4 @@
-export type MowenDesktopApi = {
+export type QingzhouDesktopApi = {
   isDesktop: true;
   platform: "darwin" | "win32" | "linux" | string;
   pickFolder: (defaultPath?: string) => Promise<string | null>;
@@ -11,12 +11,12 @@ export type MowenDesktopApi = {
 
 declare global {
   interface Window {
-    mowen?: MowenDesktopApi;
+    qingzhou?: QingzhouDesktopApi;
   }
 }
 
-export function getDesktop(): MowenDesktopApi | null {
-  return typeof window !== "undefined" && window.mowen?.isDesktop ? window.mowen : null;
+export function getDesktop(): QingzhouDesktopApi | null {
+  return typeof window !== "undefined" && window.qingzhou?.isDesktop ? window.qingzhou : null;
 }
 
 export function isDesktopApp(): boolean {

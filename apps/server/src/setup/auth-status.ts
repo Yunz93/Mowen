@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AuthEntry } from "@mowen/protocol";
+import type { AuthEntry } from "@qingzhou/protocol";
 import {
   defaultPiAgentDir,
   humanizeUserFacingError,

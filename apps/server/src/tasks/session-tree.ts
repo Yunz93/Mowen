@@ -1,4 +1,4 @@
-import type { SessionTreeNode } from "@mowen/protocol";
+import type { SessionTreeNode } from "@qingzhou/protocol";
 
 function textFromContent(content: unknown): string {
   if (typeof content === "string") return content;

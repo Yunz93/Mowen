@@ -1,7 +1,7 @@
-appId: com.mowen.desktop
-productName: Mowen
-copyright: Copyright © 2026 墨问 / Mowen
-artifactName: Mowen-${os}-${arch}.${ext}
+appId: com.qingzhou.desktop
+productName: Qingzhou
+copyright: Copyright © 2026 轻舟 / Qingzhou
+artifactName: Qingzhou-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   - out/main/pty-runtime/**
@@ -23,27 +23,27 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.png
   identity: null
-  artifactName: Mowen-${os}-${arch}.${ext}
+  artifactName: Qingzhou-${os}-${arch}.${ext}
   target:
     - dmg
     - zip
   hardenedRuntime: false
   gatekeeperAssess: false
 dmg:
-  title: Mowen
+  title: Qingzhou
 win:
   icon: build/icon.png
-  artifactName: Mowen-${os}-${arch}.${ext}
+  artifactName: Qingzhou-${os}-${arch}.${ext}
   target:
     - nsis
     - portable
 nsis:
   oneClick: true
   perMachine: false
-  shortcutName: Mowen
-  artifactName: Mowen-${os}-${arch}-setup.${ext}
+  shortcutName: Qingzhou
+  artifactName: Qingzhou-${os}-${arch}-setup.${ext}
 portable:
-  artifactName: Mowen-${os}-${arch}-portable.${ext}
+  artifactName: Qingzhou-${os}-${arch}-portable.${ext}
 linux:
   icon: build/icon.png
   target:

@@ -14,7 +14,7 @@ await esbuild.build({
   external: ["electron", "node-pty"],
   sourcemap: true,
   banner: {
-    js: "import { createRequire as __mowenCreateRequire } from 'node:module'; const require = __mowenCreateRequire(import.meta.url);",
+    js: "import { createRequire as __qingzhouCreateRequire } from 'node:module'; const require = __qingzhouCreateRequire(import.meta.url);",
   },
 });
 

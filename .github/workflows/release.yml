@@ -37,10 +37,6 @@ jobs:
             label: macOS arm64
             pack: desktop:pack:mac
             artifact: mac-arm64
-          - runner: macos-13
-            label: macOS x64
-            pack: desktop:pack:mac
-            artifact: mac-x64
           - runner: windows-latest
             label: Windows x64
             pack: desktop:pack:win
@@ -69,7 +65,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: mowen-${{ matrix.artifact }}
+          name: qingzhou-${{ matrix.artifact }}
           if-no-files-found: error
           path: |
             apps/desktop/release/*.dmg

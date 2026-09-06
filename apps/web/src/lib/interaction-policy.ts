@@ -5,4 +5,4 @@ export {
   interactionModes,
   type ApprovalPolicy,
   type InteractionMode,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";

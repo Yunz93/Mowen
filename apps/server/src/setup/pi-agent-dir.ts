@@ -33,7 +33,7 @@ export function humanizeAuthAccessError(error: unknown): string | null {
     "多半是这个目录属于管理员或别人（例如以前用 sudo 装过 Pi）。",
     "在终端运行：",
     '  sudo chown -R "$(whoami)" ~/.pi',
-    "然后重新打开墨问。",
+    "然后重新打开轻舟。",
   ].join("\n");
 }
 
@@ -189,7 +189,7 @@ export async function agentDirIsUsable(
 }
 
 async function canCreateFile(dir: string): Promise<boolean> {
-  const probe = path.join(dir, `.mowen-write-${process.pid}`);
+  const probe = path.join(dir, `.qingzhou-write-${process.pid}`);
   try {
     await writeFile(probe, "", { flag: "wx", mode: 0o600 });
     await unlink(probe);

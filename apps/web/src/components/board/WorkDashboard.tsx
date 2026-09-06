@@ -19,7 +19,7 @@ import {
   type TaskRecord,
   type WorkItemSummary,
   type WorkItemViewState,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";
 
 type Props = {
   items: WorkItemSummary[];

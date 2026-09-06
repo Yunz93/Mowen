@@ -9,7 +9,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@mowen/protocol": ["../../packages/protocol/src/index.ts"]
+      "@qingzhou/protocol": ["../../packages/protocol/src/index.ts"]
     }
   },
   "include": ["src"]

@@ -1,6 +1,6 @@
-import { stripModePrefix, type TimelineMessage } from "@mowen/protocol";
+import { stripModePrefix, type TimelineMessage } from "@qingzhou/protocol";
 
-export const OPEN_CONVERSATION_SEARCH_EVENT = "mowen:open-conversation-search";
+export const OPEN_CONVERSATION_SEARCH_EVENT = "qingzhou:open-conversation-search";
 
 export function conversationMessageDomId(messageId: string): string {
   return `conversation-msg-${messageId}`;

@@ -1,4 +1,4 @@
-import type { ToolExecution } from "@mowen/protocol";
+import type { ToolExecution } from "@qingzhou/protocol";
 
 const READ_ONLY_TOOLS = new Set(["read", "grep", "glob", "ls", "find"]);
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { ToolExecution } from "@mowen/protocol";
+import type { ToolExecution } from "@qingzhou/protocol";
 import { toolGroupLabel } from "../../lib/tool-groups";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 

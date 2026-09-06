@@ -6,7 +6,7 @@ import { CheckpointStore } from "../../apps/server/src/tasks/checkpoints.ts";
 
 describe("checkpoints", () => {
   it("saves a file and restores it", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-check-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-check-"));
     const project = path.join(root, "project");
     const data = path.join(root, "data");
     await mkdir(project, { recursive: true });
@@ -21,7 +21,7 @@ describe("checkpoints", () => {
   });
 
   it("restores the latest checkpoint for a path", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-check-path-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-check-path-"));
     const project = path.join(root, "project");
     const data = path.join(root, "data");
     await mkdir(project, { recursive: true });

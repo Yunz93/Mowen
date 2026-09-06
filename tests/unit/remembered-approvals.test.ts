@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { RememberedApprovals } from "../../apps/server/src/tasks/remembered-approvals.ts";
-import type { ApprovalRequest } from "@mowen/protocol";
+import type { ApprovalRequest } from "@qingzhou/protocol";
 
 function approval(target: string): ApprovalRequest {
   return {
@@ -20,7 +20,7 @@ function approval(target: string): ApprovalRequest {
 
 describe("remembered approvals", () => {
   it("matches a previously allowed target", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "mowen-remember-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-remember-"));
     const store = new RememberedApprovals(dir);
     await store.load();
     const first = approval("src/app.ts");

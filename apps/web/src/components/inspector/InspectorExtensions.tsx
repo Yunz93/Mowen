@@ -1,4 +1,4 @@
-import type { PiResources } from "@mowen/protocol";
+import type { PiResources } from "@qingzhou/protocol";
 
 type Extension = PiResources["extensions"][number];
 type Package = PiResources["packages"][number];

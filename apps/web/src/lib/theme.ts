@@ -1,15 +1,19 @@
 export type Theme = "light" | "dark";
 
-export const THEME_STORAGE_KEY = "mowen.theme";
-export const LEGACY_THEME_STORAGE_KEY = "ohmypi.theme";
-export const THEME_EVENT = "mowen-theme";
+export const THEME_STORAGE_KEY = "qingzhou.theme";
+export const LEGACY_THEME_STORAGE_KEY = "mowen.theme";
+export const LEGACY_OHMYPI_THEME_STORAGE_KEY = "ohmypi.theme";
+export const THEME_EVENT = "qingzhou-theme";
 
 const DARK_THEME_COLOR = "#1c1c1e";
 const LIGHT_THEME_COLOR = "#f5f5f7";
 
 export function readTheme(): Theme {
   try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY) ?? localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+    const stored =
+      localStorage.getItem(THEME_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_OHMYPI_THEME_STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
     // localStorage can throw in private mode

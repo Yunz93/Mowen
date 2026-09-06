@@ -36,14 +36,14 @@ describe("Pi search tools (fd / ripgrep)", () => {
 
   it("does not fetch during tests or e2e", () => {
     expect(shouldFetchPinnedSearchTools({ VITEST: "true" })).toBe(false);
-    expect(shouldFetchPinnedSearchTools({ MOWEN_E2E: "1" })).toBe(false);
-    expect(shouldFetchPinnedSearchTools({ MOWEN_SKIP_PI_TOOLS_FETCH: "1" })).toBe(false);
+    expect(shouldFetchPinnedSearchTools({ QINGZHOU_E2E: "1" })).toBe(false);
+    expect(shouldFetchPinnedSearchTools({ QINGZHOU_SKIP_PI_TOOLS_FETCH: "1" })).toBe(false);
     expect(shouldFetchPinnedSearchTools({ NODE_ENV: "production" })).toBe(true);
   });
 
   it("copies bundled fd/rg into Pi's agent bin so Pi skips GitHub", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-tools-home-"));
-    const bundled = await mkdtemp(path.join(os.tmpdir(), "mowen-tools-bundle-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-tools-home-"));
+    const bundled = await mkdtemp(path.join(os.tmpdir(), "qingzhou-tools-bundle-"));
     dirs.push(home, bundled);
     const agentDir = path.join(home, ".pi", "agent");
     await writeFile(path.join(bundled, "fd"), "#!/bin/sh\necho fd\n", { mode: 0o755 });
@@ -52,7 +52,7 @@ describe("Pi search tools (fd / ripgrep)", () => {
     let fetched = 0;
     const installed = await ensurePiSearchTools({
       agentDir,
-      env: { PATH: "/usr/bin", MOWEN_PI_TOOLS: bundled },
+      env: { PATH: "/usr/bin", QINGZHOU_PI_TOOLS: bundled },
       homeDir: home,
       bundledDir: bundled,
       fetchMissing: true,
@@ -70,8 +70,8 @@ describe("Pi search tools (fd / ripgrep)", () => {
   });
 
   it("copies a PATH binary named fdfind as fd", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-tools-fdfind-"));
-    const pathDir = await mkdtemp(path.join(os.tmpdir(), "mowen-tools-path-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-tools-fdfind-"));
+    const pathDir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-tools-path-"));
     dirs.push(home, pathDir);
     await writeFile(path.join(pathDir, "fdfind"), "#!/bin/sh\necho fdfind\n", { mode: 0o755 });
     const agentDir = path.join(home, ".pi", "agent");

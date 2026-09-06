@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { InteractionRequest } from "@mowen/protocol";
+import type { InteractionRequest } from "@qingzhou/protocol";
 
 type Props = {
   interaction: InteractionRequest;

@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const project = path.join(process.cwd(), ".mowen-test", "e2e-project");
-const home = path.join(process.cwd(), ".mowen-test", "e2e-home");
+const project = path.join(process.cwd(), ".qingzhou-test", "e2e-project");
+const home = path.join(process.cwd(), ".qingzhou-test", "e2e-home");
 
 test.beforeAll(() => {
   mkdirSync(project, { recursive: true });

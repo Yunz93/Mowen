@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PiSessionRef } from "@mowen/protocol";
+import type { PiSessionRef } from "@qingzhou/protocol";
 import { X } from "lucide-react";
 import { FolderPicker } from "../setup/FolderPicker";
 import { isDesktopApp } from "../../desktop-bridge";

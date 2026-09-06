@@ -46,11 +46,11 @@ describe("official Pi installer helpers", () => {
       "--progress=false",
       PI_NPM_PACKAGE,
     ]);
-    expect(piInstallScriptUrl({ MOWEN_PI_INSTALL_SCRIPT_URL: "http://127.0.0.1:9/install.sh" })).toBe(
+    expect(piInstallScriptUrl({ QINGZHOU_PI_INSTALL_SCRIPT_URL: "http://127.0.0.1:9/install.sh" })).toBe(
       "http://127.0.0.1:9/install.sh",
     );
     expect(DEFAULT_PI_NPM_LATEST_URL).toContain(PI_NPM_PACKAGE);
-    expect(piNpmLatestUrl({ MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" })).toBe(
+    expect(piNpmLatestUrl({ QINGZHOU_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" })).toBe(
       "http://127.0.0.1:9/latest.json",
     );
   });
@@ -67,7 +67,7 @@ describe("official Pi installer helpers", () => {
 
   it("reads the latest Pi version from the npm registry payload", async () => {
     const result = await fetchLatestPiVersion({
-      env: { MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
+      env: { QINGZHOU_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
       fetchText: async (url) => {
         expect(url).toBe("http://127.0.0.1:9/latest.json");
         return JSON.stringify({ version: "0.40.1" });
@@ -75,7 +75,7 @@ describe("official Pi installer helpers", () => {
     });
     expect(result).toEqual({ version: "0.40.1", error: null });
     const bad = await fetchLatestPiVersion({
-      env: { MOWEN_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
+      env: { QINGZHOU_PI_NPM_LATEST_URL: "http://127.0.0.1:9/latest.json" },
       fetchText: async () => "not-json",
     });
     expect(bad.version).toBeNull();
@@ -90,10 +90,10 @@ describe("official Pi installer helpers", () => {
   });
 
   it("runs the installer without a TTY and with TERM=dumb", () => {
-    const env = unixInstallChildEnv({ PATH: "/usr/bin", HOME: "/tmp/old" }, "/tmp/mowen-home");
+    const env = unixInstallChildEnv({ PATH: "/usr/bin", HOME: "/tmp/old" }, "/tmp/qingzhou-home");
     expect(env.TERM).toBe("dumb");
     expect(env.CI).toBe("1");
-    expect(env.HOME).toBe("/tmp/mowen-home");
+    expect(env.HOME).toBe("/tmp/qingzhou-home");
   });
 
   it("discovers Pi under ~/.pi/agent/bin before the npm prefix", () => {
@@ -115,7 +115,7 @@ describe("official Pi installer helpers", () => {
   });
 
   it("finds a writable Pi binary from candidate paths", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-bin-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-bin-"));
     dirs.push(home);
     const bin = path.join(home, ".pi", "agent", "bin", "pi");
     expect(
@@ -133,13 +133,13 @@ describe("official Pi installer helpers", () => {
   });
 
   it("downloads the official script and runs it with sh on unix", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-run-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-run-"));
     dirs.push(home);
     const binDir = path.join(home, ".pi", "agent", "bin");
     const calls: Array<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> = [];
     const result = await runOfficialPiInstall({
       homeDir: home,
-      env: { PATH: process.env.PATH, MOWEN_PI_INSTALL_SCRIPT_URL: "https://pi.dev/install.sh" },
+      env: { PATH: process.env.PATH, QINGZHOU_PI_INSTALL_SCRIPT_URL: "https://pi.dev/install.sh" },
       platform: "linux",
       download: async (url) => {
         expect(url).toBe("https://pi.dev/install.sh");
@@ -163,7 +163,7 @@ describe("official Pi installer helpers", () => {
   });
 
   it("uses npm install -g on Windows", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-win-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-win-"));
     dirs.push(home);
     let command = "";
     let args: string[] = [];
@@ -185,7 +185,7 @@ describe("official Pi installer helpers", () => {
   });
 
   it("serializes concurrent install attempts", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-lock-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-lock-"));
     dirs.push(home);
     let started = 0;
     let release!: () => void;

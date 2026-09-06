@@ -5,7 +5,7 @@ import {
   parseGitPatch,
   patchLineCounts,
   type PiResources,
-} from "@mowen/protocol";
+} from "@qingzhou/protocol";
 import { ancestorDirs, buildFileTree, gitMarksByPath, type InspectorFileEntry } from "../../lib/inspector-files";
 import { FileTree } from "./FileTree";
 import { FilePreview } from "./FilePreview";

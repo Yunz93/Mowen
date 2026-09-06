@@ -49,7 +49,7 @@ export class TaskShells {
       cols: clampDimension(input.cols ?? 100),
       rows: clampDimension(input.rows ?? 30),
       cwd: input.cwd,
-      env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", TERM_PROGRAM: "Mowen" },
+      env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor", TERM_PROGRAM: "Qingzhou" },
     });
     this.terminals.set(taskId, terminal);
     terminal.onData(input.onChunk);

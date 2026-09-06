@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@mowen/protocol": path.resolve(__dirname, "packages/protocol/src/index.ts"),
+      "@qingzhou/protocol": path.resolve(__dirname, "packages/protocol/src/index.ts"),
     },
   },
   test: {

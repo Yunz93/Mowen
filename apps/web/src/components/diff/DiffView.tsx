@@ -1,4 +1,4 @@
-import { diffFromApproval, gitDiffBlocks, type DiffLine } from "@mowen/protocol";
+import { diffFromApproval, gitDiffBlocks, type DiffLine } from "@qingzhou/protocol";
 
 type Props = {
   oldText?: string;

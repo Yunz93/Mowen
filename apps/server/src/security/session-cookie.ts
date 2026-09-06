@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
-export const SESSION_COOKIE = "mowen_session";
+export const SESSION_COOKIE = "qingzhou_session";
 
 const sessions = new Set<string>();
 

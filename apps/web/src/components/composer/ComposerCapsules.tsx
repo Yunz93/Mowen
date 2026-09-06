@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@mowen/protocol";
-import { approvalPolicies, interactionModes } from "@mowen/protocol";
+import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@qingzhou/protocol";
+import { approvalPolicies, interactionModes } from "@qingzhou/protocol";
 
 const THINKING_LABEL: Record<ThinkingLevel, string> = {
   off: "关闭",
