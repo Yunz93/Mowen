@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { sanitizeToolResultText, type TimelineMessage, type ToolExecution } from "@mowen/protocol";
+import { extractErrorText } from "../setup/pi-agent-dir.js";
 import type { RpcEvent } from "./rpc-client.js";
 
 export type NormalizedPiEvent =
@@ -223,13 +224,17 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
       };
     }
     case "extension_error":
-      return { kind: "extension_error", error: String(event.error ?? "Extension error") };
+      return { kind: "extension_error", error: extractErrorText(event.error) || "Extension error" };
     case "error":
     case "agent_error":
     case "turn_error":
       return {
         kind: "agent_error",
-        error: String(event.error ?? event.message ?? event.errorMessage ?? "Pi error"),
+        error:
+          extractErrorText(event.error) ||
+          extractErrorText(event.message) ||
+          extractErrorText(event.errorMessage) ||
+          "Pi error",
       };
     case "compaction_start":
       return {
@@ -249,22 +254,23 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
         phase: "start",
         attempt: typeof event.attempt === "number" ? event.attempt : undefined,
         maxAttempts: typeof event.maxAttempts === "number" ? event.maxAttempts : undefined,
-        error: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
+        error:
+          extractErrorText(event.errorMessage) ||
+          extractErrorText(event.error) ||
+          extractErrorText(event.message) ||
+          undefined,
       };
     case "auto_retry_end": {
       const finalError =
-        typeof event.finalError === "string"
-          ? event.finalError
-          : typeof event.error === "string"
-            ? event.error
-            : typeof event.errorMessage === "string"
-              ? event.errorMessage
-              : undefined;
+        extractErrorText(event.finalError) ||
+        extractErrorText(event.error) ||
+        extractErrorText(event.errorMessage) ||
+        extractErrorText(event.message);
       return {
         kind: "runtime.retry",
         phase: "end",
         attempt: typeof event.attempt === "number" ? event.attempt : undefined,
-        error: finalError?.trim() ? finalError : undefined,
+        error: finalError || undefined,
       };
     }
     case "queue_update":

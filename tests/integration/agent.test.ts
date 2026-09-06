@@ -272,6 +272,39 @@ describe("integration fake-pi", () => {
     }
   }, 15_000);
 
+  it("surfaces provider API failures with the original reason", async () => {
+    const isolated = await listen({
+      HOST: "127.0.0.1",
+      PORT: "0",
+      NODE_ENV: "test",
+      PI_BIN: fakePi,
+      MOWEN_DATA_DIR: path.join(root.current, "data-429"),
+      MOWEN_ALLOWED_ROOTS: root.current,
+      MOWEN_MAX_PROCESSES: "1",
+      MOWEN_MUTATIONS: "approval",
+      MOWEN_HOME_DIR: root.current,
+    });
+    try {
+      const project = path.join(root.current, "project");
+      const sock = await openSocket(isolated.base);
+      await sock.waitFor("snapshot");
+      sock.send({
+        id: "c-429",
+        type: "task.create",
+        payload: { cwd: project, title: "Rate limit" },
+      });
+      const created = await sock.waitForRequest("c-429");
+      const taskId = created?.payload?.data?.task?.id as string;
+      sock.send({ id: "p-429", type: "prompt.send", taskId, payload: { message: "FAIL429" } });
+      const error = await sock.waitFor("server.error");
+      expect(error.payload?.message).toMatch(/API 请求失败|429|rate_limit/);
+      expect(error.payload?.message).not.toMatch(/\[object Object\]/);
+      sock.ws.close();
+    } finally {
+      await isolated.app.close();
+    }
+  }, 15_000);
+
   it("starts a second turn after idle instead of queuing a dead follow_up", async () => {
     const project = path.join(root.current, "project");
     const sock = await openSocket(ctx.base);

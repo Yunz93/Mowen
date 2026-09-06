@@ -4,11 +4,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { saveApiKey } from "../../apps/server/src/setup/auth-status.ts";
 import {
+  extractErrorText,
   humanizeAuthAccessError,
   humanizeAuthHttpError,
   humanizeUserFacingError,
   isAuthHttpError,
   isMissingCredentialError,
+  isProviderRequestError,
   resolvePiAgentDir,
   shouldSurfacePiStderr,
 } from "../../apps/server/src/setup/pi-agent-dir.ts";
@@ -48,6 +50,27 @@ describe("Pi agent dir and auth errors", () => {
     expect(shouldSurfacePiStderr("HTTP 401: authentication_error")).toBe(true);
     expect(shouldSurfacePiStderr("EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'")).toBe(true);
     expect(shouldSurfacePiStderr("fd not found. Downloading...")).toBe(false);
+  });
+
+  it("extracts provider API error objects instead of [object Object]", () => {
+    expect(
+      extractErrorText({
+        type: "rate_limit_error",
+        message: "Request would exceed rate limit",
+      }),
+    ).toBe("rate_limit_error: Request would exceed rate limit");
+    expect(
+      extractErrorText({
+        error: { type: "overloaded_error", message: "Anthropic is overloaded" },
+      }),
+    ).toMatch(/overloaded_error: Anthropic is overloaded/);
+    expect(isProviderRequestError("HTTP 429 Too Many Requests")).toBe(true);
+    expect(isProviderRequestError("insufficient_quota")).toBe(true);
+    expect(shouldSurfacePiStderr("HTTP 429 Too Many Requests: rate_limit_error")).toBe(true);
+    expect(humanizeUserFacingError({ type: "rate_limit_error", message: "Request would exceed rate limit" })).toMatch(
+      /API 请求失败：[\s\S]*rate_limit_error[\s\S]*Request would exceed rate limit/,
+    );
+    expect(humanizeUserFacingError(new Error("HTTP 529 Overloaded"))).toMatch(/API 请求失败：[\s\S]*529/);
   });
 
   it("keeps ~/.pi/agent when it is writable", async () => {

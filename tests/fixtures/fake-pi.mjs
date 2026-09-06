@@ -277,6 +277,24 @@ async function handlePrompt(message, mode) {
   }
 
   try {
+    if (message.trim() === "FAIL429") {
+      send({
+        type: "message_start",
+        message: { role: "assistant", content: [], timestamp: now() },
+      });
+      process.stderr.write("HTTP 429 Too Many Requests: rate_limit_error\n");
+      send({
+        type: "auto_retry_end",
+        success: false,
+        attempt: 1,
+        finalError: { type: "rate_limit_error", message: "Request would exceed rate limit" },
+      });
+      send({
+        type: "message_end",
+        message: { role: "assistant", content: [], timestamp: now() },
+      });
+      return;
+    }
     if (message.trim() === "FAIL401") {
       send({
         type: "message_start",

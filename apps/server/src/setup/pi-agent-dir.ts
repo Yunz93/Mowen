@@ -36,6 +36,45 @@ export function humanizeAuthAccessError(error: unknown): string | null {
   ].join("\n");
 }
 
+/** Pull a readable string out of SDK/Pi error objects (not `[object Object]`). */
+export function extractErrorText(value: unknown, seen: Set<unknown> = new Set()): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value instanceof Error) return value.message.trim() || value.name;
+  if (seen.has(value)) return "";
+  if (Array.isArray(value)) {
+    seen.add(value);
+    return value.map((item) => extractErrorText(item, seen)).filter(Boolean).join("\n");
+  }
+  if (typeof value === "object") {
+    seen.add(value);
+    const record = value as Record<string, unknown>;
+    const nested = [record.error, record.message, record.errorMessage, record.msg, record.reason, record.detail, record.details]
+      .map((item) => extractErrorText(item, seen))
+      .find((item) => item);
+    const kind =
+      typeof record.type === "string"
+        ? record.type
+        : typeof record.code === "string"
+          ? record.code
+          : typeof record.status === "number"
+            ? `HTTP ${record.status}`
+            : "";
+    if (nested) {
+      if (kind && !nested.toLowerCase().includes(kind.toLowerCase())) return `${kind}: ${nested}`;
+      return nested;
+    }
+    try {
+      const json = JSON.stringify(value);
+      if (json && json !== "{}" && json !== "[]") return json;
+    } catch {
+      // ignore circular JSON
+    }
+  }
+  return "";
+}
+
 export function isAuthHttpError(raw: string): boolean {
   const message = raw.toLowerCase();
   if (/eacces|eperm|permission denied/i.test(raw) && /auth\.json/i.test(raw)) return false;
@@ -51,8 +90,21 @@ export function isAuthHttpError(raw: string): boolean {
   );
 }
 
+export function isProviderRequestError(raw: string): boolean {
+  const message = raw.toLowerCase();
+  if (/eacces|eperm|permission denied/i.test(raw) && /auth\.json/i.test(raw)) return false;
+  if (isAuthHttpError(raw)) return true;
+  return (
+    /\b(400|404|408|409|413|422|429|500|502|503|504|529)\b/.test(message) ||
+    /http\s+[45]\d\d/i.test(raw) ||
+    /rate[_ ]limit|too many requests|overloaded|insufficient[_ ]quota|quota[_ ]exceeded/.test(message) ||
+    /context[_ ]length|model[_ ]not[_ ]found|invalid[_ ]request|billing|credit|payment[_ ]required/.test(message) ||
+    /api[_ ]error|server[_ ]error|overloaded_error|rate_limit_error/.test(message)
+  );
+}
+
 export function humanizeAuthHttpError(error: unknown): string | null {
-  const raw = error instanceof Error ? error.message : String(error);
+  const raw = extractErrorText(error);
   if (!isAuthHttpError(raw)) return null;
   if (/\b403\b/.test(raw) || /forbidden/i.test(raw)) {
     return "当前密钥没有权限调用这个模型（HTTP 403）。打开设置换一个可用的 API Key，或换一个模型。";
@@ -60,12 +112,21 @@ export function humanizeAuthHttpError(error: unknown): string | null {
   return "登录已失效或密钥不正确（HTTP 401）。打开设置检查 API Key，或重新登录。";
 }
 
+export function humanizeProviderRequestError(error: unknown): string | null {
+  const raw = extractErrorText(error);
+  if (!raw || !isProviderRequestError(raw)) return null;
+  if (isAuthHttpError(raw)) return null;
+  if (/API 请求失败/.test(raw)) return raw;
+  return `API 请求失败：${raw}`;
+}
+
 export function humanizeUserFacingError(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error);
+  const text = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
   return (
     humanizeAuthAccessError(error) ??
     humanizeSearchToolDownloadError(text) ??
     humanizeAuthHttpError(error) ??
+    humanizeProviderRequestError(error) ??
     text
   );
 }
@@ -79,7 +140,7 @@ export function isMissingCredentialError(text: string): boolean {
 
 export function shouldSurfacePiStderr(chunk: string): boolean {
   if (/auth\.json/i.test(chunk) && /EACCES|EPERM|permission denied/i.test(chunk)) return true;
-  return isAuthHttpError(chunk);
+  return isProviderRequestError(chunk);
 }
 
 export async function tryRepairAgentDir(agentDir: string): Promise<boolean> {
