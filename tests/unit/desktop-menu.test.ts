@@ -23,6 +23,7 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/ipcMain\.removeHandler/);
     expect(src).toMatch(/if \(ipcReady\) return/);
     expect(src).toMatch(/if \(booting\) return booting/);
+    expect(src).toMatch(/adoptSystemProxy/);
   });
 
   it("encodes export file URLs", () => {

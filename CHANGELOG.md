@@ -3,6 +3,7 @@
 ## Unreleased
 
 - API 请求失败时在界面展示服务商返回的原因，不再变成空白或 `[object Object]`。
+- OpenAI 订阅登录换 token 会走 `HTTPS_PROXY` / 系统代理，避免浏览器过了、墨问进程不过。
 
 ## 0.1.8
 

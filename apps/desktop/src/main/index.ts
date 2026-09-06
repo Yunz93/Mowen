@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "@mowen/server";
 import { applyDesktopEnv, preloadPath, resolvePiEntry } from "./paths.js";
+import { adoptSystemProxy } from "./system-proxy.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,6 +74,10 @@ function installMenu(): void {
 
 async function startBackend(): Promise<number> {
   applyDesktopEnv();
+  const proxy = await adoptSystemProxy();
+  if (proxy) {
+    console.log(`[mowen-desktop] HTTP proxy: ${proxy}`);
+  }
   const piEntry = resolvePiEntry();
   if (piEntry) {
     console.log(`[mowen-desktop] bundled Pi: ${piEntry}`);

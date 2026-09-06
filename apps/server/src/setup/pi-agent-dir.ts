@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
 import { humanizeSearchToolDownloadError } from "./pi-search-tools.js";
+import { humanizeUnsupportedRegionError, isUnsupportedRegionError } from "./http-proxy.js";
 
 export function defaultPiAgentDir(homeDir = os.homedir()): string {
   return path.join(homeDir, ".pi", "agent");
@@ -77,6 +78,7 @@ export function extractErrorText(value: unknown, seen: Set<unknown> = new Set())
 
 export function isAuthHttpError(raw: string): boolean {
   const message = raw.toLowerCase();
+  if (isUnsupportedRegionError(raw)) return false;
   if (/eacces|eperm|permission denied/i.test(raw) && /auth\.json/i.test(raw)) return false;
   return (
     /\b401\b/.test(message) ||
@@ -106,6 +108,7 @@ export function isProviderRequestError(raw: string): boolean {
 export function humanizeAuthHttpError(error: unknown): string | null {
   const raw = extractErrorText(error);
   if (!isAuthHttpError(raw)) return null;
+  if (humanizeUnsupportedRegionError(raw)) return null;
   if (/\b403\b/.test(raw) || /forbidden/i.test(raw)) {
     return "当前密钥没有权限调用这个模型（HTTP 403）。打开设置换一个可用的 API Key，或换一个模型。";
   }
@@ -125,6 +128,7 @@ export function humanizeUserFacingError(error: unknown): string {
   return (
     humanizeAuthAccessError(error) ??
     humanizeSearchToolDownloadError(text) ??
+    humanizeUnsupportedRegionError(error) ??
     humanizeAuthHttpError(error) ??
     humanizeProviderRequestError(error) ??
     text
@@ -140,7 +144,7 @@ export function isMissingCredentialError(text: string): boolean {
 
 export function shouldSurfacePiStderr(chunk: string): boolean {
   if (/auth\.json/i.test(chunk) && /EACCES|EPERM|permission denied/i.test(chunk)) return true;
-  return isProviderRequestError(chunk);
+  return isProviderRequestError(chunk) || isUnsupportedRegionError(chunk);
 }
 
 export async function tryRepairAgentDir(agentDir: string): Promise<boolean> {

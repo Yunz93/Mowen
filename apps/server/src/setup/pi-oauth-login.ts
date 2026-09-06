@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { openBrowser } from "./open-browser.js";
-import { piAuthFile, defaultPiAgentDir } from "./pi-agent-dir.js";
+import { humanizeUserFacingError, piAuthFile, defaultPiAgentDir } from "./pi-agent-dir.js";
 import { piAiModuleUrl, resolvePiAiImportRoots, resolvePiCodingAgentRoot } from "./pi-package.js";
 
 /** UI / setup ids → Pi OAuth provider ids stored in auth.json. */
@@ -292,7 +292,7 @@ export async function runPiOAuthLogin(options: {
       hint: "订阅登录已完成。",
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = humanizeUserFacingError(error);
     const deviceHint = deviceCode ? `浏览器中的设备码是 ${deviceCode}。` : "";
     if (abort.signal.aborted) {
       return {

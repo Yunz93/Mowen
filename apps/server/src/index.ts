@@ -29,10 +29,22 @@ import { WorkItemStore } from "./tasks/work-item-store.js";
 import { registerWebsocket } from "./websocket/socket-handler.js";
 import { registerUpdateRoutes } from "./routes/update.js";
 import { currentMowenVersion } from "./setup/mowen-update.js";
+import { applyEnvHttpProxy } from "./setup/http-proxy.js";
+
+export {
+  applyEnvHttpProxy,
+  normalizeProxyEnv,
+  parsePacProxyResult,
+  readProxyUrl,
+} from "./setup/http-proxy.js";
 
 loadDotEnv();
 
 export async function createApp(env: NodeJS.ProcessEnv = process.env) {
+  const proxy = await applyEnvHttpProxy(env);
+  if (proxy) {
+    console.log(`[mowen] HTTP proxy: ${proxy}`);
+  }
   const provisional = loadConfig(env);
   await mkdir(provisional.dataDir, { recursive: true });
   const settings = new SettingsStore(provisional.dataDir);
