@@ -8,6 +8,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 let stopServer: (() => Promise<void>) | null = null;
+let serverPort: number | null = null;
+let ipcReady = false;
+let booting: Promise<void> | null = null;
 
 async function loadWithRetry(win: BrowserWindow, url: string, attempts = 40): Promise<void> {
   let lastError: unknown;
@@ -162,8 +165,15 @@ async function createMainWindow(port: number): Promise<void> {
   await loadWithRetry(mainWindow, url);
 }
 
+function registerHandle(channel: string, handler: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.removeHandler(channel);
+  ipcMain.handle(channel, handler);
+}
+
 function registerIpc(): void {
-  ipcMain.handle("mowen:pick-folder", async (_event, defaultPath?: string) => {
+  if (ipcReady) return;
+  ipcReady = true;
+  registerHandle("mowen:pick-folder", async (_event, defaultPath?: string) => {
     const options: Electron.OpenDialogOptions = {
       title: "选择文件夹",
       defaultPath: typeof defaultPath === "string" ? defaultPath : undefined,
@@ -175,13 +185,13 @@ function registerIpc(): void {
     if (result.canceled) return null;
     return result.filePaths[0] ?? null;
   });
-  ipcMain.handle("mowen:open-path", async (_event, filePath: unknown) => {
+  registerHandle("mowen:open-path", async (_event, filePath: unknown) => {
     if (typeof filePath !== "string" || !filePath.trim() || filePath.includes("\0")) {
       return "invalid path";
     }
     return shell.openPath(filePath);
   });
-  ipcMain.handle("mowen:notify", async (_event, payload: unknown) => {
+  registerHandle("mowen:notify", async (_event, payload: unknown) => {
     const record = payload && typeof payload === "object" ? (payload as { title?: unknown; body?: unknown }) : {};
     const title = typeof record.title === "string" && record.title.trim() ? record.title.trim() : "墨问";
     const body = typeof record.body === "string" ? record.body : "";
@@ -189,17 +199,30 @@ function registerIpc(): void {
       new Notification({ title, body }).show();
     }
   });
-  ipcMain.handle("mowen:restart", async () => {
+  registerHandle("mowen:restart", async () => {
     app.relaunch();
     app.exit(0);
   });
 }
 
 async function boot(): Promise<void> {
-  registerIpc();
-  installMenu();
-  const port = await startBackend();
-  await createMainWindow(port);
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  if (booting) return booting;
+  booting = (async () => {
+    registerIpc();
+    installMenu();
+    if (serverPort == null) serverPort = await startBackend();
+    await createMainWindow(serverPort);
+  })();
+  try {
+    await booting;
+  } finally {
+    booting = null;
+  }
 }
 
 app.on("window-all-closed", () => {
