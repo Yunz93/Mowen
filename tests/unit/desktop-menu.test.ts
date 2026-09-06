@@ -20,6 +20,9 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/检查更新/);
     expect(src).toMatch(/mowen:notify/);
     expect(src).not.toMatch(/extname\(filePath\)\.toLowerCase\(\) !== "\.html"/);
+    expect(src).toMatch(/ipcMain\.removeHandler/);
+    expect(src).toMatch(/if \(ipcReady\) return/);
+    expect(src).toMatch(/if \(booting\) return booting/);
   });
 
   it("encodes export file URLs", () => {
