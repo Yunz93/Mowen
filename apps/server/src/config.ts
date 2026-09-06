@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -84,6 +84,39 @@ export function isJavaScriptFile(file: string): boolean {
 }
 
 /**
+ * Desktop reuses the Electron binary as Node. macOS treats a second launch of
+ * that executable as another app (separate Dock icon, often the default
+ * Electron atom) unless ELECTRON_RUN_AS_NODE=1 is set on the child.
+ */
+export function asNodeEnv(command: string): NodeJS.ProcessEnv {
+  if (process.versions.electron || command === process.execPath) {
+    return { ELECTRON_RUN_AS_NODE: "1" };
+  }
+  return {};
+}
+
+/** Prefer package.json next to a bundled CLI so startup does not spawn Electron. */
+export function readPiPackageVersion(entryFile: string): string | null {
+  const resolved = path.resolve(entryFile);
+  const candidates = [
+    path.join(path.dirname(resolved), "package.json"),
+    path.join(path.dirname(resolved), "..", "package.json"),
+  ];
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    try {
+      const pkg = JSON.parse(readFileSync(file, "utf8")) as { version?: unknown };
+      if (typeof pkg.version === "string" && pkg.version.trim()) {
+        return pkg.version.trim();
+      }
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
+
+/**
  * Desktop builds set MOWEN_PI_ENTRY to Pi's CLI file and run it with Electron's
  * Node (`ELECTRON_RUN_AS_NODE=1`). Browser/dev installs keep using `pi` on PATH.
  * A `PI_BIN` that points at a .js/.mjs/.cjs file is launched with the current
@@ -93,15 +126,11 @@ export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntim
   const entry = mowenEnv(env, "PI_ENTRY")?.trim();
   if (entry) {
     const command = mowenEnv(env, "NODE_BIN")?.trim() || process.execPath;
-    const extraEnv: NodeJS.ProcessEnv = {};
-    if (process.versions.electron || command === process.execPath) {
-      extraEnv.ELECTRON_RUN_AS_NODE = "1";
-    }
-    return { command, prefixArgs: [path.resolve(entry)], extraEnv };
+    return { command, prefixArgs: [path.resolve(entry)], extraEnv: asNodeEnv(command) };
   }
   const bin = resolvePiBin(env.PI_BIN ?? "pi");
   if (isJavaScriptFile(bin)) {
-    return { command: process.execPath, prefixArgs: [bin], extraEnv: {} };
+    return { command: process.execPath, prefixArgs: [bin], extraEnv: asNodeEnv(process.execPath) };
   }
   return {
     command: bin,
@@ -187,10 +216,16 @@ export async function readPiVersion(
   const command = typeof runtime === "string" ? runtime : runtime.piCommand;
   const prefixArgs = typeof runtime === "string" ? [] : runtime.piPrefixArgs;
   const extraEnv = typeof runtime === "string" ? {} : runtime.piExtraEnv;
+  const entry = prefixArgs[0];
+  if (entry && isJavaScriptFile(entry)) {
+    const bundled = readPiPackageVersion(entry);
+    if (bundled) return { version: bundled, error: null };
+  }
   try {
     const { stdout } = await execFileAsync(command, [...prefixArgs, "--version"], {
       timeout: 8000,
-      env: { ...process.env, ...extraEnv },
+      windowsHide: true,
+      env: { ...process.env, ...asNodeEnv(command), ...extraEnv },
     });
     const version = stdout.trim().split("\n")[0] ?? "";
     return { version: version || null, error: null };

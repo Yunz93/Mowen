@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  asNodeEnv,
   defaultAllowedRoots,
   defaultDataDir,
   expandHome,
@@ -9,6 +10,7 @@ import {
   isAllowedOrigin,
   loadConfig,
   parseAllowedRoots,
+  readPiVersion,
   resolvePiRuntime,
 } from "../../apps/server/src/config.ts";
 import { loadDotEnv } from "../../apps/server/src/env.ts";
@@ -95,6 +97,7 @@ describe("portable config", () => {
     });
     expect(runtime.command).toBe(process.execPath);
     expect(runtime.prefixArgs[0]).toBe(entry);
+    expect(runtime.extraEnv.ELECTRON_RUN_AS_NODE).toBe("1");
   });
 
   it("launches a JavaScript PI_BIN via the current node executable", () => {
@@ -102,6 +105,28 @@ describe("portable config", () => {
     const runtime = resolvePiRuntime({ PI_BIN: script });
     expect(runtime.command).toBe(process.execPath);
     expect(runtime.prefixArgs).toEqual([script]);
+    expect(runtime.extraEnv.ELECTRON_RUN_AS_NODE).toBe("1");
+  });
+
+  it("marks the current executable as a Node interpreter", () => {
+    expect(asNodeEnv(process.execPath).ELECTRON_RUN_AS_NODE).toBe("1");
+    expect(asNodeEnv("/usr/bin/pi").ELECTRON_RUN_AS_NODE).toBeUndefined();
+  });
+
+  it("reads bundled Pi version from package.json without spawning", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mowen-pi-pkg-"));
+    const dist = path.join(root, "dist");
+    await mkdir(dist);
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ name: "@earendil-works/pi-coding-agent", version: "9.9.9" }));
+    const cli = path.join(dist, "cli.js");
+    await writeFile(cli, "throw new Error('should not spawn');\n");
+    const result = await readPiVersion({
+      piCommand: path.join(root, "missing-electron"),
+      piPrefixArgs: [cli],
+      piExtraEnv: {},
+    });
+    expect(result).toEqual({ version: "9.9.9", error: null });
+    await rm(root, { recursive: true, force: true });
   });
 
   it("accepts loopback Host headers and rejects DNS-rebinding hosts", () => {
