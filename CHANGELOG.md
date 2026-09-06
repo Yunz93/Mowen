@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- OpenAI 订阅登录换 token 会走 `HTTPS_PROXY` / 系统代理，避免浏览器过了、墨问进程不过。
+
 ## 0.1.8
 
 - 终端 tab 改为 xterm.js，输入、滚动、选中复制和粘贴按原生终端来。

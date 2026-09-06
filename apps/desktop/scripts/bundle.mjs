@@ -11,7 +11,7 @@ await esbuild.build({
   platform: "node",
   format: "esm",
   outfile: "out/main/index.js",
-  external: ["electron", "node-pty"],
+  external: ["electron", "node-pty", "undici"],
   sourcemap: true,
   banner: {
     js: "import { createRequire as __mowenCreateRequire } from 'node:module'; const require = __mowenCreateRequire(import.meta.url);",
