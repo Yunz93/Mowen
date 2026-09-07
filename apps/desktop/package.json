@@ -1,6 +1,6 @@
 {
   "name": "@qingzhou/desktop",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Local-first 轻舟 / Qingzhou workbench for Windows and macOS",
   "author": "Qingzhou",
   "type": "module",
