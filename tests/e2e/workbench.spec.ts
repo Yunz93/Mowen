@@ -30,6 +30,8 @@ test.beforeAll(() => {
     ].join("\n"),
   );
   rmSync(path.join(project, "denied.txt"), { force: true });
+  rmSync(path.join(home, ".pi", "agent", "settings.json"), { force: true });
+  rmSync(path.join(home, ".pi", "agent", "mcp.json"), { force: true });
 });
 
 test("workbench core loop", async ({ page }) => {
