@@ -1038,6 +1038,12 @@ html.dark {
     transition: box-shadow 0.16s ease;
   }
 
+  .composer-well :focus,
+  .composer-well :focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
   .composer-well:focus-within {
     box-shadow:
       0 0 0 0.5px color-mix(in oklch, var(--color-ink) 28%, transparent),

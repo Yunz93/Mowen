@@ -215,7 +215,7 @@ export function PromptComposer({
           placeholder={composerPlaceholder(running)}
           aria-label="输入消息"
           disabled={disabled}
-          className="max-h-[180px] min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[15px] leading-6 text-ink placeholder:text-mute"
+          className="max-h-[180px] min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[15px] leading-6 text-ink outline-none placeholder:text-mute"
         />
         {fileHits.length > 0 ? (
           <MentionMenu items={fileHits} label="文件" onPick={pickMention} onNavigate={setMenuOpen} />
