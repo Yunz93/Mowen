@@ -204,6 +204,16 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("resources.package.install"),
+    taskId: z.string().min(1),
+    payload: z
+      .object({
+        ids: z.array(z.string().min(1).max(80)).max(20).optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("files.open"),
     taskId: z.string().min(1),
     payload: z.object({ path: z.string().min(1) }),

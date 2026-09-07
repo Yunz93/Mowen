@@ -174,6 +174,33 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐插件")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("pi-web-access")).toBeVisible();
+  await page.getByRole("button", { name: "安装 pi-web-access" }).click();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装").first()).toBeVisible();
+  const settings = JSON.parse(readFileSync(path.join(home, ".pi", "agent", "settings.json"), "utf8")) as {
+    packages: string[];
+  };
+  expect(settings.packages).toContain("npm:pi-web-access");
+  await page.getByRole("button", { name: "安装全部" }).click();
+  await expect(page.getByRole("button", { name: "安装全部" })).toHaveCount(0);
+  const afterAll = JSON.parse(readFileSync(path.join(home, ".pi", "agent", "settings.json"), "utf8")) as {
+    packages: string[];
+  };
+  expect(afterAll.packages).toEqual(
+    expect.arrayContaining([
+      "npm:pi-web-access",
+      "npm:pi-memory",
+      "npm:@juicesharp/rpiv-todo",
+      "npm:pi-subagents",
+      "npm:pi-mcp-adapter",
+      "npm:context-mode",
+    ]),
+  );
+  const mcp = JSON.parse(readFileSync(path.join(home, ".pi", "agent", "mcp.json"), "utf8")) as {
+    mcpServers: Record<string, unknown>;
+  };
+  expect(mcp.mcpServers).toHaveProperty("context-mode");
   await page.getByRole("button", { name: "技能" }).click();
   await page.getByRole("button", { name: "导出 HTML" }).click();
   await expect(page.getByText(/已导出到/)).toBeVisible();
