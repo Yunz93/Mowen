@@ -18,6 +18,13 @@ describe("agent-native work mode", () => {
     expect(mode).toMatch(/工作/);
     expect(board).toMatch(/启动项目/);
     expect(board).toMatch(/新建任务/);
+    expect(board).toMatch(/work-project-select/);
+    expect(board).not.toMatch(/max-w-\[240px\]/);
+    const styles = readFileSync(path.resolve("apps/web/src/styles/app.css"), "utf8");
+    expect(styles).toMatch(/\.work-project-select[\s\S]*min-width:\s*0/);
+    expect(styles).toMatch(/\.work-project-select[\s\S]*field-sizing:\s*content/);
+    expect(styles).toMatch(/\.work-project-select[\s\S]*max-width:\s*9rem/);
+    expect(styles).not.toMatch(/\.work-project-row select \{\s*max-width:\s*none/);
     expect(dashboard).toMatch(/需要你处理/);
     expect(dashboard).toMatch(/开始执行/);
     expect(dashboard).toMatch(/接受并完成/);

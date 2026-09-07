@@ -146,10 +146,10 @@ export function BoardPage() {
         <ModeSwitcher />
         <div className="work-project-row">
           {projects.length > 0 ? (
-            <label className="app-no-drag min-w-0 flex-1">
+            <label className="app-no-drag shrink-0">
               <span className="sr-only">当前项目</span>
               <select
-                className="field h-7 w-full max-w-[240px] px-1.5 text-[13px] font-semibold"
+                className="field work-project-select h-7 px-1.5 text-[13px] font-semibold"
                 value={project?.id ?? ""}
                 onChange={(event) => {
                   closeDetails();
@@ -166,7 +166,7 @@ export function BoardPage() {
               </select>
             </label>
           ) : (
-            <h1 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">工作</h1>
+            <h1 className="min-w-0 truncate text-[13px] font-semibold tracking-tight">工作</h1>
           )}
           <button
             type="button"
