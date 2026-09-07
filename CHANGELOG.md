@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 详情栏「插件」可一键安装推荐扩展：pi-web-access、pi-memory、rpiv-todo、pi-subagents、pi-mcp-adapter、context-mode。
+- 对话输入框改成更接近 Cursor / Codex 的原生卡片：大圆角、底栏工具、圆形发送键。
 
 ## 0.1.11
 

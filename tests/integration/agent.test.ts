@@ -170,30 +170,39 @@ describe("integration fake-pi", () => {
     expect(snap.payload?.messages?.some((message) => message.text.includes("hello"))).toBe(true);
 
     const extraIds: string[] = [];
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       sock2.send({
         id: `t${i}`,
         type: "task.create",
         payload: { cwd: project, title: `Queued ${i}` },
       });
+      const created = await sock2.waitForRequest(`t${i}`);
+      const id = created.payload?.data?.task?.id;
+      if (id && id !== taskId) extraIds.push(id);
     }
-    await new Promise((r) => setTimeout(r, 300));
-    const createdTasks = sock2.events
-      .filter((event) => event.type === "task.created")
-      .map((event) => event.payload?.task?.id)
-      .filter((id): id is string => Boolean(id));
-    extraIds.push(...createdTasks.filter((id) => id !== taskId).slice(-3));
     for (const id of extraIds) {
       sock2.send({ id: `act-${id}`, type: "task.activate", taskId: id, payload: {} });
     }
-    await new Promise((r) => setTimeout(r, 600));
-    const queued = ctx.service.listTasks().filter((task) => task.status === "queued");
+    const queuedDeadline = Date.now() + 4_000;
+    let queued = ctx.service.listTasks().filter((task) => task.status === "queued");
+    while (queued.length < 1 && Date.now() < queuedDeadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      queued = ctx.service.listTasks().filter((task) => task.status === "queued");
+    }
     expect(queued.length).toBeGreaterThanOrEqual(1);
 
     for (const id of extraIds) {
       sock2.send({ id: `arch-${id}`, type: "task.archive", taskId: id, payload: {} });
     }
-    await new Promise((r) => setTimeout(r, 300));
+    const archivedDeadline = Date.now() + 4_000;
+    while (Date.now() < archivedDeadline) {
+      const busy = extraIds.some((id) => {
+        const status = ctx.service.listTasks().find((task) => task.id === id)?.status;
+        return status === "queued" || status === "running" || status === "starting";
+      });
+      if (!busy) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
 
     sock2.send({ id: "crash-task", type: "task.create", payload: { cwd: project, title: "Crash" } });
     const crashCreated = await sock2.waitForRequest("crash-task");
