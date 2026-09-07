@@ -3,16 +3,21 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { saveApiKey } from "../../apps/server/src/setup/auth-status.ts";
+import { loadConfig } from "../../apps/server/src/config.ts";
 import {
   extractErrorText,
   humanizeAuthAccessError,
   humanizeAuthHttpError,
+  humanizeNpmCacheAccessError,
   humanizeUserFacingError,
   isAuthHttpError,
   isMissingCredentialError,
+  isNpmCacheAccessError,
   isProviderRequestError,
+  applyPiAgentDir,
   resolvePiAgentDir,
   shouldSurfacePiStderr,
+  stripPiSourceDump,
 } from "../../apps/server/src/setup/pi-agent-dir.ts";
 
 describe("Pi agent dir and auth errors", () => {
@@ -71,6 +76,40 @@ describe("Pi agent dir and auth errors", () => {
       /API 请求失败：[\s\S]*rate_limit_error[\s\S]*Request would exceed rate limit/,
     );
     expect(humanizeUserFacingError(new Error("HTTP 529 Overloaded"))).toMatch(/API 请求失败：[\s\S]*529/);
+  });
+
+  it("humanizes a root-owned npm cache and strips Pi source dumps", () => {
+    const dump = [
+      "npm error code EACCES",
+      "npm error syscall open",
+      "npm error path /Users/yunz/.npm/_cacache/index-v5/55/8c/deadbeef",
+      "npm error errno EACCES",
+      "npm error Your cache folder contains root-owned files, due to a bug in",
+      "npm error previous versions of npm which has since been addressed.",
+      "npm error To permanently fix this problem, please run:",
+      'npm error   sudo chown -R 501:20 "/Users/yunz/.npm"',
+      "file:///Users/yunz/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/chunk-JVUZSMYM.js:1247",
+      `getNpmInstallRoot(scope,temporary){${"x".repeat(500)}`,
+    ].join("\n");
+    expect(isNpmCacheAccessError(dump)).toBe(true);
+    expect(shouldSurfacePiStderr(dump)).toBe(true);
+    const human = humanizeNpmCacheAccessError(new Error(dump));
+    expect(human).toMatch(/npm 缓存/);
+    expect(human).toMatch(/chown/);
+    expect(human).not.toMatch(/getNpmInstallRoot/);
+    expect(humanizeUserFacingError(new Error(dump))).toMatch(/npm 缓存/);
+    expect(stripPiSourceDump(dump)).not.toMatch(/getNpmInstallRoot/);
+    expect(stripPiSourceDump(dump)).toMatch(/EACCES/);
+  });
+
+  it("points Pi at a writable npm cache under the agent dir", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-npm-cache-"));
+    dirs.push(home);
+    const agentDir = path.join(home, ".pi", "agent");
+    const config = applyPiAgentDir(loadConfig({}, { homeDir: home }), agentDir);
+    expect(config.piExtraEnv.npm_config_cache).toBe(path.join(agentDir, "npm-cache"));
+    const info = await stat(path.join(agentDir, "npm-cache"));
+    expect(info.isDirectory()).toBe(true);
   });
 
   it("keeps ~/.pi/agent when it is writable", async () => {

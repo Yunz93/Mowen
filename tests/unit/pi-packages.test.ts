@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   addPackageSources,
   ensureMcpServer,
+  formatPiInstallError,
   installPresetPiPackages,
   shouldRunPiCliInstall,
 } from "../../apps/server/src/tasks/pi-packages.ts";
@@ -85,5 +86,26 @@ describe("preset pi package install", () => {
     };
     expect(settings.packages).toEqual(["npm:pi-web-access", "npm:context-mode"]);
     expect(mcp.mcpServers).toHaveProperty("context-mode");
+  });
+
+  it("turns npm EACCES plus a Pi source dump into a short Chinese error", () => {
+    const error = Object.assign(
+      new Error("Command failed: pi install npm:pi-web-access"),
+      {
+        stderr: [
+          "npm error code EACCES",
+          "npm error path /Users/yunz/.npm/_cacache/index-v5/ab/cd",
+          "npm error Your cache folder contains root-owned files",
+          'npm error   sudo chown -R 501:20 "/Users/yunz/.npm"',
+          "file:///Users/yunz/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/chunk.js:1",
+          "getNpmInstallRoot(){" + "x".repeat(2000),
+        ].join("\n"),
+      },
+    );
+    const message = formatPiInstallError(error);
+    expect(message).toMatch(/已写入 Pi 设置/);
+    expect(message).toMatch(/npm 缓存/);
+    expect(message).not.toMatch(/getNpmInstallRoot/);
+    expect(message.length).toBeLessThan(600);
   });
 });

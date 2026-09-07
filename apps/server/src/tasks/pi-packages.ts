@@ -11,6 +11,7 @@ import {
 } from "@qingzhou/protocol";
 import { qingzhouEnv } from "../config.js";
 import { isInsideRoot } from "../security/path-policy.js";
+import { extractErrorText, humanizeUserFacingError, piNpmEnv } from "../setup/pi-agent-dir.js";
 
 const execFileAsync = promisify(execFile);
 const PI_PACKAGE_INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
@@ -116,15 +117,28 @@ export async function runPiCliInstall(input: {
   extraEnv?: NodeJS.ProcessEnv;
   sources: string[];
   env?: NodeJS.ProcessEnv;
+  agentDir?: string;
 }): Promise<string> {
   if (input.sources.length === 0) return "";
+  const npmEnv = input.agentDir ? piNpmEnv(input.agentDir) : {};
   const { stdout, stderr } = await execFileAsync(input.piCommand, [...input.prefixArgs, "install", ...input.sources], {
     timeout: PI_PACKAGE_INSTALL_TIMEOUT_MS,
     windowsHide: true,
     maxBuffer: 2 * 1024 * 1024,
-    env: { ...process.env, ...input.env, ...input.extraEnv },
+    env: { ...process.env, ...input.env, ...input.extraEnv, ...npmEnv },
   });
   return `${stdout}\n${stderr}`.trim();
+}
+
+export function formatPiInstallError(error: unknown): string {
+  const extra =
+    error && typeof error === "object" && "stderr" in error && typeof (error as { stderr?: unknown }).stderr === "string"
+      ? (error as { stderr: string }).stderr
+      : "";
+  const combined = [error instanceof Error ? error.message : extractErrorText(error), extra]
+    .filter(Boolean)
+    .join("\n");
+  return `已写入 Pi 设置，但下载包失败。${humanizeUserFacingError(new Error(combined || String(error)))}`;
 }
 
 export async function installPresetPiPackages(input: {
@@ -171,10 +185,10 @@ export async function installPresetPiPackages(input: {
         extraEnv: input.extraEnv,
         sources: addedSources,
         env: input.env,
+        agentDir: input.agentDir,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      piInstallError = `已写入 Pi 设置，但下载包失败：${message}。下次启动会话时 Pi 会再试。`;
+      piInstallError = formatPiInstallError(error);
     }
   }
 

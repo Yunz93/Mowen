@@ -1,5 +1,5 @@
 import { access, chmod, mkdir, unlink, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
@@ -35,6 +35,61 @@ export function humanizeAuthAccessError(error: unknown): string | null {
     '  sudo chown -R "$(whoami)" ~/.pi',
     "然后重新打开轻舟。",
   ].join("\n");
+}
+
+export function npmCacheDir(agentDir: string): string {
+  return path.join(agentDir, "npm-cache");
+}
+
+export function ensureNpmCacheDir(agentDir: string): string {
+  const cache = npmCacheDir(agentDir);
+  try {
+    mkdirSync(cache, { recursive: true, mode: 0o700 });
+  } catch {
+    // Pi spawn still gets the path; npm will report if it cannot write.
+  }
+  return cache;
+}
+
+/** Point Pi/npm at a user-writable cache so a root-owned ~/.npm does not crash installs. */
+export function piNpmEnv(agentDir: string): NodeJS.ProcessEnv {
+  const cache = ensureNpmCacheDir(agentDir);
+  return {
+    npm_config_cache: cache,
+    NPM_CONFIG_CACHE: cache,
+    npm_config_update_notifier: "false",
+    npm_config_fund: "false",
+    npm_config_audit: "false",
+  };
+}
+
+export function isNpmCacheAccessError(text: string): boolean {
+  if (!/EACCES|EPERM|permission denied|root-owned files/i.test(text)) return false;
+  return /(?:^|[\s"/])\.npm\b|_cacache|npm cache|sudo chown[\s\S]*\.npm/i.test(text);
+}
+
+export function humanizeNpmCacheAccessError(error: unknown): string | null {
+  const text = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
+  if (!isNpmCacheAccessError(text)) return null;
+  return [
+    "没法写本机 npm 缓存（~/.npm）。多半以前用 sudo 装过包，缓存变成了 root 的。",
+    "轻舟已改用自己的缓存目录。若仍失败，在终端运行：",
+    '  sudo chown -R "$(whoami)" ~/.npm',
+    "然后重新打开轻舟，再装一次插件。",
+  ].join("\n");
+}
+
+/** Drop minified Pi/npm stack dumps so the UI does not paste a whole bundle. */
+export function stripPiSourceDump(text: string): string {
+  const withoutFileUrl = text.replace(/file:\/\/\S+[\s\S]*$/, "").trim();
+  const withoutLogPath = withoutFileUrl.replace(/\nA complete log of this run can be found in:[\s\S]*$/i, "").trim();
+  const lines = (withoutLogPath || text).split("\n").filter((line) => {
+    if (line.length > 400 && /function |const |import\{|getNpmInstallRoot/.test(line)) return false;
+    return true;
+  });
+  const kept = lines.slice(0, 16).join("\n").trim();
+  if (!kept) return text.slice(0, 400);
+  return kept.length > 800 ? `${kept.slice(0, 800)}…` : kept;
 }
 
 /** Pull a readable string out of SDK/Pi error objects (not `[object Object]`). */
@@ -127,11 +182,12 @@ export function humanizeUserFacingError(error: unknown): string {
   const text = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
   return (
     humanizeAuthAccessError(error) ??
+    humanizeNpmCacheAccessError(error) ??
     humanizeSearchToolDownloadError(text) ??
     humanizeUnsupportedRegionError(error) ??
     humanizeAuthHttpError(error) ??
     humanizeProviderRequestError(error) ??
-    text
+    stripPiSourceDump(text)
   );
 }
 
@@ -144,6 +200,7 @@ export function isMissingCredentialError(text: string): boolean {
 
 export function shouldSurfacePiStderr(chunk: string): boolean {
   if (/auth\.json/i.test(chunk) && /EACCES|EPERM|permission denied/i.test(chunk)) return true;
+  if (isNpmCacheAccessError(chunk)) return true;
   return isProviderRequestError(chunk) || isUnsupportedRegionError(chunk);
 }
 
@@ -219,6 +276,7 @@ export function applyPiAgentDir(config: AppConfig, piAgentDir: string): AppConfi
     piExtraEnv: {
       ...config.piExtraEnv,
       PI_CODING_AGENT_DIR: piAgentDir,
+      ...piNpmEnv(piAgentDir),
     },
   };
 }
