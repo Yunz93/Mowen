@@ -46,7 +46,10 @@ describe("agent-native work mode", () => {
     expect(sidebar).toMatch(/>任务</);
     expect(sidebar).toMatch(/打开工作台/);
     expect(sidebar).not.toMatch(/任务中的会话/);
-    expect(board).toMatch(/setActiveTask\(item\.taskId\)/);
+    expect(board).toMatch(/setActiveTask\(taskId\)/);
     expect(board).toMatch(/snapshot\.request/);
+    expect(board).toMatch(/sr-only/);
+    expect(board).not.toMatch(/text-\[22px\] font-semibold tracking-tight">\{project\.name\}/);
+    expect(board).not.toMatch(/folderName\(project\.cwd\)/);
   });
 });

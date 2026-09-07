@@ -14,7 +14,6 @@ import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
-import { folderName } from "../copy";
 
 export function BoardPage() {
   const items = useAgentStore((state) => state.workItems);
@@ -105,11 +104,12 @@ export function BoardPage() {
   }
 
   function openConversationFull(item: WorkItemSummary) {
-    if (item.taskId) {
-      useAgentStore.getState().setActiveTask(item.taskId);
+    const taskId = item.taskId;
+    if (taskId) {
+      useAgentStore.getState().setActiveTask(taskId);
       void socketClient
-        .send("task.activate", {}, item.taskId)
-        .then(() => socketClient.send("snapshot.request", { taskId: item.taskId }, item.taskId))
+        .send("task.activate", {}, taskId)
+        .then(() => socketClient.send("snapshot.request", { taskId }, taskId))
         .catch(() => undefined);
     }
     navigate("/");
@@ -155,6 +155,7 @@ export function BoardPage() {
               <select
                 className="field work-project-select h-7 px-1.5 text-[13px] font-semibold"
                 value={project?.id ?? ""}
+                title={project?.cwd}
                 onChange={(event) => {
                   closeDetails();
                   void socketClient
@@ -208,11 +209,8 @@ export function BoardPage() {
       ) : null}
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
         {project ? (
-          <div className="mx-auto w-full max-w-[1040px] px-4 pb-12 pt-5">
-            <div className="mb-5">
-              <h1 className="text-[22px] font-semibold tracking-tight">{project.name}</h1>
-              <p className="mt-1 text-[12px] text-mute">{folderName(project.cwd)}</p>
-            </div>
+          <div className="mx-auto w-full max-w-[1040px] px-4 pb-12 pt-4">
+            <h1 className="sr-only">{project.name}</h1>
             <WorkDashboard
               items={projectItems}
               tasks={tasks}
