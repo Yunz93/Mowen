@@ -7,7 +7,7 @@ import {
   type UpdateDownloadProgress,
 } from "../lib/update-progress";
 
-export const RELEASES_PAGE_URL = "https://github.com/Yunz93/Mowen/releases";
+export const RELEASES_PAGE_URL = "https://github.com/Yunz93/Qingzhou/releases";
 
 export type QingzhouUpdateSnapshot = {
   current: string | null;

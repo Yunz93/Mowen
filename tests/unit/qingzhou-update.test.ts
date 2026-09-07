@@ -9,6 +9,8 @@ import {
   downloadUpdateFile,
   extractAppBundle,
   fetchLatestQingzhouRelease,
+  githubReleaseDownloadUrl,
+  humanizeGithubHttpStatus,
   inspectQingzhouUpdate,
   installQingzhouUpdate,
   isQingzhouUpdateAvailable,
@@ -16,11 +18,15 @@ import {
   macosBundlePathFromExecPath,
   normalizeReleaseTag,
   parseQingzhouRelease,
+  parseReleaseTagFromGithubUrl,
   parseSha256Sums,
+  qingzhouRepo,
   relaunchWaiterCommand,
   replaceAppAtomically,
   requireChecksummedAsset,
   sha256Hex,
+  shouldFallbackGithubRelease,
+  syntheticGithubRelease,
   updaterPlatformKey,
   windowsInstallWaiterScript,
 } from "../../apps/server/src/setup/qingzhou-update.ts";
@@ -37,7 +43,7 @@ function fakeRelease(assets: Array<{ name: string; url: string; size?: number }>
   return parseQingzhouRelease({
     tag_name: "v0.1.9",
     name: "Qingzhou 0.1.9",
-    html_url: "https://github.com/Yunz93/Mowen/releases/tag/v0.1.9",
+    html_url: "https://github.com/Yunz93/Qingzhou/releases/tag/v0.1.9",
     body: "notes",
     published_at: "2026-09-06T00:00:00Z",
     prerelease: false,
@@ -63,6 +69,29 @@ describe("Qingzhou update metadata", () => {
     const result = await fetchLatestQingzhouRelease({ fetchJson: async () => { throw new Error("offline"); } });
     expect(result.release).toBeNull();
     expect(result.error).toBe("offline");
+  });
+
+  it("defaults to the renamed Qingzhou repo and humanizes GitHub 403", () => {
+    expect(qingzhouRepo({})).toBe("Yunz93/Qingzhou");
+    expect(humanizeGithubHttpStatus(403, "API rate limit exceeded")).toMatch(/限制了检查次数/);
+    expect(humanizeGithubHttpStatus(403, "")).toMatch(/HTTPS_PROXY/);
+    expect(shouldFallbackGithubRelease(new Error("GitHub 返回 HTTP 403"))).toBe(true);
+    expect(shouldFallbackGithubRelease(new Error("offline"))).toBe(false);
+  });
+
+  it("falls back to the GitHub releases page when the API is forbidden", async () => {
+    const result = await fetchLatestQingzhouRelease({
+      fetchJson: async () => {
+        throw new Error("GitHub 返回 HTTP 403");
+      },
+      fetchLatestLocation: async () => "https://github.com/Yunz93/Qingzhou/releases/tag/v0.1.11",
+    });
+    expect(result.error).toBeNull();
+    expect(result.release?.version).toBe("0.1.11");
+    expect(result.release?.assets.some((asset) => asset.name === "Qingzhou-mac-arm64.zip")).toBe(true);
+    expect(parseReleaseTagFromGithubUrl("https://github.com/Yunz93/Qingzhou/releases/tag/v0.1.10")).toBe("v0.1.10");
+    expect(githubReleaseDownloadUrl("Yunz93/Qingzhou", "v0.1.11", "SHA256SUMS.txt")).toMatch(/\/v0\.1\.11\/SHA256SUMS\.txt$/);
+    expect(syntheticGithubRelease("Yunz93/Qingzhou", "v0.1.11").tag_name).toBe("v0.1.11");
   });
 
   it("reads the package version when QINGZHOU_VERSION is unset", () => {

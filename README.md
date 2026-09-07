@@ -13,7 +13,7 @@
 打开「终端」，粘贴后回车：
 
 ```bash
-curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh | bash
+curl -fsSL https://github.com/Yunz93/Qingzhou/releases/latest/download/install-macos.sh | bash
 ```
 
 脚本会下载应用、拷到 `/Applications`、去掉隔离属性、在本机做 ad-hoc 签名，然后打开轻舟。
@@ -21,19 +21,19 @@ curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-maco
 开发中的每日构建：
 
 ```bash
-curl -fsSL https://github.com/Yunz93/Mowen/releases/download/nightly/install-macos.sh | bash -s -- --nightly
+curl -fsSL https://github.com/Yunz93/Qingzhou/releases/download/nightly/install-macos.sh | bash -s -- --nightly
 ```
 
 若仍无法打开：系统设置 → 隐私与安全性 → 仍要打开。或再跑一次：
 
 ```bash
-bash <(curl -fsSL https://github.com/Yunz93/Mowen/releases/latest/download/install-macos.sh) --trust-only /Applications/Qingzhou.app
+bash <(curl -fsSL https://github.com/Yunz93/Qingzhou/releases/latest/download/install-macos.sh) --trust-only /Applications/Qingzhou.app
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-irm https://github.com/Yunz93/Mowen/releases/latest/download/install-windows.ps1 | iex
+irm https://github.com/Yunz93/Qingzhou/releases/latest/download/install-windows.ps1 | iex
 ```
 
 装好后打开轻舟，粘贴 API Key，选一个工作文件夹。密钥保存在 `~/.pi/agent/auth.json`，界面里不会再显示完整密钥。对话会发给你选择的 AI 服务商，不会经过轻舟的服务器。
@@ -112,7 +112,7 @@ NODE_ENV=production pnpm start   # http://127.0.0.1:4310
 | `QINGZHOU_ALLOWED_ROOTS` | 家目录或向导所选文件夹 | 允许访问的根目录 |
 | `QINGZHOU_MUTATIONS` | `approval` | `approval` 或 `disabled` |
 | `QINGZHOU_MAX_PROCESSES` | `3` | 同时运行的 Pi 进程数 |
-| `QINGZHOU_REPO` | `Yunz93/Mowen` | 安装脚本下载用的仓库 |
+| `QINGZHOU_REPO` | `Yunz93/Qingzhou` | 安装脚本下载用的仓库 |
 
 仍识别旧的 `MOWEN_*` / `OHMYPI_*` 变量，以及 `~/.mowen`、`~/.ohmypi` 数据目录。`.env` 会自动加载。真正的环境变量优先于 `.env`。
 

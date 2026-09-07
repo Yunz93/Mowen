@@ -25,7 +25,14 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/if \(ipcReady\) return/);
     expect(src).toMatch(/if \(booting\) return booting/);
     expect(src).toMatch(/adoptSystemProxy/);
+    expect(src).toMatch(/https:\/\/github.com\/Yunz93\/Qingzhou/);
     expect(src).toMatch(/payload\?\.relaunch !== false/);
+  });
+
+  it("adopts the system proxy for GitHub as well as OpenAI", () => {
+    const src = readFileSync(path.resolve("apps/desktop/src/main/system-proxy.ts"), "utf8");
+    expect(src).toContain("https://api.github.com");
+    expect(src).toContain("https://api.openai.com");
   });
 
   it("records the packaged app path for in-app replace", () => {

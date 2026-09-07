@@ -11,6 +11,7 @@ describe("assistant markdown helpers", () => {
   });
 
   it("only opens real external http(s) links", () => {
+    expect(shouldOpenMarkdownLink("https://github.com/Yunz93/Qingzhou")).toBe(true);
     expect(shouldOpenMarkdownLink("https://github.com/Yunz93/Mowen")).toBe(true);
     expect(shouldOpenMarkdownLink("http://example.com/docs")).toBe(true);
     expect(shouldOpenMarkdownLink("/settings")).toBe(false);

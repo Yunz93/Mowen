@@ -24,7 +24,7 @@ describe("native terminal and in-app updates", () => {
     expect(bridge).toContain("hydrate");
     expect(bridge).toContain("autoCheckForUpdates");
     expect(bridge).toContain("requestIdleCallback");
-    expect(store).toContain("/api/update/install");
+    expect(store).toContain("https://github.com/Yunz93/Qingzhou/releases");
     expect(store).toContain("text/event-stream");
     expect(settings).toContain("立即检查");
     expect(settings).toContain("下载安装更新");
