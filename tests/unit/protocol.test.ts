@@ -128,6 +128,14 @@ describe("protocol", () => {
       }).payload,
     ).toEqual({ path: "/tmp/demo.ts", enabled: false });
     expect(
+      clientCommandSchema.parse({
+        id: "9c",
+        type: "resources.package.install",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { ids: ["pi-web-access"] },
+      }).payload,
+    ).toEqual({ ids: ["pi-web-access"] });
+    expect(
       piResourcesSchema.parse({
         agentsFiles: [],
         skills: [],

@@ -51,6 +51,7 @@ type Props = {
   onWriteResource?: (path: string, content: string) => Promise<void>;
   onToggleSkill?: (path: string, enabled: boolean) => void;
   onToggleExtension?: (path: string, enabled: boolean) => void;
+  onInstallPresets?: (ids?: string[]) => Promise<void>;
   drawer?: boolean;
   pinned?: boolean;
   onPinToggle?: () => void;
@@ -86,6 +87,7 @@ export function InspectorPanel({
   onWriteResource,
   onToggleSkill,
   onToggleExtension,
+  onInstallPresets,
   drawer,
   pinned = false,
   onPinToggle,
@@ -444,6 +446,7 @@ export function InspectorPanel({
                   trustProject={Boolean(resources?.trustProject)}
                   onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
                   onReload={onReloadResources}
+                  onInstallPresets={onInstallPresets}
                 />
               ) : null}
             </div>

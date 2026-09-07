@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 详情栏「插件」可一键安装推荐扩展：pi-web-access、pi-memory、rpiv-todo、pi-subagents、pi-mcp-adapter、context-mode。
+
 ## 0.1.11
 
 - 应用图标改为圆角山水乌篷船。

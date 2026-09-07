@@ -127,3 +127,13 @@ export {
   type RuntimeState,
   type SessionTreeNode,
 } from "./pi-mvp.js";
+export {
+  PRESET_PI_PACKAGES,
+  normalizePackageSource,
+  packageSourcesEqual,
+  presetExtensionNames,
+  presetPackageInstalled,
+  resolvePresetPackages,
+  type PresetPiMcpServer,
+  type PresetPiPackage,
+} from "./preset-packages.js";

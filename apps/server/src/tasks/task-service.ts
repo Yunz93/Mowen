@@ -38,6 +38,7 @@ import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskShells } from "./task-shell.js";
 import { openNativeTerminal } from "./open-native-terminal.js";
 import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
+import { installPresetPiPackages } from "./pi-packages.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -307,6 +308,8 @@ export class TaskService {
         return this.setResourceSkill(command.taskId, command.payload.path, command.payload.enabled);
       case "resources.extension.set":
         return this.setResourceExtension(command.taskId, command.payload.path, command.payload.enabled);
+      case "resources.package.install":
+        return this.installResourcePackages(command.taskId, command.payload?.ids);
       case "files.open":
         return this.openFile(command.taskId, command.payload.path);
       case "interaction.respond":
@@ -997,6 +1000,39 @@ export class TaskService {
     });
     await this.reloadResources(taskId);
     return { ok: true };
+  }
+
+  private async installResourcePackages(
+    taskId: string,
+    ids?: string[],
+  ): Promise<{
+    ok: true;
+    installed: string[];
+    already: string[];
+    piInstallError: string | null;
+    resources: PiResources;
+  }> {
+    this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    const result = await installPresetPiPackages({
+      agentDir: this.config.piAgentDir,
+      ids,
+      packages: resources.packages,
+      extensions: resources.extensions,
+      piCommand: this.config.piCommand,
+      prefixArgs: this.config.piPrefixArgs,
+      extraEnv: this.config.piExtraEnv,
+    });
+    const next = await this.emitResources(taskId);
+    void this.reloadResources(taskId).catch(() => undefined);
+    if (result.piInstallError) throw new Error(result.piInstallError);
+    return {
+      ok: true,
+      installed: result.installed,
+      already: result.already,
+      piInstallError: result.piInstallError,
+      resources: next,
+    };
   }
 
   private async openFile(taskId: string, relativePath: string): Promise<{ path: string }> {

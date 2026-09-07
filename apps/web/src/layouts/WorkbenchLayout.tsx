@@ -553,6 +553,10 @@ export function WorkbenchLayout() {
               setNotice(error instanceof Error ? error.message : "插件开关失败");
             });
         }}
+        onInstallPresets={async (ids) => {
+          if (!task) throw new Error("没有对话");
+          await socketClient.send("resources.package.install", ids?.length ? { ids } : {}, task.id);
+        }}
         lastExportPath={lastExportPath}
         onOpenExport={(filePath) => void openExport(filePath)}
         onExport={() => {
