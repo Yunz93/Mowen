@@ -1,10 +1,23 @@
 import { z } from "zod";
 import { approvalPolicySchema, interactionModeSchema, thinkingLevelSchema } from "./task-schema.js";
 
+export const PROMPT_MESSAGE_MAX = 100_000;
+
 const commandBase = {
   id: z.string().min(1),
   taskId: z.string().optional(),
 };
+
+const promptPayloadSchema = z
+  .object({
+    message: z.string().max(PROMPT_MESSAGE_MAX),
+    imageIds: z.array(z.string()).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.message.trim() && (!value.imageIds || value.imageIds.length === 0)) {
+      ctx.addIssue({ code: "custom", message: "需要文字或图片" });
+    }
+  });
 
 export const clientCommandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -37,28 +50,19 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     ...commandBase,
     type: z.literal("prompt.send"),
     taskId: z.string().min(1),
-    payload: z.object({
-      message: z.string().min(1),
-      imageIds: z.array(z.string()).optional(),
-    }),
+    payload: promptPayloadSchema,
   }),
   z.object({
     ...commandBase,
     type: z.literal("prompt.steer"),
     taskId: z.string().min(1),
-    payload: z.object({
-      message: z.string().min(1),
-      imageIds: z.array(z.string()).optional(),
-    }),
+    payload: promptPayloadSchema,
   }),
   z.object({
     ...commandBase,
     type: z.literal("prompt.followUp"),
     taskId: z.string().min(1),
-    payload: z.object({
-      message: z.string().min(1),
-      imageIds: z.array(z.string()).optional(),
-    }),
+    payload: promptPayloadSchema,
   }),
   z.object({
     ...commandBase,

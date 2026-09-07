@@ -4,7 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const AUTO_ALLOW = new Set(["read", "grep", "find", "ls"]);
 const NEED_APPROVAL = new Set(["edit", "write", "bash"]);
-const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+const APPROVAL_TIMEOUT_MS = Number(process.env.QINGZHOU_APPROVAL_TIMEOUT_MS) || 5 * 60 * 1000;
 
 function parseRoots(): string[] {
   return (process.env.QINGZHOU_ALLOWED_ROOTS ?? process.env.MOWEN_ALLOWED_ROOTS ?? process.env.OHMYPI_ALLOWED_ROOTS ?? "")

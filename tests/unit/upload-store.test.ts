@@ -6,8 +6,10 @@ describe("upload store", () => {
     const store = new UploadStore(5);
     expect(store.add("first", "image/png", Buffer.alloc(3))).toBe(true);
     expect(store.add("second", "image/png", Buffer.alloc(3))).toBe(false);
+    expect(store.peek(["first"])).toHaveLength(1);
     expect(store.consume(["first"])).toHaveLength(1);
     expect(store.consume(["first"])).toHaveLength(0);
+    expect(store.peek(["first"])).toHaveLength(0);
     expect(store.add("second", "image/png", Buffer.alloc(3))).toBe(true);
   });
 });

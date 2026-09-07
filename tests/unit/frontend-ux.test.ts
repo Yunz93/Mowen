@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { approvalRiskLevel, splitDangerousCommand } from "../../apps/web/src/lib/approval-risk.ts";
 import { clampInspectorWidth, INSPECTOR_WIDTH_MIN } from "../../apps/web/src/lib/ui-prefs.ts";
@@ -47,5 +49,14 @@ describe("ui prefs and tones", () => {
 
   it("formats shortcut labels", () => {
     expect(shortcutLabel("Mod+N")).toMatch(/N/);
+  });
+});
+
+describe("conversation interaction chrome", () => {
+  it("exposes jump-to-latest, clone, and image-aware user bubbles", () => {
+    const timeline = readFileSync(path.resolve("apps/web/src/components/timeline/ConversationTimeline.tsx"), "utf8");
+    expect(timeline).toContain("回到最新");
+    expect(timeline).toContain("克隆会话");
+    expect(timeline).toContain("附 ");
   });
 });

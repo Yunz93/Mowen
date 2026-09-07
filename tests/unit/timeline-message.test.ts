@@ -58,4 +58,11 @@ describe("mergeCompletedTimelineMessage", () => {
     const incoming = base({ thinking: "short", streaming: false });
     expect(mergeCompletedTimelineMessage(existing, incoming).thinkingDurationMs).toBe(4200);
   });
+
+  it("keeps images already attached to the live user bubble", () => {
+    const images = [{ mimeType: "image/png", name: "shot.png", dataUrl: "data:image/png;base64,abc" }];
+    const existing = base({ role: "user", text: "see this", images });
+    const incoming = base({ role: "user", text: "see this" });
+    expect(mergeCompletedTimelineMessage(existing, incoming).images).toEqual(images);
+  });
 });

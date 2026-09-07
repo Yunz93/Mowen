@@ -11,9 +11,10 @@ type Props = {
   label: string;
   onPick: (item: MentionItem) => void;
   onNavigate?: (active: boolean) => void;
+  onDismiss?: () => void;
 };
 
-export function MentionMenu({ items, label, onPick, onNavigate }: Props) {
+export function MentionMenu({ items, label, onPick, onNavigate, onDismiss }: Props) {
   const [index, setIndex] = useState(0);
   const safeIndex = items.length === 0 ? 0 : Math.min(index, items.length - 1);
 
@@ -42,12 +43,14 @@ export function MentionMenu({ items, label, onPick, onNavigate }: Props) {
         onPick(item);
       } else if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         onNavigate?.(false);
+        onDismiss?.();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [items, onNavigate, onPick, safeIndex]);
+  }, [items, onDismiss, onNavigate, onPick, safeIndex]);
 
   if (items.length === 0) return null;
 

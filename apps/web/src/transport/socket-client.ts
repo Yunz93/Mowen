@@ -1,4 +1,5 @@
 import { serverFrameSchema, type ClientCommand, type ServerEvent } from "@qingzhou/protocol";
+import { failPendingRequests } from "../lib/pending-rpc";
 import { useAgentStore } from "../stores/agent-store";
 
 type Pending = {
@@ -96,11 +97,15 @@ export class SocketClient {
     socket.addEventListener("close", () => {
       if (socket !== this.socket) return;
       useAgentStore.getState().setConnection("closed");
+      failPendingRequests(this.pending, new Error("Socket closed"));
       if (this.closedByUser) return;
       const delay = Math.min(1000 * 2 ** this.retries, 8000);
       this.retries += 1;
       this.reconnectTimer = setTimeout(() => {
-        void this.connect().then(() => this.send("snapshot.request"));
+        void this.connect().then(() => {
+          const taskId = useAgentStore.getState().activeTaskId;
+          return this.send("snapshot.request", taskId ? { taskId } : undefined, taskId ?? undefined);
+        });
       }, delay);
     });
   }

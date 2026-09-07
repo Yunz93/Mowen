@@ -24,5 +24,6 @@ export function mergeCompletedTimelineMessage(
     ...incoming,
     thinking: preferAccumulatedThinking(existing.thinking, incoming.thinking),
     thinkingDurationMs: incoming.thinkingDurationMs ?? existing.thinkingDurationMs,
+    images: incoming.images?.length ? incoming.images : existing.images,
   };
 }

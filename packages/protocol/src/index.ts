@@ -1,4 +1,5 @@
 export {
+  PROMPT_MESSAGE_MAX,
   clientCommandSchema,
   type ClientCommand,
   type ClientCommandType,
@@ -24,6 +25,7 @@ export {
   taskRecordSchema,
   taskStatusSchema,
   thinkingLevelSchema,
+  timelineImageSchema,
   timelineMessageSchema,
   toolExecutionSchema,
   toolExecutionStatusSchema,
@@ -36,6 +38,7 @@ export {
   type TaskRecord,
   type TaskStatus,
   type ThinkingLevel,
+  type TimelineImage,
   type TimelineMessage,
   type ToolExecution,
   type ToolExecutionStatus,
@@ -64,6 +67,7 @@ export {
 } from "./diff.js";
 export { extractAtMentions } from "./mentions.js";
 export {
+  TOOL_RESULT_TEXT_MAX,
   looksLikeBinaryToolOutput,
   sanitizeToolResultText,
 } from "./tool-result-text.js";

@@ -65,11 +65,17 @@ function patchTerm(
 
 const WORKBENCH_CACHE_KEY = "qingzhou.workbench";
 
+const CACHE_MESSAGE_MAX = 80;
+const CACHE_TEXT_MAX = 8_000;
+const CACHE_TOOL_RESULT_MAX = 2_000;
+
 type WorkbenchCache = {
   tasks: TaskRecord[];
   activeTaskId: string | null;
   messages: TimelineMessage[];
   tools: ToolExecution[];
+  messagesByTask?: Record<string, TimelineMessage[]>;
+  toolsByTask?: Record<string, ToolExecution[]>;
 };
 
 function readWorkbenchCache(): Partial<WorkbenchCache> {
@@ -83,25 +89,105 @@ function readWorkbenchCache(): Partial<WorkbenchCache> {
       activeTaskId: typeof parsed.activeTaskId === "string" || parsed.activeTaskId === null ? parsed.activeTaskId : undefined,
       messages: Array.isArray(parsed.messages) ? parsed.messages : undefined,
       tools: Array.isArray(parsed.tools) ? parsed.tools : undefined,
+      messagesByTask:
+        parsed.messagesByTask && typeof parsed.messagesByTask === "object" ? parsed.messagesByTask : undefined,
+      toolsByTask: parsed.toolsByTask && typeof parsed.toolsByTask === "object" ? parsed.toolsByTask : undefined,
     };
   } catch {
     return {};
   }
 }
 
-function persistWorkbenchCache(state: { tasks: TaskRecord[]; activeTaskId: string | null; messages: TimelineMessage[]; tools: ToolExecution[] }): void {
+function slimMessage(message: TimelineMessage): TimelineMessage {
+  return {
+    ...message,
+    text: message.text.length > CACHE_TEXT_MAX ? `${message.text.slice(0, CACHE_TEXT_MAX)}…` : message.text,
+    thinking:
+      message.thinking && message.thinking.length > CACHE_TEXT_MAX
+        ? `${message.thinking.slice(0, CACHE_TEXT_MAX)}…`
+        : message.thinking,
+    images: message.images?.map((image) => ({ mimeType: image.mimeType, name: image.name })),
+  };
+}
+
+function slimTool(tool: ToolExecution): ToolExecution {
+  return {
+    ...tool,
+    resultText:
+      tool.resultText && tool.resultText.length > CACHE_TOOL_RESULT_MAX
+        ? `${tool.resultText.slice(0, CACHE_TOOL_RESULT_MAX)}…`
+        : tool.resultText,
+  };
+}
+
+function persistWorkbenchCache(state: {
+  tasks: TaskRecord[];
+  activeTaskId: string | null;
+  messages: TimelineMessage[];
+  tools: ToolExecution[];
+  messagesByTask: Record<string, TimelineMessage[]>;
+  toolsByTask: Record<string, ToolExecution[]>;
+}): void {
   if (typeof sessionStorage === "undefined") return;
   try {
     const payload: WorkbenchCache = {
       tasks: state.tasks,
       activeTaskId: state.activeTaskId,
-      messages: state.messages,
-      tools: state.tools,
+      messages: state.messages.slice(-CACHE_MESSAGE_MAX).map(slimMessage),
+      tools: state.tools.slice(-CACHE_MESSAGE_MAX).map(slimTool),
+      messagesByTask: Object.fromEntries(
+        Object.entries(state.messagesByTask).map(([id, messages]) => [
+          id,
+          messages.slice(-CACHE_MESSAGE_MAX).map(slimMessage),
+        ]),
+      ),
+      toolsByTask: Object.fromEntries(
+        Object.entries(state.toolsByTask).map(([id, tools]) => [id, tools.slice(-CACHE_MESSAGE_MAX).map(slimTool)]),
+      ),
     };
     sessionStorage.setItem(WORKBENCH_CACHE_KEY, JSON.stringify(payload));
   } catch {
     // Quota or private-mode failures should not break the live session.
   }
+}
+
+function transcriptFor(
+  state: { messages: TimelineMessage[]; messagesByTask: Record<string, TimelineMessage[]> },
+  taskId: string | null,
+): TimelineMessage[] {
+  if (!taskId) return [];
+  return state.messagesByTask[taskId] ?? [];
+}
+
+function toolsFor(
+  state: { tools: ToolExecution[]; toolsByTask: Record<string, ToolExecution[]> },
+  taskId: string | null,
+): ToolExecution[] {
+  if (!taskId) return [];
+  return state.toolsByTask[taskId] ?? [];
+}
+
+function withTranscript(
+  state: {
+    activeTaskId: string | null;
+    messagesByTask: Record<string, TimelineMessage[]>;
+    toolsByTask: Record<string, ToolExecution[]>;
+  },
+  taskId: string,
+  nextMessages?: TimelineMessage[],
+  nextTools?: ToolExecution[],
+) {
+  const messagesByTask = { ...state.messagesByTask };
+  const toolsByTask = { ...state.toolsByTask };
+  if (nextMessages) messagesByTask[taskId] = nextMessages;
+  if (nextTools) toolsByTask[taskId] = nextTools;
+  const active = taskId === state.activeTaskId;
+  return {
+    messagesByTask,
+    toolsByTask,
+    ...(active && nextMessages ? { messages: nextMessages } : {}),
+    ...(active && nextTools ? { tools: nextTools } : {}),
+  };
 }
 
 type AgentState = {
@@ -110,6 +196,8 @@ type AgentState = {
   activeTaskId: string | null;
   messages: TimelineMessage[];
   tools: ToolExecution[];
+  messagesByTask: Record<string, TimelineMessage[]>;
+  toolsByTask: Record<string, ToolExecution[]>;
   approval: ApprovalRequest | null;
   models: ModelRef[];
   thinkingLevels: ThinkingLevel[];
@@ -208,6 +296,14 @@ export const useAgentStore = create<AgentState>((set, get) => {
   activeTaskId: cached.activeTaskId ?? null,
   messages: cached.messages ?? [],
   tools: cached.tools ?? [],
+  messagesByTask: {
+    ...(cached.messagesByTask ?? {}),
+    ...(cached.activeTaskId && cached.messages ? { [cached.activeTaskId]: cached.messages } : {}),
+  },
+  toolsByTask: {
+    ...(cached.toolsByTask ?? {}),
+    ...(cached.activeTaskId && cached.tools ? { [cached.activeTaskId]: cached.tools } : {}),
+  },
   approval: null,
   models: [],
   thinkingLevels: ["off"],
@@ -251,11 +347,15 @@ export const useAgentStore = create<AgentState>((set, get) => {
   serverInstanceId: null,
   lastSeen: {},
   setConnection: (connection) => set({ connection }),
-  setActiveTask: (activeTaskId) =>
+  setActiveTask: (activeTaskId) => {
+    const current = get();
     set({
       activeTaskId,
-      approval: get().pendingApprovals.find((item) => item.taskId === activeTaskId) ?? null,
-    }),
+      messages: transcriptFor(current, activeTaskId),
+      tools: toolsFor(current, activeTaskId),
+      approval: current.pendingApprovals.find((item) => item.taskId === activeTaskId) ?? null,
+    });
+  },
   echoTerm: (taskId, command) =>
     set((state) => {
       const prev = state.termByTask[taskId] ?? emptyTerm;
@@ -289,12 +389,29 @@ export const useAgentStore = create<AgentState>((set, get) => {
       ...(payload.piAvailable !== undefined ? { piAvailable: payload.piAvailable } : {}),
       ...(payload.piError !== undefined ? { piError: payload.piError } : {}),
     }),
-  applySnapshot: (payload, taskId) =>
+  applySnapshot: (payload, taskId) => {
+    const current = get();
+    const snapshotTaskId = taskId ?? payload.activeTaskId ?? current.activeTaskId;
+    const nextActive = current.activeTaskId ?? payload.activeTaskId;
+    const transcript = snapshotTaskId
+      ? withTranscript(current, snapshotTaskId, payload.messages, payload.tools)
+      : { messagesByTask: current.messagesByTask, toolsByTask: current.toolsByTask };
     set({
       tasks: payload.tasks,
-      activeTaskId: taskId ?? payload.activeTaskId,
-      messages: payload.messages,
-      tools: payload.tools,
+      activeTaskId: nextActive,
+      messages:
+        snapshotTaskId && snapshotTaskId === nextActive
+          ? payload.messages
+          : nextActive
+            ? (transcript.messagesByTask[nextActive] ?? current.messages)
+            : payload.messages,
+      tools:
+        snapshotTaskId && snapshotTaskId === nextActive
+          ? payload.tools
+          : nextActive
+            ? (transcript.toolsByTask[nextActive] ?? current.tools)
+            : payload.tools,
+      ...transcript,
       models: payload.models,
       thinkingLevels: payload.thinkingLevels,
       stats: payload.stats,
@@ -329,9 +446,10 @@ export const useAgentStore = create<AgentState>((set, get) => {
       activeProjectId: payload.activeProjectId ?? null,
       approval:
         payload.approval ??
-        (payload.pendingApprovals ?? []).find((item) => item.taskId === (taskId ?? payload.activeTaskId)) ??
+        (payload.pendingApprovals ?? []).find((item) => item.taskId === (nextActive ?? snapshotTaskId)) ??
         null,
-    }),
+    });
+  },
   applyEvent: (event) => {
     let current = get();
     if (current.serverInstanceId !== event.serverInstanceId) {
@@ -356,13 +474,29 @@ export const useAgentStore = create<AgentState>((set, get) => {
     const lastSeen = { ...current.lastSeen, [event.taskId]: event.sequence };
 
     switch (event.type) {
-      case "snapshot":
+      case "snapshot": {
+        const snapshotTaskId = event.payload.activeTaskId || event.taskId || current.activeTaskId;
+        const nextActive = current.activeTaskId ?? event.payload.activeTaskId;
+        const transcript = snapshotTaskId
+          ? withTranscript(current, snapshotTaskId, event.payload.messages, event.payload.tools)
+          : { messagesByTask: current.messagesByTask, toolsByTask: current.toolsByTask };
         set({
           lastSeen,
           tasks: event.payload.tasks,
-          activeTaskId: event.payload.activeTaskId ?? current.activeTaskId,
-          messages: event.payload.messages,
-          tools: event.payload.tools,
+          activeTaskId: nextActive,
+          messages:
+            snapshotTaskId && snapshotTaskId === nextActive
+              ? event.payload.messages
+              : nextActive
+                ? (transcript.messagesByTask[nextActive] ?? current.messages)
+                : event.payload.messages,
+          tools:
+            snapshotTaskId && snapshotTaskId === nextActive
+              ? event.payload.tools
+              : nextActive
+                ? (transcript.toolsByTask[nextActive] ?? current.tools)
+                : event.payload.tools,
+          ...transcript,
           models: event.payload.models,
           thinkingLevels: event.payload.thinkingLevels,
           stats: event.payload.stats,
@@ -404,24 +538,44 @@ export const useAgentStore = create<AgentState>((set, get) => {
           approval:
             event.payload.approval ??
             (event.payload.pendingApprovals ?? current.pendingApprovals).find(
-              (item) => item.taskId === (event.payload.activeTaskId ?? current.activeTaskId),
+              (item) => item.taskId === (nextActive ?? snapshotTaskId),
             ) ??
             null,
         });
         break;
-      case "task.created":
-        set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task), activeTaskId: event.payload.task.id });
+      }
+      case "task.created": {
+        const createdId = event.payload.task.id;
+        set({
+          lastSeen,
+          tasks: upsertTask(current.tasks, event.payload.task),
+          activeTaskId: createdId,
+          messages: current.messagesByTask[createdId] ?? [],
+          tools: current.toolsByTask[createdId] ?? [],
+          messagesByTask: { ...current.messagesByTask, [createdId]: current.messagesByTask[createdId] ?? [] },
+          toolsByTask: { ...current.toolsByTask, [createdId]: current.toolsByTask[createdId] ?? [] },
+        });
         break;
+      }
       case "task.updated":
         set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task) });
         break;
       case "task.archived": {
         const termByTask = { ...current.termByTask };
         delete termByTask[event.payload.taskId];
+        const messagesByTask = { ...current.messagesByTask };
+        const toolsByTask = { ...current.toolsByTask };
+        delete messagesByTask[event.payload.taskId];
+        delete toolsByTask[event.payload.taskId];
+        const nextActive = current.activeTaskId === event.payload.taskId ? null : current.activeTaskId;
         set({
           lastSeen,
           tasks: current.tasks.filter((task) => task.id !== event.payload.taskId),
-          activeTaskId: current.activeTaskId === event.payload.taskId ? null : current.activeTaskId,
+          activeTaskId: nextActive,
+          messages: nextActive ? (messagesByTask[nextActive] ?? []) : [],
+          tools: nextActive ? (toolsByTask[nextActive] ?? []) : [],
+          messagesByTask,
+          toolsByTask,
           termByTask,
         });
         break;
@@ -436,68 +590,56 @@ export const useAgentStore = create<AgentState>((set, get) => {
           ),
         });
         break;
-      case "message.started":
-        if (event.taskId !== current.activeTaskId) {
-          set({ lastSeen });
-          break;
-        }
+      case "message.started": {
+        const prev = transcriptFor(current, event.taskId);
+        const messages = prev.some((item) => item.id === event.payload.message.id)
+          ? prev
+          : [...prev, event.payload.message];
         set({
           lastSeen,
           // Pi often starts an empty assistant bubble before the provider
           // returns 401/403. Keep that error visible until the user sends again.
-          serverError: event.payload.message.role === "user" ? null : current.serverError,
-          messages: current.messages.some((item) => item.id === event.payload.message.id)
-            ? current.messages
-            : [...current.messages, event.payload.message],
+          serverError:
+            event.taskId === current.activeTaskId && event.payload.message.role === "user"
+              ? null
+              : current.serverError,
+          ...withTranscript(current, event.taskId, messages),
         });
         break;
-      case "message.delta":
-        if (event.taskId !== current.activeTaskId) {
-          set({ lastSeen });
-          break;
-        }
-        set({
-          lastSeen,
-          messages: current.messages.map((item) => {
-            if (item.id !== event.payload.messageId) return item;
-            if (event.payload.field === "thinking") {
-              return { ...item, thinking: `${item.thinking ?? ""}${event.payload.delta}` };
-            }
-            return { ...item, text: item.text + event.payload.delta };
-          }),
+      }
+      case "message.delta": {
+        const messages = transcriptFor(current, event.taskId).map((item) => {
+          if (item.id !== event.payload.messageId) return item;
+          if (event.payload.field === "thinking") {
+            return { ...item, thinking: `${item.thinking ?? ""}${event.payload.delta}` };
+          }
+          return { ...item, text: item.text + event.payload.delta };
         });
+        set({ lastSeen, ...withTranscript(current, event.taskId, messages) });
         break;
-      case "message.completed":
-        if (event.taskId !== current.activeTaskId) {
-          set({ lastSeen });
-          break;
-        }
-        set({
-          lastSeen,
-          messages: current.messages.some((item) => item.id === event.payload.message.id)
-            ? current.messages.map((item) =>
-                item.id === event.payload.message.id
-                  ? mergeCompletedTimelineMessage(item, event.payload.message)
-                  : item,
-              )
-            : [...current.messages, event.payload.message],
-        });
+      }
+      case "message.completed": {
+        const prev = transcriptFor(current, event.taskId);
+        const messages = prev.some((item) => item.id === event.payload.message.id)
+          ? prev.map((item) =>
+              item.id === event.payload.message.id
+                ? mergeCompletedTimelineMessage(item, event.payload.message)
+                : item,
+            )
+          : [...prev, event.payload.message];
+        set({ lastSeen, ...withTranscript(current, event.taskId, messages) });
         break;
+      }
       case "tool.started":
       case "tool.updated":
-      case "tool.completed":
-        if (event.taskId !== current.activeTaskId) {
-          set({ lastSeen });
-          break;
-        }
-        set({
-          lastSeen,
-          tools: [
-            ...current.tools.filter((tool) => tool.toolCallId !== event.payload.tool.toolCallId),
-            event.payload.tool,
-          ],
-        });
+      case "tool.completed": {
+        const tools = [
+          ...toolsFor(current, event.taskId).filter((tool) => tool.toolCallId !== event.payload.tool.toolCallId),
+          event.payload.tool,
+        ];
+        set({ lastSeen, ...withTranscript(current, event.taskId, undefined, tools) });
         break;
+      }
       case "approval.requested": {
         const pendingApprovals = [
           ...current.pendingApprovals.filter((item) => item.requestId !== event.payload.approval.requestId),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PROMPT_MESSAGE_MAX,
   clientCommandSchema,
   normalizeSessionStats,
   piResourcesSchema,
@@ -12,6 +13,33 @@ describe("protocol", () => {
   it("rejects illegal websocket payloads", () => {
     const result = clientCommandSchema.safeParse({ type: "prompt.send", payload: { message: "hi" } });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts image-only prompts and rejects oversized text", () => {
+    expect(
+      clientCommandSchema.parse({
+        id: "img",
+        type: "prompt.send",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { message: "", imageIds: ["up-1"] },
+      }).payload.imageIds,
+    ).toEqual(["up-1"]);
+    expect(
+      clientCommandSchema.safeParse({
+        id: "empty",
+        type: "prompt.send",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { message: "   " },
+      }).success,
+    ).toBe(false);
+    expect(
+      clientCommandSchema.safeParse({
+        id: "huge",
+        type: "prompt.send",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { message: "x".repeat(PROMPT_MESSAGE_MAX + 1) },
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts pi mvp session and runtime commands", () => {

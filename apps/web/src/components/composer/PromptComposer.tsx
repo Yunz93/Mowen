@@ -82,10 +82,15 @@ export function PromptComposer({
   const composingRef = useRef(false);
   const [caret, setCaret] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuDismissed, setMenuDismissed] = useState(false);
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
   const mention = mentionQuery(value, caret);
   const slash = !mention ? slashQuery(value, caret) : null;
+
+  useEffect(() => {
+    setMenuDismissed(false);
+  }, [mention?.start, mention?.query, slash?.start, slash?.query]);
   const attachedCount = extractAtMentions(value).length;
 
   useEffect(() => {
@@ -217,11 +222,23 @@ export function PromptComposer({
           disabled={disabled}
           className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 pr-10 text-[15px] leading-6 text-ink placeholder:text-mute"
         />
-        {fileHits.length > 0 ? (
-          <MentionMenu items={fileHits} label="文件" onPick={pickMention} onNavigate={setMenuOpen} />
+        {fileHits.length > 0 && !menuDismissed ? (
+          <MentionMenu
+            items={fileHits}
+            label="文件"
+            onPick={pickMention}
+            onNavigate={setMenuOpen}
+            onDismiss={() => setMenuDismissed(true)}
+          />
         ) : null}
-        {commandHits.length > 0 ? (
-          <MentionMenu items={commandHits} label="命令" onPick={pickMention} onNavigate={setMenuOpen} />
+        {commandHits.length > 0 && !menuDismissed ? (
+          <MentionMenu
+            items={commandHits}
+            label="命令"
+            onPick={pickMention}
+            onNavigate={setMenuOpen}
+            onDismiss={() => setMenuDismissed(true)}
+          />
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5 pt-0.5">
           <ComposerCapsules

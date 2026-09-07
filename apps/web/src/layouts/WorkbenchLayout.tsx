@@ -24,6 +24,7 @@ import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
 import { isEditableTarget } from "../lib/hotkeys";
+import { readComposerDraft, writeComposerDraft } from "../lib/composer-drafts";
 import { getDesktop } from "../desktop-bridge";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
@@ -71,6 +72,7 @@ export function WorkbenchLayout() {
   const devSelfWorkspace = useAgentStore((state) => state.devSelfWorkspace);
 
   const [draft, setDraft] = useState("");
+  const draftTaskRef = useRef<string | null>(null);
   const [query, setQuery] = useState("");
   const [cwd, setCwd] = useState(workspaceRoot ?? allowedRoots[0] ?? "");
   const [creating, setCreating] = useState(false);
@@ -157,6 +159,14 @@ export function WorkbenchLayout() {
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
   const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
 
+  const abortRun = useCallback(() => {
+    if (!task) return;
+    const lastUser = [...messages].reverse().find((item) => item.role === "user");
+    const text = lastUser ? stripModePrefix(lastUser.text).trim() : draft.trim();
+    if (text) setRetryPrompt(text);
+    void socketClient.send("agent.abort", {}, task.id);
+  }, [draft, messages, task]);
+
   useEffect(() => {
     if (!toast?.message) return;
     void showOsNotification("轻舟", toast.message, toast.notifyType);
@@ -185,8 +195,27 @@ export function WorkbenchLayout() {
   }, [inspectorWidth]);
 
   useEffect(() => {
+    const prev = draftTaskRef.current;
+    if (prev && prev !== activeTaskId) {
+      writeComposerDraft(prev, draft);
+    }
+    draftTaskRef.current = activeTaskId;
+    if (pendingDraft) return;
+    setDraft(readComposerDraft(activeTaskId));
+    // Switching sessions should restore that session's draft, not keep the previous text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- draft is persisted before the id changes
+  }, [activeTaskId]);
+
+  useEffect(() => {
+    if (!activeTaskId) return;
+    const timer = window.setTimeout(() => writeComposerDraft(activeTaskId, draft), 200);
+    return () => window.clearTimeout(timer);
+  }, [activeTaskId, draft]);
+
+  useEffect(() => {
     if (!pendingDraft || !task) return;
     setDraft(pendingDraft);
+    writeComposerDraft(task.id, pendingDraft);
     setPendingDraft(null);
   }, [pendingDraft, task]);
 
@@ -258,8 +287,11 @@ export function WorkbenchLayout() {
           );
           return;
         }
+        if (isEditableTarget(event.target)) return;
         event.preventDefault();
-        if (task) void socketClient.send("agent.abort", {}, task.id);
+        if (task && (status === "running" || status === "waiting_approval" || status === "aborting" || status === "booting")) {
+          void abortRun();
+        }
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -302,7 +334,7 @@ export function WorkbenchLayout() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeTaskId, approval, conversationTasks, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, task, taskOpen]);
+  }, [abortRun, activeTaskId, approval, conversationTasks, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, status, task, taskOpen]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -321,41 +353,44 @@ export function WorkbenchLayout() {
 
   async function selectTask(taskId: string) {
     useAgentStore.getState().setActiveTask(taskId);
-    await socketClient.send("task.activate", {}, taskId);
-    await socketClient.send("snapshot.request", { taskId }, taskId);
+    try {
+      await socketClient.send("task.activate", {}, taskId);
+      await socketClient.send("snapshot.request", { taskId }, taskId);
+    } catch {
+      // Activate/snapshot errors surface via task status / server.error.
+    }
     setTaskOpen(false);
   }
 
-  const sendPrompt = async () => {
+  const submitPrompt = async (type: "prompt.send" | "prompt.steer" | "prompt.followUp") => {
     if (!task || (!draft.trim() && composerImages.length === 0)) return;
     const text = draft;
-    const images = composerImages.map((item) => item.id);
+    const images = composerImages;
     setDraft("");
-    clearComposerImages();
+    writeComposerDraft(task.id, "");
+    setComposerImages([]);
     setRetryPrompt(null);
-    if (task.status === "stopped" || task.status === "error") {
-      await socketClient.send("task.activate", {}, task.id);
+    useAgentStore.getState().clearRequestError();
+    try {
+      if (type === "prompt.send" && (task.status === "stopped" || task.status === "error")) {
+        await socketClient.send("task.activate", {}, task.id);
+      }
+      await socketClient.send(type, { message: text, imageIds: images.map((item) => item.id) }, task.id);
+      for (const item of images) URL.revokeObjectURL(item.previewUrl);
+    } catch (error) {
+      setDraft(text);
+      writeComposerDraft(task.id, text);
+      setComposerImages(images);
+      if (!useAgentStore.getState().requestError) {
+        useAgentStore.setState({
+          requestError: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-    await socketClient.send("prompt.send", { message: text, imageIds: images }, task.id);
   };
 
-  const sendFollowUp = async () => {
-    if (!task || (!draft.trim() && composerImages.length === 0)) return;
-    const text = draft;
-    const images = composerImages.map((item) => item.id);
-    setDraft("");
-    clearComposerImages();
-    setRetryPrompt(null);
-    await socketClient.send("prompt.followUp", { message: text, imageIds: images }, task.id);
-  };
-
-  const abortRun = () => {
-    if (!task) return;
-    const lastUser = [...messages].reverse().find((item) => item.role === "user");
-    const text = lastUser ? stripModePrefix(lastUser.text).trim() : draft.trim();
-    if (text) setRetryPrompt(text);
-    void socketClient.send("agent.abort", {}, task.id);
-  };
+  const sendPrompt = () => submitPrompt("prompt.send");
+  const sendFollowUp = () => submitPrompt("prompt.followUp");
 
   async function retryLastPrompt() {
     if (!task || !retryPrompt) return;
@@ -411,13 +446,6 @@ export function WorkbenchLayout() {
       const gone = current.find((item) => item.id === id);
       if (gone) URL.revokeObjectURL(gone.previewUrl);
       return current.filter((item) => item.id !== id);
-    });
-  }
-
-  function clearComposerImages() {
-    setComposerImages((current) => {
-      for (const item of current) URL.revokeObjectURL(item.previewUrl);
-      return [];
     });
   }
 
@@ -705,31 +733,38 @@ export function WorkbenchLayout() {
           errorMessage={task?.errorMessage ?? serverError ?? requestError}
         />
         {!piAvailable ? (
-          <div className="banner-note text-danger">
+          <div className="banner-note text-danger" role="alert">
             {piError ?? "AI 引擎还没准备好。打开设置完成安装。"}
           </div>
         ) : null}
         {devSelfWorkspace ? (
-          <div className="banner-note text-mute">
+          <div className="banner-note text-mute" role="status">
             当前工作区是轻舟源码目录，热重载会中断正在跑的任务。请换文件夹，或用{" "}
             <code className="text-ink">pnpm dev:stable</code>。
           </div>
         ) : null}
         {connection !== "open" ? (
-          <div className="banner-note text-mute">
+          <div className="banner-note text-mute" role="status">
             {connection === "connecting" ? "正在重新连接…" : "已断开，正在尝试重连"}
           </div>
         ) : null}
         {serverError || requestError || task?.errorMessage ? (
-          <div className="banner-note whitespace-pre-wrap text-danger">
-            {serverError ?? requestError ?? task?.errorMessage}
+          <div className="banner-note whitespace-pre-wrap text-danger" role="alert">
+            <span className="min-w-0 flex-1">{serverError ?? requestError ?? task?.errorMessage}</span>
+            <button
+              type="button"
+              className="pressable app-no-drag shrink-0 text-accent"
+              onClick={() => useAgentStore.getState().clearRequestError()}
+            >
+              关闭
+            </button>
           </div>
         ) : authHint ? (
-          <div className="banner-note text-mute">
+          <div className="banner-note text-mute" role="status">
             还没有连接 AI。打开设置登录或粘贴密钥，凭证只会保存在这台电脑上。
           </div>
         ) : notice ? (
-          <div className="banner-note text-mute">
+          <div className="banner-note text-mute" role="status">
             <span className="min-w-0 truncate">{notice}</span>
             {lastExportPath ? (
               <button
@@ -743,7 +778,7 @@ export function WorkbenchLayout() {
           </div>
         ) : null}
         {otherApproval ? (
-          <div className="banner-note text-ink">
+          <div className="banner-note text-ink" role="status">
             另一个会话在等待确认。
             <button
               type="button"
@@ -755,7 +790,7 @@ export function WorkbenchLayout() {
           </div>
         ) : null}
         {retryPrompt && (status === "idle" || status === "error" || status === "stopped") ? (
-          <div className="banner-note text-ink">
+          <div className="banner-note text-ink" role="status">
             已停止。
             <button type="button" className="pressable app-no-drag text-accent" onClick={() => void retryLastPrompt()}>
               重试上一条
@@ -765,11 +800,16 @@ export function WorkbenchLayout() {
         {toast?.message && toast.message !== "回复完成" ? (
           <div
             className={`banner-note ${toast.notifyType === "error" ? "text-danger" : "text-mute"}`}
+            role={toast.notifyType === "error" ? "alert" : "status"}
           >
             {toast.message}
           </div>
         ) : null}
-        <main id="main-content" data-conversation-scroll className="min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain">
+        <main
+          id="main-content"
+          data-conversation-scroll
+          className="relative min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain"
+        >
           {task ? (
             <ConversationTimeline
               messages={messages}
@@ -861,14 +901,7 @@ export function WorkbenchLayout() {
             value={draft}
             onChange={setDraft}
             onSend={() => void sendPrompt()}
-            onSteer={() => {
-              const text = draft;
-              const images = composerImages.map((item) => item.id);
-              setDraft("");
-              clearComposerImages();
-              setRetryPrompt(null);
-              void socketClient.send("prompt.steer", { message: text, imageIds: images }, task.id);
-            }}
+            onSteer={() => void submitPrompt("prompt.steer")}
             onFollowUp={() => void sendFollowUp()}
             onAbort={abortRun}
             onModel={(provider, modelId) =>
