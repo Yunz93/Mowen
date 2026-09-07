@@ -271,15 +271,31 @@ download_checksums() {
   echo "警告: 这个版本没有 SHA256SUMS.txt，跳过完整性校验。" >&2
 }
 
+# SHA256SUMS.txt from `sha256sum dist/*` lists `dist/Qingzhou-mac-arm64.zip`.
+# Compare the basename so those lines still match the downloaded file.
+checksum_for_name() {
+  local sums="$1"
+  local want="$2"
+  awk -v name="$want" '
+    {
+      f = $2
+      sub(/^\*/, "", f)
+      n = split(f, parts, "/")
+      if (parts[n] == name) { print $1; exit }
+    }
+  ' "$sums"
+}
+
 verify_release_file() {
   local file="$1"
   local name sums expected actual
   name="$(basename "$file")"
   sums="${TMP_DIR}/SHA256SUMS.txt"
   [[ -f "$sums" ]] || return 0
-  expected="$(awk -v name="$name" '$2 == name || $2 == "*"name { print $1; exit }' "$sums")"
+  expected="$(checksum_for_name "$sums" "$name")"
   if [[ -z "$expected" ]]; then
-    echo "警告: 校验清单里没有 $name，跳过。" >&2
+    # Brace ${name}: macOS /bin/bash 3.2 + set -u treats $name plus a fullwidth comma as one identifier.
+    echo "警告: 校验清单里没有 ${name}，跳过。" >&2
     return 0
   fi
   if command -v shasum >/dev/null; then
@@ -288,10 +304,10 @@ verify_release_file() {
     actual="$(sha256sum "$file" | awk '{print $1}')"
   fi
   if [[ "$actual" != "$expected" ]]; then
-    echo "错误: $name 校验和不匹配。" >&2
+    echo "错误: ${name} 校验和不匹配。" >&2
     return 1
   fi
-  ok "$name 校验通过"
+  ok "${name} 校验通过"
 }
 
 trust_app() {
@@ -401,6 +417,14 @@ if [[ "${QINGZHOU_SELF_TEST:-${MOWEN_SELF_TEST:-${OHMYPI_SELF_TEST:-}}}" == "1" 
   printf '%s  payload.txt\n' "$good" > "${TMP_DIR}/SHA256SUMS.txt"
   if ! verify_release_file "${TMP_DIR}/payload.txt"; then
     die "verify_release_file should accept a matching checksum"
+  fi
+  printf '%s  dist/payload.txt\n' "$good" > "${TMP_DIR}/SHA256SUMS.txt"
+  if ! verify_release_file "${TMP_DIR}/payload.txt"; then
+    die "verify_release_file should match SHA256SUMS paths under dist/"
+  fi
+  printf '%s  other.txt\n' "$good" > "${TMP_DIR}/SHA256SUMS.txt"
+  if ! verify_release_file "${TMP_DIR}/payload.txt"; then
+    die "verify_release_file should skip when the checksum name is missing"
   fi
   printf '%s  payload.txt\n' "0000000000000000000000000000000000000000000000000000000000000000" > "${TMP_DIR}/SHA256SUMS.txt"
   if verify_release_file "${TMP_DIR}/payload.txt"; then

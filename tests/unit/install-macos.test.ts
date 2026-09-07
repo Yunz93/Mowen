@@ -45,6 +45,9 @@ describe("install-macos.sh", () => {
     expect(src).not.toMatch(/awk '\/\\\/Volumes/);
     expect(src).toContain("SHA256SUMS.txt");
     expect(src).toContain("verify_release_file");
+    expect(src).toContain("checksum_for_name");
     expect(src).toContain("Intel 需要 x64");
+    expect(src).not.toMatch(/\$name[，。]/);
+    expect(src).toContain("${name}，跳过");
   });
 });

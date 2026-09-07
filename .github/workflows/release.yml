@@ -93,7 +93,7 @@ jobs:
           cp scripts/install-windows.ps1 dist/install-windows.ps1
           chmod +x dist/install-macos.sh
           ls -la dist
-          sha256sum dist/* > /tmp/SHA256SUMS.txt
+          (cd dist && sha256sum *) > /tmp/SHA256SUMS.txt
           mv /tmp/SHA256SUMS.txt dist/SHA256SUMS.txt
           cat dist/SHA256SUMS.txt
 

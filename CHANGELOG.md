@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- macOS 安装脚本能对上 `dist/` 前缀的 SHA256SUMS，且不再因中文逗号在 bash 3.2 下报 `name unbound variable`。
 - 安装推荐插件时改用轻舟自己的 npm 缓存，避免 `~/.npm` 属于 root 时把 Pi 打崩；失败时只显示简短中文说明。
 - 推荐插件只有真正装上后才显示「已安装」；下载失败会撤回写入的 Pi 设置，可以再点安装。
 
