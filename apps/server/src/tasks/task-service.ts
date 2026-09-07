@@ -976,7 +976,8 @@ export class TaskService {
       prefixArgs: this.config.piPrefixArgs,
       extraEnv: this.config.piExtraEnv,
     });
-    const next = await this.reloadResources(taskId);
+    const next = await this.emitResources(taskId);
+    void this.reloadResources(taskId).catch(() => undefined);
     if (result.piInstallError) throw new Error(result.piInstallError);
     return {
       ok: true,
