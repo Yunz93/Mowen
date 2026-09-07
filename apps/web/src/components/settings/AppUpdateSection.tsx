@@ -114,7 +114,7 @@ export function AppUpdateSection() {
               disabled={busy || installing}
               onClick={() => void check(true)}
             >
-              {busy ? "正在检查更新…" : "立即检查"}
+              {busy ? "正在检查…" : "立即检查"}
             </button>
             {updateAvailable && canUpdate ? (
               <button
