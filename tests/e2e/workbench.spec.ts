@@ -30,7 +30,23 @@ test.beforeAll(() => {
     ].join("\n"),
   );
   rmSync(path.join(project, "denied.txt"), { force: true });
-  rmSync(path.join(home, ".pi", "agent", "settings.json"), { force: true });
+  writeFileSync(
+    path.join(home, ".pi", "agent", "settings.json"),
+    `${JSON.stringify(
+      {
+        packages: [
+          "npm:pi-web-access",
+          "npm:pi-memory",
+          "npm:@juicesharp/rpiv-todo",
+          "npm:pi-subagents",
+          "npm:pi-mcp-adapter",
+          "npm:context-mode",
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
   rmSync(path.join(home, ".pi", "agent", "mcp.json"), { force: true });
 });
 
@@ -180,6 +196,8 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐插件")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("pi-web-access")).toBeVisible();
+  await expect(page.getByRole("button", { name: "安装全部" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装")).toHaveCount(0);
   const presetSources = [
     "npm:pi-web-access",
     "npm:pi-memory",
