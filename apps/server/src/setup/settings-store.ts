@@ -5,12 +5,18 @@ export type UserSettings = {
   workspaceRoot: string | null;
   setupCompletedAt: string | null;
   trustProject: boolean;
+  autoCheckForUpdates: boolean;
+  skippedUpdateVersion: string;
+  lastUpdateCheckAt: string | null;
 };
 
 const EMPTY: UserSettings = {
   workspaceRoot: null,
   setupCompletedAt: null,
   trustProject: false,
+  autoCheckForUpdates: true,
+  skippedUpdateVersion: "",
+  lastUpdateCheckAt: null,
 };
 
 export class SettingsStore {
@@ -31,6 +37,9 @@ export class SettingsStore {
         setupCompletedAt:
           typeof parsed.setupCompletedAt === "string" ? parsed.setupCompletedAt : null,
         trustProject: parsed.trustProject === true,
+        autoCheckForUpdates: parsed.autoCheckForUpdates !== false,
+        skippedUpdateVersion: typeof parsed.skippedUpdateVersion === "string" ? parsed.skippedUpdateVersion : "",
+        lastUpdateCheckAt: typeof parsed.lastUpdateCheckAt === "string" ? parsed.lastUpdateCheckAt : null,
       };
     } catch {
       this.settings = { ...EMPTY };

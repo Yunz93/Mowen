@@ -7,7 +7,28 @@ export function DesktopMenuBridge() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    void useUpdateStore.getState().check();
+    let cancelled = false;
+    let idleId: number | undefined;
+    let timerId: number | undefined;
+
+    void useUpdateStore.getState().hydrate().then(() => {
+      if (cancelled) return;
+      if (!useUpdateStore.getState().autoCheckForUpdates) return;
+      const run = () => {
+        if (!cancelled) void useUpdateStore.getState().check();
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(run, { timeout: 2500 });
+      } else {
+        timerId = globalThis.setTimeout(run, 1200);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (idleId != null) window.cancelIdleCallback(idleId);
+      if (timerId != null) window.clearTimeout(timerId);
+    };
   }, []);
 
   useEffect(() => {
