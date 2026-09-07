@@ -8,10 +8,11 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import { readProxyUrl } from "./http-proxy.js";
 
 const execFileAsync = promisify(execFile);
 
-export const DEFAULT_QINGZHOU_REPO = "Yunz93/Mowen";
+export const DEFAULT_QINGZHOU_REPO = "Yunz93/Qingzhou";
 export const APP_BUNDLE_NAME = "Qingzhou.app";
 const CHECK_TIMEOUT_MS = 30_000;
 const DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
@@ -51,6 +52,53 @@ export function qingzhouRepo(env: NodeJS.ProcessEnv = process.env): string {
   const value = env.QINGZHOU_REPO?.trim() || env.MOWEN_REPO?.trim() || DEFAULT_QINGZHOU_REPO;
   if (!/^[\w.-]+\/[\w.-]+$/.test(value)) throw new Error("轻舟更新仓库配置无效。");
   return value;
+}
+
+export function parseReleaseTagFromGithubUrl(url: string): string | null {
+  const match = url.trim().match(/\/releases\/tag\/(v?[A-Za-z0-9][A-Za-z0-9.-]*)/);
+  if (!match?.[1]) return null;
+  const tag = match[1].startsWith("v") ? match[1] : `v${match[1]}`;
+  return normalizeVersion(tag) ? tag : null;
+}
+
+export function githubReleaseDownloadUrl(repo: string, tag: string, name: string): string {
+  return `https://github.com/${repo}/releases/download/${tag}/${name}`;
+}
+
+export function syntheticGithubRelease(repo: string, tag: string): Record<string, unknown> {
+  const names = [
+    "Qingzhou-mac-arm64.zip",
+    "Qingzhou-mac-x64.zip",
+    "Qingzhou-win-x64-setup.exe",
+    "Qingzhou-win-arm64-setup.exe",
+    "SHA256SUMS.txt",
+  ];
+  return {
+    tag_name: tag,
+    name: tag,
+    html_url: `https://github.com/${repo}/releases/tag/${tag}`,
+    body: "",
+    published_at: null,
+    prerelease: false,
+    assets: names.map((name) => ({
+      name,
+      browser_download_url: githubReleaseDownloadUrl(repo, tag, name),
+      size: 0,
+    })),
+  };
+}
+
+export function shouldFallbackGithubRelease(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /HTTP 401|HTTP 403|HTTP 429|rate limit/i.test(message);
+}
+
+export function humanizeGithubHttpStatus(status: number, body = ""): string {
+  if (status === 403 || status === 429) {
+    if (/rate limit/i.test(body)) return "GitHub 限制了检查次数，请稍后再试。";
+    return "GitHub 拒绝访问（HTTP 403）。打不开 GitHub 时请设置 HTTPS_PROXY 后重试。";
+  }
+  return `GitHub 返回 HTTP ${status}`;
 }
 
 export function isQingzhouDesktop(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -340,9 +388,10 @@ export async function downloadUpdateFile(
   url: string,
   dest: string,
   onEvent?: (event: UpdateDownloadEvent) => void,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
 ): Promise<void> {
-  const response = await fetchImpl(url, {
+  const doFetch = fetchImpl ?? githubFetch;
+  const response = await doFetch(url, {
     signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
     headers: { "user-agent": "qingzhou-updater" },
   });
@@ -384,14 +433,23 @@ export async function downloadUpdateFile(
 export async function fetchLatestQingzhouRelease(options: {
   env?: NodeJS.ProcessEnv;
   fetchJson?: (url: string) => Promise<unknown>;
+  fetchLatestLocation?: (url: string) => Promise<string>;
 } = {}): Promise<{ release: QingzhouRelease | null; error: string | null }> {
+  const repo = qingzhouRepo(options.env);
+  const fetchJson = options.fetchJson ?? fetchGithubJson;
   try {
-    const repo = qingzhouRepo(options.env);
-    const fetchJson = options.fetchJson ?? fetchGithubJson;
     const raw = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
     return { release: parseQingzhouRelease(raw), error: null };
   } catch (error) {
-    return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
+    if (!shouldFallbackGithubRelease(error)) {
+      return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
+    }
+    try {
+      const tag = await resolveLatestReleaseTag(repo, options.fetchLatestLocation);
+      return { release: parseQingzhouRelease(syntheticGithubRelease(repo, tag)), error: null };
+    } catch {
+      return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
+    }
   }
 }
 
@@ -536,17 +594,61 @@ export function spawnWindowsInstallWaiter(kind: "macos" | "windows", installerPa
   child.unref();
 }
 
+async function resolveLatestReleaseTag(
+  repo: string,
+  fetchLatestLocation?: (url: string) => Promise<string>,
+): Promise<string> {
+  const latestUrl = `https://github.com/${repo}/releases/latest`;
+  if (fetchLatestLocation) {
+    const tag = parseReleaseTagFromGithubUrl(await fetchLatestLocation(latestUrl));
+    if (!tag) throw new Error("无法从 GitHub 发布页读取版本。");
+    return tag;
+  }
+  const response = await githubFetch(latestUrl, {
+    method: "GET",
+    redirect: "manual",
+    signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    headers: { "user-agent": "qingzhou-update-check" },
+  });
+  const location = response.headers.get("location") || response.url;
+  const tag = parseReleaseTagFromGithubUrl(location);
+  if (!tag) throw new Error(humanizeGithubHttpStatus(response.status));
+  return tag;
+}
+
+async function githubFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("user-agent")) headers.set("user-agent", "qingzhou-update-check");
+  const next: RequestInit = { ...init, headers };
+  const proxy = readProxyUrl();
+  if (proxy) {
+    try {
+      const undici = await import("undici");
+      if (typeof undici.EnvHttpProxyAgent === "function" && typeof undici.fetch === "function") {
+        const dispatcher = new undici.EnvHttpProxyAgent();
+        return (await undici.fetch(url, { ...next, dispatcher } as never)) as unknown as Response;
+      }
+    } catch {
+      // fall through to global fetch
+    }
+  }
+  return fetch(url, next);
+}
+
 async function fetchGithubJson(url: string): Promise<unknown> {
-  const response = await fetch(url, {
+  const response = await githubFetch(url, {
     signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     headers: { "user-agent": "qingzhou-update-check", accept: "application/vnd.github+json" },
   });
-  if (!response.ok) throw new Error(`GitHub 返回 HTTP ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(humanizeGithubHttpStatus(response.status, body));
+  }
   return response.json();
 }
 
 async function fetchTextDocument(url: string): Promise<string> {
-  const response = await fetch(url, {
+  const response = await githubFetch(url, {
     signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     headers: { "user-agent": "qingzhou-updater" },
   });

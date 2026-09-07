@@ -2,13 +2,13 @@
 # Downloads the latest GitHub Release setup exe and runs it.
 #
 # Usage (PowerShell):
-#   irm https://github.com/Yunz93/Mowen/releases/latest/download/install-windows.ps1 | iex
+#   irm https://github.com/Yunz93/Qingzhou/releases/latest/download/install-windows.ps1 | iex
 #   .\scripts\install-windows.ps1
 #   .\scripts\install-windows.ps1 -Nightly
 #   .\scripts\install-windows.ps1 -Version v0.1.0
 
 param(
-  [string] $Repo = $(if ($env:QINGZHOU_REPO) { $env:QINGZHOU_REPO } elseif ($env:MOWEN_REPO) { $env:MOWEN_REPO } elseif ($env:OHMYPI_REPO) { $env:OHMYPI_REPO } else { "Yunz93/Mowen" }),
+  [string] $Repo = $(if ($env:QINGZHOU_REPO) { $env:QINGZHOU_REPO } elseif ($env:MOWEN_REPO) { $env:MOWEN_REPO } elseif ($env:OHMYPI_REPO) { $env:OHMYPI_REPO } else { "Yunz93/Qingzhou" }),
   [string] $Version = $(if ($env:QINGZHOU_VERSION) { $env:QINGZHOU_VERSION } elseif ($env:MOWEN_VERSION) { $env:MOWEN_VERSION } elseif ($env:OHMYPI_VERSION) { $env:OHMYPI_VERSION } else { "latest" }),
   [switch] $Nightly
 )

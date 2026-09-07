@@ -65,7 +65,7 @@ function installMenu(): void {
         },
         {
           label: "在 GitHub 查看轻舟",
-          click: () => void shell.openExternal("https://github.com/Yunz93/Mowen"),
+          click: () => void shell.openExternal("https://github.com/Yunz93/Qingzhou"),
         },
       ],
     },
