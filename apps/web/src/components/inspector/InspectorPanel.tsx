@@ -4,6 +4,7 @@ import {
   gitPatchForPath,
   parseGitPatch,
   patchLineCounts,
+  PRESET_PI_PACKAGES,
   type PiResources,
 } from "@qingzhou/protocol";
 import { ancestorDirs, buildFileTree, gitMarksByPath, type InspectorFileEntry } from "../../lib/inspector-files";
@@ -103,6 +104,7 @@ export function InspectorPanel({
   const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
   const [treeOpen, setTreeOpen] = useState(true);
+  const [claimedPresetIds, setClaimedPresetIds] = useState<string[]>([]);
   const onLoadTreeRef = useRef(onLoadTree);
   const onLoadGitRef = useRef(onLoadGit);
   onLoadTreeRef.current = onLoadTree;
@@ -443,10 +445,24 @@ export function InspectorPanel({
                 <InspectorExtensions
                   extensions={resources?.extensions ?? []}
                   packages={resources?.packages ?? []}
+                  claimedIds={claimedPresetIds}
                   trustProject={Boolean(resources?.trustProject)}
                   onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
                   onReload={onReloadResources}
-                  onInstallPresets={onInstallPresets}
+                  onInstallPresets={
+                    onInstallPresets
+                      ? async (ids) => {
+                          await onInstallPresets(ids);
+                          setClaimedPresetIds((prev) => {
+                            const next = new Set(prev);
+                            for (const id of ids?.length ? ids : PRESET_PI_PACKAGES.map((item) => item.id)) {
+                              next.add(id);
+                            }
+                            return [...next];
+                          });
+                        }
+                      : undefined
+                  }
                 />
               ) : null}
             </div>

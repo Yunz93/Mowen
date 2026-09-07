@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import {
   normalizePackageSource,
   packageSourcesEqual,
-  presetPackageInstalled,
+  presetExtensionLoaded,
   resolvePresetPackages,
   type PresetPiPackage,
 } from "@qingzhou/protocol";
@@ -92,6 +92,47 @@ export async function addPackageSources(
   return { added, already };
 }
 
+export async function removePackageSources(agentDir: string, sources: string[]): Promise<string[]> {
+  const settingsPath = path.join(agentDir, "settings.json");
+  assertAgentFile(settingsPath, agentDir);
+  const settings = await readJsonObject(settingsPath);
+  const packages = settings.packages;
+  if (!Array.isArray(packages) || sources.length === 0) return [];
+  const wanted = sources.map((item) => normalizePackageSource(item)).filter(Boolean);
+  const removed: string[] = [];
+  const next = packages.filter((item) => {
+    let source = "";
+    if (typeof item === "string") source = item.trim();
+    else if (item && typeof item === "object" && !Array.isArray(item)) {
+      const raw = (item as { source?: unknown }).source;
+      if (typeof raw === "string") source = raw.trim();
+    }
+    if (!source) return true;
+    if (!wanted.some((candidate) => packageSourcesEqual(candidate, source))) return true;
+    removed.push(normalizePackageSource(source));
+    return false;
+  });
+  if (removed.length > 0) {
+    settings.packages = next;
+    await writeJson(settingsPath, settings);
+  }
+  return removed;
+}
+
+export async function removeMcpServer(agentDir: string, name: string): Promise<boolean> {
+  const mcpPath = path.join(agentDir, "mcp.json");
+  assertAgentFile(mcpPath, agentDir);
+  const settings = await readJsonObject(mcpPath);
+  const existing = settings.mcpServers;
+  if (!existing || typeof existing !== "object" || Array.isArray(existing)) return false;
+  const servers = { ...(existing as Record<string, unknown>) };
+  if (!(name in servers)) return false;
+  delete servers[name];
+  settings.mcpServers = servers;
+  await writeJson(mcpPath, settings);
+  return true;
+}
+
 export async function ensureMcpServer(
   agentDir: string,
   mcp: { name: string; command: string; args?: string[] },
@@ -138,7 +179,17 @@ export function formatPiInstallError(error: unknown): string {
   const combined = [error instanceof Error ? error.message : extractErrorText(error), extra]
     .filter(Boolean)
     .join("\n");
-  return `已写入 Pi 设置，但下载包失败。${humanizeUserFacingError(new Error(combined || String(error)))}`;
+  return `插件下载失败。${humanizeUserFacingError(new Error(combined || String(error)))}`;
+}
+
+async function rollbackFailedPresetInstall(agentDir: string, presets: PresetPiPackage[]): Promise<void> {
+  await removePackageSources(
+    agentDir,
+    presets.map((item) => item.source),
+  );
+  for (const preset of presets) {
+    if (preset.mcp) await removeMcpServer(agentDir, preset.mcp.name);
+  }
 }
 
 export async function installPresetPiPackages(input: {
@@ -161,7 +212,7 @@ export async function installPresetPiPackages(input: {
   const already: string[] = [];
   const toInstall: PresetPiPackage[] = [];
   for (const preset of presets) {
-    if (presetPackageInstalled(preset, input.packages, input.extensions ?? [])) {
+    if (presetExtensionLoaded(preset, input.extensions ?? [])) {
       already.push(preset.id);
     } else {
       toInstall.push(preset);
@@ -175,19 +226,21 @@ export async function installPresetPiPackages(input: {
     if (preset.mcp) await ensureMcpServer(input.agentDir, preset.mcp);
   }
 
+  const cliSources = toInstall.map((item) => normalizePackageSource(item.source));
   let piInstallError: string | null = null;
   const runCli = input.runCli ?? shouldRunPiCliInstall(input.env ?? process.env);
-  if (runCli && addedSources.length > 0) {
+  if (runCli && cliSources.length > 0) {
     try {
       await runPiCliInstall({
         piCommand: input.piCommand,
         prefixArgs: input.prefixArgs,
         extraEnv: input.extraEnv,
-        sources: addedSources,
+        sources: cliSources,
         env: input.env,
         agentDir: input.agentDir,
       });
     } catch (error) {
+      await rollbackFailedPresetInstall(input.agentDir, toInstall);
       piInstallError = formatPiInstallError(error);
     }
   }

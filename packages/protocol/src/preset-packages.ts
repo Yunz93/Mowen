@@ -90,14 +90,21 @@ export function presetExtensionNames(preset: PresetPiPackage): string[] {
   return [...names];
 }
 
+export function presetExtensionLoaded(
+  preset: PresetPiPackage,
+  extensions: Array<{ name: string }> = [],
+): boolean {
+  const names = new Set(presetExtensionNames(preset).map((name) => name.toLowerCase()));
+  return extensions.some((item) => names.has(item.name.toLowerCase()));
+}
+
 export function presetPackageInstalled(
   preset: PresetPiPackage,
   packages: Array<{ source: string }>,
   extensions: Array<{ name: string }> = [],
 ): boolean {
-  if (packages.some((item) => packageSourcesEqual(item.source, preset.source))) return true;
-  const names = new Set(presetExtensionNames(preset).map((name) => name.toLowerCase()));
-  return extensions.some((item) => names.has(item.name.toLowerCase()));
+  if (presetExtensionLoaded(preset, extensions)) return true;
+  return packages.some((item) => packageSourcesEqual(item.source, preset.source));
 }
 
 export function resolvePresetPackages(ids?: string[] | null): PresetPiPackage[] {

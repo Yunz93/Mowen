@@ -132,6 +132,7 @@ export {
   normalizePackageSource,
   packageSourcesEqual,
   presetExtensionNames,
+  presetExtensionLoaded,
   presetPackageInstalled,
   resolvePresetPackages,
   type PresetPiMcpServer,

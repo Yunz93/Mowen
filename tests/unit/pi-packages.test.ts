@@ -76,8 +76,19 @@ describe("preset pi package install", () => {
       prefixArgs: [],
       runCli: false,
     });
-    expect(again.installed).toEqual([]);
-    expect(again.already).toEqual(["pi-web-access", "context-mode"]);
+    expect(again.installed).toEqual(["pi-web-access", "context-mode"]);
+    expect(again.already).toEqual([]);
+    const loaded = await installPresetPiPackages({
+      agentDir,
+      ids: ["pi-web-access", "context-mode"],
+      packages: result.addedSources.map((source) => ({ source })),
+      extensions: [{ name: "pi-web-access" }, { name: "context-mode" }],
+      piCommand: "pi",
+      prefixArgs: [],
+      runCli: false,
+    });
+    expect(loaded.installed).toEqual([]);
+    expect(loaded.already).toEqual(["pi-web-access", "context-mode"]);
     const settings = JSON.parse(await readFile(path.join(agentDir, "settings.json"), "utf8")) as {
       packages: string[];
     };
@@ -103,9 +114,44 @@ describe("preset pi package install", () => {
       },
     );
     const message = formatPiInstallError(error);
-    expect(message).toMatch(/已写入 Pi 设置/);
+    expect(message).toMatch(/插件下载失败/);
+    expect(message).not.toMatch(/已写入 Pi 设置/);
     expect(message).toMatch(/npm 缓存/);
     expect(message).not.toMatch(/getNpmInstallRoot/);
     expect(message.length).toBeLessThan(600);
+  });
+
+  it("retries when settings list a package that never loaded, and rolls back a failed CLI", async () => {
+    const agentDir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-preset-fail-"));
+    await addPackageSources(agentDir, ["npm:pi-web-access"]);
+    await ensureMcpServer(agentDir, {
+      name: "context-mode",
+      command: "npx",
+      args: ["-y", "context-mode"],
+    });
+    const result = await installPresetPiPackages({
+      agentDir,
+      ids: ["pi-web-access", "context-mode"],
+      packages: [{ source: "npm:pi-web-access" }],
+      extensions: [],
+      piCommand: process.execPath,
+      prefixArgs: [
+        "-e",
+        "process.stderr.write('npm error code EACCES\\nnpm error path /Users/yunz/.npm/_cacache\\n'); process.exit(1);",
+      ],
+      runCli: true,
+    });
+    expect(result.already).toEqual([]);
+    expect(result.installed).toEqual(["pi-web-access", "context-mode"]);
+    expect(result.piInstallError).toMatch(/插件下载失败/);
+    expect(result.piInstallError).toMatch(/npm 缓存/);
+    const settings = JSON.parse(await readFile(path.join(agentDir, "settings.json"), "utf8")) as {
+      packages?: string[];
+    };
+    const mcp = JSON.parse(await readFile(path.join(agentDir, "mcp.json"), "utf8")) as {
+      mcpServers?: Record<string, unknown>;
+    };
+    expect(settings.packages ?? []).toEqual([]);
+    expect(mcp.mcpServers ?? {}).not.toHaveProperty("context-mode");
   });
 });

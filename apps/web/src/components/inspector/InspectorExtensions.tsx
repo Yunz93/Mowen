@@ -1,7 +1,7 @@
 import {
   PRESET_PI_PACKAGES,
   packageSourcesEqual,
-  presetPackageInstalled,
+  presetExtensionLoaded,
   type PiResources,
 } from "@qingzhou/protocol";
 import { useState } from "react";
@@ -12,6 +12,7 @@ type Package = PiResources["packages"][number];
 type Props = {
   extensions: Extension[];
   packages: Package[];
+  claimedIds?: string[];
   trustProject: boolean;
   onToggle: (path: string, enabled: boolean) => void;
   onReload?: () => void;
@@ -21,6 +22,7 @@ type Props = {
 export function InspectorExtensions({
   extensions,
   packages,
+  claimedIds = [],
   trustProject,
   onToggle,
   onReload,
@@ -28,7 +30,10 @@ export function InspectorExtensions({
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const missing = PRESET_PI_PACKAGES.filter((item) => !presetPackageInstalled(item, packages, extensions));
+  const claimed = new Set(claimedIds);
+  const missing = PRESET_PI_PACKAGES.filter(
+    (item) => !claimed.has(item.id) && !presetExtensionLoaded(item, extensions),
+  );
   const extraPackages = packages.filter(
     (item) => !PRESET_PI_PACKAGES.some((preset) => packageSourcesEqual(preset.source, item.source)),
   );
@@ -86,7 +91,7 @@ export function InspectorExtensions({
         </div>
         <ul className="overflow-hidden rounded-md border border-line">
           {PRESET_PI_PACKAGES.map((item) => {
-            const installed = presetPackageInstalled(item, packages, extensions);
+            const installed = claimed.has(item.id) || presetExtensionLoaded(item, extensions);
             return (
               <li key={item.id} className="flex items-start gap-2 border-b border-line px-2 py-2 last:border-b-0">
                 <div className="min-w-0 flex-1">

@@ -3,6 +3,7 @@ import {
   PRESET_PI_PACKAGES,
   normalizePackageSource,
   packageSourcesEqual,
+  presetExtensionLoaded,
   presetPackageInstalled,
   resolvePresetPackages,
 } from "../../packages/protocol/src/preset-packages.ts";
@@ -31,11 +32,26 @@ describe("preset pi packages", () => {
       ),
     ).toBe(true);
     expect(
+      presetExtensionLoaded(PRESET_PI_PACKAGES[0]!, []),
+    ).toBe(false);
+    expect(
       presetPackageInstalled(PRESET_PI_PACKAGES.find((item) => item.id === "rpiv-todo")!, [], [
         { name: "rpiv-todo" },
       ]),
     ).toBe(true);
+    expect(
+      presetExtensionLoaded(PRESET_PI_PACKAGES.find((item) => item.id === "rpiv-todo")!, [
+        { name: "rpiv-todo" },
+      ]),
+    ).toBe(true);
     expect(presetPackageInstalled(PRESET_PI_PACKAGES[1]!, [], [{ name: "demo-ext" }])).toBe(false);
+  });
+
+  it("does not treat settings-only packages as loaded extensions", () => {
+    const preset = PRESET_PI_PACKAGES[0]!;
+    expect(presetExtensionLoaded(preset, [])).toBe(false);
+    expect(presetExtensionLoaded(preset, [{ name: "demo-ext" }])).toBe(false);
+    expect(presetExtensionLoaded(preset, [{ name: "pi-web-access" }])).toBe(true);
   });
 
   it("resolves ids or the full catalog", () => {
