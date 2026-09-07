@@ -111,7 +111,6 @@ export function AppUpdateSection() {
             <button
               type="button"
               className="pressable btn btn-ghost"
-              aria-label={busy ? "正在检查轻舟更新" : "检查轻舟更新"}
               disabled={busy || installing}
               onClick={() => void check(true)}
             >
