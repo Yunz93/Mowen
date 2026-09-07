@@ -543,4 +543,15 @@ test("work mode creates an objective and starts an agent run", async ({ page }) 
     timeout: 20_000,
   });
   await expect(page.getByRole("button", { name: "查看执行" })).toBeVisible();
+  await page.getByRole("tab", { name: "对话" }).click();
+  const sessions = page.getByRole("complementary", { name: "会话" });
+  await expect(sessions.getByText("Board e2e job", { exact: true })).toBeVisible();
+  await sessions.getByRole("button", { name: "新对话" }).click();
+  await page.getByRole("button", { name: "输入路径" }).click();
+  await page.getByLabel("工作文件夹").fill(project);
+  await page.getByLabel("标题").fill("Chat after work");
+  await page.getByRole("button", { name: "创建对话" }).click();
+  await expect(page.getByRole("banner").getByText("Chat after work")).toBeVisible();
+  await expect(sessions.getByText("Board e2e job", { exact: true })).toBeVisible();
+  await expect(sessions.getByText("任务", { exact: true })).toBeVisible();
 });

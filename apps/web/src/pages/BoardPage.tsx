@@ -106,7 +106,11 @@ export function BoardPage() {
 
   function openConversationFull(item: WorkItemSummary) {
     if (item.taskId) {
-      void socketClient.send("task.activate", {}, item.taskId).catch(() => undefined);
+      useAgentStore.getState().setActiveTask(item.taskId);
+      void socketClient
+        .send("task.activate", {}, item.taskId)
+        .then(() => socketClient.send("snapshot.request", { taskId: item.taskId }, item.taskId))
+        .catch(() => undefined);
     }
     navigate("/");
   }
