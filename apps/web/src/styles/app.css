@@ -29,7 +29,8 @@
   --radius-pill: 999px;
   --shadow-card: 0 0.5px 0 0 oklch(0.32 0.02 264 / 0.12), 0 1px 1px oklch(0.32 0.02 264 / 0.04);
   --shadow-dialog: 0 0 0 0.5px oklch(0.32 0.02 264 / 0.12), 0 22px 70px oklch(0.32 0.02 264 / 0.22);
-  --shadow-composer: 0 0 0 0.5px oklch(0.32 0.02 264 / 0.1), 0 8px 24px oklch(0.32 0.02 264 / 0.08);
+  --shadow-composer: 0 0 0 0.5px oklch(0.32 0.02 264 / 0.12), 0 1px 2px oklch(0.32 0.02 264 / 0.04),
+    0 8px 20px oklch(0.32 0.02 264 / 0.05);
 }
 
 html.dark {
@@ -53,7 +54,7 @@ html.dark {
   --color-bubble: oklch(0.68 0.16 250 / 0.16);
   --shadow-card: 0 0.5px 0 0 oklch(1 0 0 / 0.08);
   --shadow-dialog: 0 0 0 0.5px oklch(1 0 0 / 0.12), 0 24px 64px oklch(0 0 0 / 0.55);
-  --shadow-composer: 0 0 0 0.5px oklch(1 0 0 / 0.1), 0 10px 28px oklch(0 0 0 / 0.28);
+  --shadow-composer: 0 0 0 0.5px oklch(1 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.2), 0 10px 24px oklch(0 0 0 / 0.28);
 }
 
 @layer base {
@@ -430,15 +431,15 @@ html.dark {
 
   .send-btn {
     display: flex;
-    height: 28px;
-    width: 28px;
-    min-height: 28px;
-    min-width: 28px;
+    height: 32px;
+    width: 32px;
+    min-height: 32px;
+    min-width: 32px;
     align-items: center;
     justify-content: center;
     border-radius: 99px;
-    background: var(--color-accent);
-    color: white;
+    background: var(--color-ink);
+    color: var(--color-elevated);
   }
 
   .send-btn:disabled {
@@ -495,17 +496,22 @@ html.dark {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
   }
 
   .composer-capsule {
-    height: 24px;
-    min-height: 24px;
-    border-radius: 99px;
-    background: var(--color-fill);
+    display: inline-flex;
+    height: 28px;
+    max-width: 14rem;
+    min-height: 28px;
+    align-items: center;
+    gap: 3px;
+    border-radius: 8px;
+    background: transparent;
     padding: 0 8px;
-    color: var(--color-ink);
-    font-size: 11px;
+    color: var(--color-mute);
+    font-size: 12px;
+    font-weight: 510;
   }
 
   .composer-popover {
@@ -519,6 +525,11 @@ html.dark {
     background: var(--color-elevated);
     padding: 4px;
     box-shadow: var(--shadow-dialog);
+  }
+
+  .composer-popover-end {
+    right: 0;
+    left: auto;
   }
 
   .composer-popover-item {
@@ -1021,9 +1032,56 @@ html.dark {
   }
 
   .composer-well {
-    border-radius: 18px;
+    border-radius: 22px;
     background: var(--color-elevated);
     box-shadow: var(--shadow-composer);
+    transition: box-shadow 0.16s ease;
+  }
+
+  .composer-well:focus-within {
+    box-shadow:
+      0 0 0 0.5px color-mix(in oklch, var(--color-ink) 28%, transparent),
+      0 1px 2px oklch(0.32 0.02 264 / 0.05),
+      0 10px 28px oklch(0.32 0.02 264 / 0.07);
+  }
+
+  html.dark .composer-well:focus-within {
+    box-shadow:
+      0 0 0 0.5px oklch(1 0 0 / 0.22),
+      0 1px 2px oklch(0 0 0 / 0.24),
+      0 12px 28px oklch(0 0 0 / 0.36);
+  }
+
+  .composer-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px 8px 6px;
+  }
+
+  .composer-toolbar-start,
+  .composer-toolbar-end {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .composer-toolbar-end {
+    margin-left: auto;
+  }
+
+  .composer-tool-btn {
+    display: flex;
+    height: 28px;
+    width: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 99px;
+    color: var(--color-mute);
   }
 
   .chip {
@@ -1042,6 +1100,7 @@ html.dark {
     .icon-btn,
     .toolbar-btn,
     .send-btn,
+    .composer-tool-btn,
     .search-field,
     .search-field input {
       height: 40px;
@@ -1050,7 +1109,8 @@ html.dark {
 
     .icon-btn,
     .toolbar-btn,
-    .send-btn {
+    .send-btn,
+    .composer-tool-btn {
       width: 40px;
     }
 
@@ -1061,6 +1121,10 @@ html.dark {
   }
 
   @media (max-width: 480px) {
+    .composer-capsule {
+      max-width: 7.5rem;
+    }
+
     .dialog-actions:not(.dialog-actions-split) {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1082,7 +1146,9 @@ html.dark {
 
   @media (hover: hover) {
     .icon-btn:hover,
-    .toolbar-btn:hover {
+    .toolbar-btn:hover,
+    .composer-tool-btn:hover,
+    .composer-capsule:hover {
       background: var(--color-fill);
       color: var(--color-ink);
     }

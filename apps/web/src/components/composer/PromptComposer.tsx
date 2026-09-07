@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@qingzhou/protocol";
 import { extractAtMentions } from "@qingzhou/protocol";
-import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
+import { ArrowUp, Plus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";
 import { ComposerCapsules } from "./ComposerCapsules";
@@ -164,7 +164,7 @@ export function PromptComposer({
   return (
     <div className="px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-1">
       <div
-        className="composer-well relative mx-auto max-w-[720px] px-3 py-2"
+        className="composer-well relative mx-auto max-w-[720px]"
         onPaste={onPaste}
         onMouseDown={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -174,13 +174,13 @@ export function PromptComposer({
         }}
       >
         {images.length > 0 ? (
-          <ul className="flex flex-wrap gap-1.5 pt-0.5 pb-1" aria-label={`已添加 ${images.length} 张图`}>
+          <ul className="flex flex-wrap gap-1.5 px-3.5 pt-3" aria-label={`已添加 ${images.length} 张图`}>
             {images.map((image) => (
               <li key={image.id} className="relative">
                 <img
                   src={image.previewUrl}
                   alt={image.name}
-                  className="h-14 w-14 rounded-md bg-fill object-cover"
+                  className="h-14 w-14 rounded-lg bg-fill object-cover"
                 />
                 <button
                   type="button"
@@ -215,7 +215,7 @@ export function PromptComposer({
           placeholder={composerPlaceholder(running)}
           aria-label="输入消息"
           disabled={disabled}
-          className="max-h-[180px] min-h-[40px] w-full resize-none bg-transparent py-1.5 pr-10 text-[15px] leading-6 text-ink placeholder:text-mute"
+          className="max-h-[180px] min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[15px] leading-6 text-ink placeholder:text-mute"
         />
         {fileHits.length > 0 ? (
           <MentionMenu items={fileHits} label="文件" onPick={pickMention} onNavigate={setMenuOpen} />
@@ -223,62 +223,78 @@ export function PromptComposer({
         {commandHits.length > 0 ? (
           <MentionMenu items={commandHits} label="命令" onPick={pickMention} onNavigate={setMenuOpen} />
         ) : null}
-        <div className="flex flex-wrap items-center gap-1.5 pb-0.5 pt-0.5">
-          <ComposerCapsules
-            mode={mode}
-            approvalPolicy={approvalPolicy}
-            models={models}
-            modelId={modelId}
-            thinkingLevel={thinkingLevel}
-            thinkingLevels={thinkingLevels}
-            onPolicy={onPolicy}
-            onModel={onModel}
-            onThinking={onThinking}
-          />
-          <label className="pressable icon-btn cursor-pointer" aria-label="添加图片">
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              multiple
-              onChange={(event) => {
-                if (event.target.files) onImages(event.target.files);
-                event.target.value = "";
-              }}
+        <div className="composer-toolbar">
+          <div className="composer-toolbar-start">
+            <label className="pressable composer-tool-btn cursor-pointer" aria-label="添加图片">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                multiple
+                onChange={(event) => {
+                  if (event.target.files) onImages(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+              <Plus size={16} strokeWidth={2} />
+            </label>
+            <ComposerCapsules
+              slot="mode"
+              mode={mode}
+              approvalPolicy={approvalPolicy}
+              models={models}
+              modelId={modelId}
+              thinkingLevel={thinkingLevel}
+              thinkingLevels={thinkingLevels}
+              onPolicy={onPolicy}
+              onModel={onModel}
+              onThinking={onThinking}
             />
-            <ImagePlus size={15} />
-          </label>
-          {attachedCount > 0 ? (
-            <span className="text-[11px] text-mute">{attachedCount} 个文件</span>
-          ) : null}
-          <div className="flex-1" />
-          {running ? (
-            <button
-              type="button"
-              className="pressable btn btn-ghost"
-              onClick={onFollowUp}
-              disabled={disabled || !composerCanSubmit(value, images.length)}
-              title="排队下一条（Shift+Enter）"
-            >
-              排队
-            </button>
-          ) : null}
-          {running ? (
-            <button type="button" className="pressable send-btn send-btn-stop" onClick={onAbort} aria-label="停止">
-              <Square size={10} fill="currentColor" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="pressable send-btn"
-              onClick={submit}
-              disabled={disabled || !composerCanSubmit(value, images.length)}
-              aria-label="发送"
-              title="发送"
-            >
-              <ArrowUp size={15} strokeWidth={2.4} />
-            </button>
-          )}
+            {attachedCount > 0 ? (
+              <span className="hidden text-[11px] text-mute sm:inline">{attachedCount} 个文件</span>
+            ) : null}
+          </div>
+          <div className="composer-toolbar-end">
+            {running ? (
+              <button
+                type="button"
+                className="pressable composer-capsule"
+                onClick={onFollowUp}
+                disabled={disabled || !composerCanSubmit(value, images.length)}
+                title="排队下一条（Shift+Enter）"
+              >
+                排队
+              </button>
+            ) : null}
+            <ComposerCapsules
+              slot="model"
+              mode={mode}
+              approvalPolicy={approvalPolicy}
+              models={models}
+              modelId={modelId}
+              thinkingLevel={thinkingLevel}
+              thinkingLevels={thinkingLevels}
+              onPolicy={onPolicy}
+              onModel={onModel}
+              onThinking={onThinking}
+            />
+            {running ? (
+              <button type="button" className="pressable send-btn send-btn-stop" onClick={onAbort} aria-label="停止">
+                <Square size={10} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="pressable send-btn"
+                onClick={submit}
+                disabled={disabled || !composerCanSubmit(value, images.length)}
+                aria-label="发送"
+                title="发送"
+              >
+                <ArrowUp size={16} strokeWidth={2.4} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
