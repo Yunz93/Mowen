@@ -890,6 +890,20 @@ html.dark {
     line-height: 1.4;
   }
 
+  .jump-latest {
+    position: sticky;
+    bottom: 16px;
+    z-index: 5;
+    align-self: center;
+    border-radius: 999px;
+    background: var(--color-elevated);
+    box-shadow: var(--shadow-dialog);
+    color: var(--color-ink);
+    font-size: 12px;
+    line-height: 1;
+    padding: 8px 14px;
+  }
+
   .conversation-search-hit {
     outline: 2px solid color-mix(in oklch, var(--color-accent) 75%, transparent);
     outline-offset: 3px;

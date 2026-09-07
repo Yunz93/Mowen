@@ -54,6 +54,8 @@ test("workbench core loop", async ({ page }) => {
   await page.getByLabel("输入消息").fill("change course");
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("Echo: change course").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "复制消息" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "克隆会话" })).toBeVisible();
 
   await page.getByRole("button", { name: "模式" }).click();
   await page.getByRole("menuitem", { name: "每次确认" }).click();

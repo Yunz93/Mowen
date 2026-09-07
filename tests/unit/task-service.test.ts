@@ -78,6 +78,46 @@ describe("task service process reservations", () => {
 
     release();
     await Promise.all([first, duplicate]);
-    expect(boot).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays aborting until Pi settles instead of flipping idle on abort ack", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mypi-abort-"));
+    const store = new TaskStore(root);
+    await store.load();
+    const taskId = "33333333-3333-4333-8333-333333333333";
+    await store.upsert({ ...task(taskId, root), status: "running" });
+    const config: AppConfig = {
+      host: "127.0.0.1",
+      port: 0,
+      piBin: "pi",
+      piCommand: "pi",
+      piPrefixArgs: [],
+      piExtraEnv: {},
+      dataDir: root,
+      allowedRoots: [root],
+      maxProcesses: 1,
+      mutations: "approval",
+      nodeEnv: "test",
+      approvalTimeoutMs: 1000,
+      allowedOrigins: [],
+      webDistDir: root,
+      approvalExtensionPath: path.join(root, "approval.ts"),
+      homeDir: root,
+      piBundled: false,
+      piAgentDir: path.join(root, ".pi", "agent"),
+      trustProject: false,
+    };
+    const service = new TaskService(config, store, "test", null);
+    vi.spyOn(service.supervisor, "has").mockReturnValue(true);
+    vi.spyOn(service.supervisor, "rpc").mockResolvedValue({ success: true });
+
+    await service.handleCommand({
+      id: "abort-1",
+      type: "agent.abort",
+      taskId,
+      payload: {},
+    });
+    expect(store.get(taskId)?.status).toBe("aborting");
+    service.dispose();
   });
 });

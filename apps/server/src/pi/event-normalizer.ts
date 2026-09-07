@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { sanitizeToolResultText, type TimelineMessage, type ToolExecution } from "@qingzhou/protocol";
+import {
+  sanitizeToolResultText,
+  type TimelineImage,
+  type TimelineMessage,
+  type ToolExecution,
+} from "@qingzhou/protocol";
+
+const MAX_IMAGE_DATA_URL = 1_500_000;
 import { extractErrorText } from "../setup/pi-agent-dir.js";
 import type { RpcEvent } from "./rpc-client.js";
 
@@ -53,6 +60,30 @@ function textFromContent(content: unknown): string {
     }
   }
   return parts.join("");
+}
+
+function imagesFromContent(content: unknown): TimelineImage[] | undefined {
+  if (!Array.isArray(content)) return undefined;
+  const images: TimelineImage[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const record = block as Record<string, unknown>;
+    if (record.type !== "image") continue;
+    const mimeType = typeof record.mimeType === "string" && record.mimeType ? record.mimeType : "image/png";
+    const name = typeof record.name === "string" ? record.name : undefined;
+    let dataUrl: string | undefined;
+    if (typeof record.dataUrl === "string" && record.dataUrl) {
+      dataUrl = record.dataUrl;
+    } else if (typeof record.url === "string" && record.url) {
+      dataUrl = record.url;
+    } else if (typeof record.data === "string" && record.data) {
+      dataUrl = record.data.startsWith("data:") ? record.data : `data:${mimeType};base64,${record.data}`;
+    }
+    if (dataUrl && dataUrl.length > MAX_IMAGE_DATA_URL) dataUrl = undefined;
+    if (!dataUrl && !name) continue;
+    images.push({ mimeType, name, ...(dataUrl ? { dataUrl } : {}) });
+  }
+  return images.length > 0 ? images : undefined;
 }
 
 function thinkingFromContent(content: unknown): string | undefined {
@@ -120,6 +151,7 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
           toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
           toolName: typeof message.toolName === "string" ? message.toolName : undefined,
           isError: Boolean(message.isError),
+          images: imagesFromContent(message.content),
         },
       };
     }
@@ -159,6 +191,7 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
           toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
           toolName: typeof message.toolName === "string" ? message.toolName : undefined,
           isError: Boolean(message.isError),
+          images: imagesFromContent(message.content),
         },
       };
     }
@@ -301,6 +334,7 @@ export function piMessagesToTimeline(messages: unknown[]): TimelineMessage[] {
       toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
       toolName: typeof message.toolName === "string" ? message.toolName : undefined,
       isError: Boolean(message.isError),
+      images: imagesFromContent(message.content),
     });
   }
   return out;

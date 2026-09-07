@@ -59,6 +59,9 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
             {approvalRiskLabel(level)}
             {approval.risk ? <span className="text-mute"> · {approval.risk}</span> : null}
           </p>
+          <p className="sr-only" aria-live="polite">
+            {remaining <= 0 ? "确认已超时" : `还剩 ${seconds} 秒`}
+          </p>
         </div>
       </div>
       <div className="dialog-body">
@@ -104,10 +107,11 @@ export function ApprovalSheet({ approval, onRespond }: Props) {
             type="button"
             className="pressable btn btn-primary approval-allow"
             aria-label="允许这次"
+            disabled={remaining <= 0}
             onClick={() => onRespond(true, remember)}
           >
             <span className="approval-allow-progress" style={{ transform: `scaleX(${progress})` }} />
-            <span className="relative">允许这次 · {seconds}s</span>
+            <span className="relative">{remaining <= 0 ? "已超时" : `允许这次 · ${seconds}s`}</span>
           </button>
         </div>
       </div>

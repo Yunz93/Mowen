@@ -22,6 +22,8 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+const STDERR_MAX = 200_000;
+
 export type RpcClientOptions = {
   bin: string;
   args: string[];
@@ -41,6 +43,7 @@ export class RpcClient {
   private pending = new Map<string, Pending>();
   private requestId = 0;
   private stderr = "";
+  private warnedBadJson = false;
   private exitError: Error | null = null;
   private readonly options: RpcClientOptions;
 
@@ -74,6 +77,7 @@ export class RpcClient {
       const raw = data.toString("utf8");
       const redacted = redactSecrets(raw);
       this.stderr += redacted;
+      if (this.stderr.length > STDERR_MAX) this.stderr = this.stderr.slice(this.stderr.length - STDERR_MAX);
       this.options.onStderr?.(redacted);
     });
 
@@ -168,6 +172,14 @@ export class RpcClient {
     try {
       data = JSON.parse(line) as RpcEvent;
     } catch {
+      if (line.trim().startsWith("{") && !this.warnedBadJson) {
+        this.warnedBadJson = true;
+        this.options.onEvent?.({
+          type: "error",
+          error: "Pi 输出了无法解析的数据，部分事件可能丢失。",
+        });
+      }
+      console.warn("[qingzhou] dropped malformed Pi JSON line");
       return;
     }
     if (data.type === "response") {

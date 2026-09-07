@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitJsonlChunk, serializeJsonLine } from "../../apps/server/src/pi/rpc-framer.ts";
+import { JSONL_PARTIAL_MAX, splitJsonlChunk, serializeJsonLine } from "../../apps/server/src/pi/rpc-framer.ts";
 
 describe("JSONL framer", () => {
   it("reassembles records split across arbitrary chunks", () => {
@@ -21,5 +21,11 @@ describe("JSONL framer", () => {
     const split = splitJsonlChunk("", encoded);
     expect(split.lines).toHaveLength(2);
     expect(JSON.parse(split.lines[0]!).message).toBe("a\u2028b\u2029c");
+  });
+
+  it("drops an oversized partial line so the framer cannot grow without bound", () => {
+    const split = splitJsonlChunk("x".repeat(JSONL_PARTIAL_MAX - 10), "y".repeat(20));
+    expect(split.buffer).toBe("");
+    expect(split.lines).toEqual([]);
   });
 });

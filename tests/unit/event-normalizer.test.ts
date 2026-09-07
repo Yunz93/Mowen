@@ -111,6 +111,26 @@ describe("event normalizer", () => {
     expect(messages[1]?.text).toBe("hi");
   });
 
+  it("extracts image blocks from user content", () => {
+    const started = normalizePiEvent({
+      type: "message_start",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "look" },
+          { type: "image", mimeType: "image/png", data: "abc123", name: "shot.png" },
+        ],
+        timestamp: 9,
+      },
+    });
+    expect(started.kind).toBe("message.started");
+    if (started.kind === "message.started") {
+      expect(started.message.images).toEqual([
+        { mimeType: "image/png", name: "shot.png", dataUrl: "data:image/png;base64,abc123" },
+      ]);
+    }
+  });
+
   it("keeps select/input/notify fields on extension UI requests", () => {
     expect(
       normalizePiEvent({

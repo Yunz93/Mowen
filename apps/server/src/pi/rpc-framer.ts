@@ -5,6 +5,8 @@ export function serializeJsonLine(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
 
+export const JSONL_PARTIAL_MAX = 2_000_000;
+
 export function splitJsonlChunk(
   buffer: string,
   chunk: string,
@@ -14,7 +16,7 @@ export function splitJsonlChunk(
   while (true) {
     const newlineIndex = next.indexOf("\n");
     if (newlineIndex === -1) {
-      return { buffer: next, lines };
+      return { buffer: next.length > JSONL_PARTIAL_MAX ? "" : next, lines };
     }
     let line = next.slice(0, newlineIndex);
     if (line.endsWith("\r")) {

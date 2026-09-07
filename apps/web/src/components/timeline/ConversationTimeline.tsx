@@ -71,6 +71,28 @@ function ThinkingBlock({ message }: { message: TimelineMessage }) {
   );
 }
 
+function MessageImages({ images }: { images: NonNullable<TimelineMessage["images"]> }) {
+  return (
+    <ul className="mb-2 flex flex-wrap gap-1.5" aria-label={`附 ${images.length} 张图`}>
+      {images.map((image, index) => (
+        <li key={`${image.name ?? image.mimeType}-${index}`}>
+          {image.dataUrl ? (
+            <img
+              src={image.dataUrl}
+              alt={image.name ?? `图片 ${index + 1}`}
+              className="h-16 w-16 rounded-md bg-fill object-cover"
+            />
+          ) : (
+            <span className="inline-flex h-16 min-w-16 items-center justify-center rounded-md bg-fill px-2 text-[11px] text-mute">
+              {image.name ?? `图片 ${index + 1}`}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function UserMessage({
   message,
   canRewrite,
@@ -84,6 +106,8 @@ function UserMessage({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stripModePrefix(message.text));
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const visible = stripModePrefix(message.text);
   return (
     <article
       id={conversationMessageDomId(message.id)}
@@ -115,19 +139,40 @@ function UserMessage({
         </div>
       ) : (
         <>
-          <p className="whitespace-pre-wrap">{stripModePrefix(message.text)}</p>
-          {canRewrite && onRetry ? (
-            <button
-              type="button"
-              className="pressable mt-2 h-7 text-[12px] text-mute"
-              onClick={() => {
-                setDraft(stripModePrefix(message.text));
-                setEditing(true);
-              }}
-            >
-              编辑并重试
-            </button>
+          {message.images?.length ? <MessageImages images={message.images} /> : null}
+          {visible ? <p className="whitespace-pre-wrap">{visible}</p> : null}
+          {!visible && message.images?.length ? (
+            <p className="text-[12px] text-mute">附 {message.images.length} 张图</p>
           ) : null}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {visible ? (
+              <button
+                type="button"
+                className="pressable h-7 text-[12px] text-mute"
+                aria-label="复制消息"
+                onClick={() => {
+                  void copyText(visible).then((ok) => {
+                    setCopyState(ok ? "copied" : "failed");
+                    window.setTimeout(() => setCopyState("idle"), 1600);
+                  });
+                }}
+              >
+                {copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制"}
+              </button>
+            ) : null}
+            {canRewrite && onRetry ? (
+              <button
+                type="button"
+                className="pressable h-7 text-[12px] text-mute"
+                onClick={() => {
+                  setDraft(stripModePrefix(message.text));
+                  setEditing(true);
+                }}
+              >
+                编辑并重试
+              </button>
+            ) : null}
+          </div>
         </>
       )}
     </article>
@@ -149,6 +194,7 @@ const AssistantMessage = memo(function AssistantMessage({
     >
       <ThinkingBlock message={message} />
       <AssistantMarkdown text={message.text} streaming={message.streaming} />
+      {message.streaming ? <span className="sr-only" aria-live="polite">正在回复</span> : null}
       {message.text ? (
         <button
           type="button"
@@ -174,7 +220,7 @@ export function ConversationTimeline({
   canRewrite,
   error,
   onRetry,
-  onClone: _onClone,
+  onClone,
   onOpenFile,
   onUndoFile,
   onStarter,
@@ -183,6 +229,7 @@ export function ConversationTimeline({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const pinnedRef = useRef(true);
   const userCountRef = useRef(0);
+  const [following, setFollowing] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -199,11 +246,15 @@ export function ConversationTimeline({
     if (!scroller) return;
 
     const syncPin = () => {
-      pinnedRef.current = isNearBottom(scroller);
+      const pinned = isNearBottom(scroller);
+      pinnedRef.current = pinned;
+      setFollowing(pinned);
     };
     const onWheel = (event: WheelEvent) => {
-      if (event.deltaY < 0) pinnedRef.current = false;
-      else syncPin();
+      if (event.deltaY < 0) {
+        pinnedRef.current = false;
+        setFollowing(false);
+      } else syncPin();
     };
     scroller.addEventListener("scroll", syncPin, { passive: true });
     scroller.addEventListener("wheel", onWheel, { passive: true, capture: true });
@@ -216,13 +267,19 @@ export function ConversationTimeline({
   useLayoutEffect(() => {
     if (searchOpen) {
       pinnedRef.current = false;
+      setFollowing(false);
       return;
     }
     const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
     if (!scroller) return;
     const userCount = messages.reduce((count, message) => count + (message.role === "user" ? 1 : 0), 0);
-    if (userCount > userCountRef.current) pinnedRef.current = true;
-    else if (!isNearBottom(scroller)) pinnedRef.current = false;
+    if (userCount > userCountRef.current) {
+      pinnedRef.current = true;
+      setFollowing(true);
+    } else if (!isNearBottom(scroller)) {
+      pinnedRef.current = false;
+      setFollowing(false);
+    }
     userCountRef.current = userCount;
     if (!pinnedRef.current) return;
     scroller.scrollTop = scroller.scrollHeight;
@@ -327,8 +384,22 @@ export function ConversationTimeline({
     return rows;
   }
 
+  function jumpToLatest() {
+    const scroller = document.getElementById("main-content") ?? findScrollParent(rootRef.current);
+    pinnedRef.current = true;
+    setFollowing(true);
+    setSearchOpen(false);
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+  }
+
   return (
-    <div ref={rootRef} className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6">
+    <div
+      ref={rootRef}
+      className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6"
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
       {searchOpen ? (
         <ConversationSearchBar
           query={searchQuery}
@@ -367,7 +438,19 @@ export function ConversationTimeline({
           )}
         </div>
       ) : null}
+      {messages.length > 0 && onClone ? (
+        <div className="flex justify-end">
+          <button type="button" className="pressable h-7 text-[12px] text-mute" onClick={onClone}>
+            克隆会话
+          </button>
+        </div>
+      ) : null}
       {renderTimelineRows()}
+      {!following && messages.length > 0 ? (
+        <button type="button" className="jump-latest pressable" onClick={jumpToLatest}>
+          回到最新
+        </button>
+      ) : null}
       {error ? (
         <div
           role="alert"

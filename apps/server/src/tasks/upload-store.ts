@@ -19,15 +19,19 @@ export class UploadStore {
     return true;
   }
 
-  consume(ids: string[]): Array<{ mimeType: string; data: Buffer }> {
+  peek(ids: string[]): Array<{ mimeType: string; data: Buffer }> {
     this.removeExpired();
     const result: Array<{ mimeType: string; data: Buffer }> = [];
     for (const id of ids) {
       const upload = this.uploads.get(id);
-      if (!upload) continue;
-      this.uploads.delete(id);
-      result.push({ mimeType: upload.mimeType, data: upload.data });
+      if (upload) result.push({ mimeType: upload.mimeType, data: upload.data });
     }
+    return result;
+  }
+
+  consume(ids: string[]): Array<{ mimeType: string; data: Buffer }> {
+    const result = this.peek(ids);
+    for (const id of ids) this.uploads.delete(id);
     return result;
   }
 

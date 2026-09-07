@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeBinaryToolOutput, sanitizeToolResultText } from "../../packages/protocol/src/tool-result-text.ts";
+import {
+  TOOL_RESULT_TEXT_MAX,
+  looksLikeBinaryToolOutput,
+  sanitizeToolResultText,
+} from "../../packages/protocol/src/tool-result-text.ts";
 import { resultTextFromPi } from "../../apps/server/src/pi/event-normalizer.ts";
 
 describe("sanitizeToolResultText", () => {
@@ -22,6 +26,14 @@ describe("sanitizeToolResultText", () => {
 
   it("treats NUL-containing output as binary", () => {
     expect(sanitizeToolResultText("abc\0def")).toBe("（输出包含无法显示的二进制内容，已省略）");
+  });
+
+  it("truncates oversized tool output", () => {
+    const text = "x".repeat(TOOL_RESULT_TEXT_MAX + 80);
+    const sanitized = sanitizeToolResultText(text);
+    expect(sanitized.startsWith("x".repeat(TOOL_RESULT_TEXT_MAX))).toBe(true);
+    expect(sanitized).toContain("已截断");
+    expect(sanitized.length).toBeLessThan(text.length);
   });
 
   it("is applied by resultTextFromPi for tool content blocks", () => {

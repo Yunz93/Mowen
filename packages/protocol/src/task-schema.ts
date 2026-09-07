@@ -178,6 +178,14 @@ export function normalizeSessionStats(raw: unknown, fallback: SessionStatsFallba
   };
 }
 
+export const timelineImageSchema = z.object({
+  mimeType: z.string().min(1),
+  dataUrl: z.string().min(1).optional(),
+  name: z.string().optional(),
+});
+
+export type TimelineImage = z.infer<typeof timelineImageSchema>;
+
 export const timelineMessageSchema = z.object({
   id: z.string(),
   role: z.enum(["user", "assistant", "toolResult", "system"]),
@@ -189,6 +197,7 @@ export const timelineMessageSchema = z.object({
   toolCallId: z.string().optional(),
   toolName: z.string().optional(),
   isError: z.boolean().optional(),
+  images: z.array(timelineImageSchema).optional(),
 });
 
 export type TimelineMessage = z.infer<typeof timelineMessageSchema>;

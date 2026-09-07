@@ -14,6 +14,7 @@ import {
   type PiResources,
   type ServerEvent,
   type TaskRecord,
+  type TimelineImage,
   type TimelineMessage,
   workItemFeedbackPrompt,
   workItemIsClosed,
@@ -57,6 +58,8 @@ export class TaskService {
   private readonly events: EventDispatcher;
   private readonly queue: string[] = [];
   private readonly booting = new Map<string, Promise<void>>();
+  private readonly abortFallback = new Map<string, ReturnType<typeof setTimeout>>();
+  private static readonly ABORT_CONFIRM_MS = 8_000;
   private activeTaskId: string | null = null;
   private readonly uploads = new UploadStore();
   private readonly remembered: RememberedApprovals;
@@ -143,6 +146,7 @@ export class TaskService {
   }
 
   dispose(): void {
+    for (const taskId of [...this.abortFallback.keys()]) this.clearAbortFallback(taskId);
     this.shells.disposeAll();
   }
 
@@ -470,12 +474,22 @@ export class TaskService {
     }
     const pendingBoot = this.booting.get(taskId);
     if (pendingBoot) return pendingBoot;
-    const pendingOnly = [...this.booting.keys()].filter((id) => !this.supervisor.has(id)).length;
-    if (this.supervisor.runningCount() + pendingOnly >= this.config.maxProcesses) {
+    if (this.processSlotsUsed() >= this.config.maxProcesses) {
       if (!this.queue.includes(taskId)) this.queue.push(taskId);
       await this.apply(taskId, "queued");
       return;
     }
+    await this.startBoot(taskId);
+  }
+
+  private processSlotsUsed(): number {
+    const pendingOnly = [...this.booting.keys()].filter((id) => !this.supervisor.has(id)).length;
+    return this.supervisor.runningCount() + pendingOnly;
+  }
+
+  private async startBoot(taskId: string): Promise<void> {
+    const pendingBoot = this.booting.get(taskId);
+    if (pendingBoot) return pendingBoot;
     const boot = this.boot(taskId);
     this.booting.set(taskId, boot);
     try {
@@ -554,11 +568,21 @@ export class TaskService {
       throw new Error("AI 还没启动");
     }
 
-    const images = this.uploads.consume(imageIds ?? []).map((item) => ({
+    const uploaded = this.uploads.peek(imageIds ?? []);
+    const images = uploaded.map((item) => ({
       type: "image",
       data: item.data.toString("base64"),
       mimeType: item.mimeType,
     }));
+    const pendingImages = uploaded.map((item, index): TimelineImage => {
+      const dataUrl = `data:${item.mimeType};base64,${item.data.toString("base64")}`;
+      return {
+        mimeType: item.mimeType,
+        name: `图片 ${index + 1}`,
+        ...(dataUrl.length <= 1_500_000 ? { dataUrl } : {}),
+      };
+    });
+    if (pendingImages.length > 0) this.supervisor.setPendingImages(taskId, pendingImages);
 
     const expanded = await this.attachMentionedFiles(latest, message);
     const payload: Record<string, unknown> & { type: string } = {
@@ -569,7 +593,9 @@ export class TaskService {
 
     try {
       await this.supervisor.rpcData(taskId, payload);
+      this.uploads.consume(imageIds ?? []);
     } catch (error) {
+      this.supervisor.setPendingImages(taskId, undefined);
       const raw = error instanceof Error ? error.message : String(error);
       const text = humanizeUserFacingError(error);
       const authHint = isMissingCredentialError(raw);
@@ -624,10 +650,31 @@ export class TaskService {
     await this.apply(taskId, "abort");
     try {
       await this.supervisor.rpc(taskId, { type: "abort" });
-    } finally {
-      await this.apply(taskId, "abort_confirmed");
+    } catch {
+      // Stay in aborting until Pi settles or the fallback timer fires.
     }
+    this.scheduleAbortFallback(taskId);
     return { ok: true };
+  }
+
+  private scheduleAbortFallback(taskId: string): void {
+    this.clearAbortFallback(taskId);
+    this.abortFallback.set(
+      taskId,
+      setTimeout(() => {
+        this.abortFallback.delete(taskId);
+        const task = this.store.get(taskId);
+        if (task?.status === "aborting") {
+          void this.apply(taskId, "abort_confirmed");
+        }
+      }, TaskService.ABORT_CONFIRM_MS),
+    );
+  }
+
+  private clearAbortFallback(taskId: string): void {
+    const timer = this.abortFallback.get(taskId);
+    if (timer) clearTimeout(timer);
+    this.abortFallback.delete(taskId);
   }
 
   private async refreshTaskModel(taskId: string): Promise<void> {
@@ -1190,13 +1237,13 @@ export class TaskService {
   }
 
   private async drainQueue(): Promise<void> {
-    while (this.queue.length > 0 && this.supervisor.runningCount() < this.config.maxProcesses) {
+    while (this.queue.length > 0 && this.processSlotsUsed() < this.config.maxProcesses) {
       const nextId = this.queue.shift();
       if (!nextId) break;
       const task = this.store.get(nextId);
       if (!task || task.archivedAt) continue;
       try {
-        await this.boot(nextId);
+        await this.startBoot(nextId);
       } catch {
         // boot records error state
       }
@@ -1230,6 +1277,9 @@ export class TaskService {
       return task;
     }
     const status = transition(task.status, event);
+    if (task.status === "aborting" && status !== "aborting") {
+      this.clearAbortFallback(taskId);
+    }
     const next = await this.store.upsert({
       ...task,
       status,

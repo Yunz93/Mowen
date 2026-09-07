@@ -11,6 +11,7 @@ import type {
   SessionTreeNode,
   TaskRecord,
   ThinkingLevel,
+  TimelineImage,
   TimelineMessage,
   ToolExecution,
 } from "@qingzhou/protocol";
@@ -60,6 +61,22 @@ type InteractionPending = {
 };
 
 type Listener = (event: ServerEvent) => void;
+
+export function matchApprovalTool(tools: ToolExecution[], toolCallId: string): ToolExecution | undefined {
+  if (!toolCallId) return undefined;
+  return tools.find((item) => item.toolCallId === toolCallId);
+}
+
+function attachPendingImages(
+  runtime: { pendingImages?: TimelineImage[] },
+  message: TimelineMessage,
+): TimelineMessage {
+  if (message.role !== "user") return message;
+  const pending = runtime.pendingImages;
+  runtime.pendingImages = undefined;
+  if (message.images?.length || !pending?.length) return message;
+  return { ...message, images: pending };
+}
 
 function parseApprovalMessage(
   requestId: string,
@@ -122,6 +139,7 @@ export class ProcessSupervisor {
       messages: TimelineMessage[];
       tools: Map<string, ToolExecution>;
       liveAssistantId: string | null;
+      pendingImages?: TimelineImage[];
       approval: ApprovalRequest | null;
       models: ModelRef[];
       thinkingLevels: ThinkingLevel[];
@@ -174,6 +192,12 @@ export class ProcessSupervisor {
 
   getApproval(requestId: string): ApprovalRequest | null {
     return this.pendingApprovals.get(requestId)?.payload ?? null;
+  }
+
+  setPendingImages(taskId: string, images: TimelineImage[] | undefined): void {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return;
+    runtime.pendingImages = images?.length ? images : undefined;
   }
 
   replaceMessages(taskId: string, messages: TimelineMessage[]): void {
@@ -489,7 +513,7 @@ export class ProcessSupervisor {
         }
         break;
       case "message.started": {
-        const message = normalized.message;
+        const message = attachPendingImages(runtime, normalized.message);
         if (message.role === "assistant" && message.streaming) {
           runtime.liveAssistantId = message.id;
         }
@@ -604,9 +628,7 @@ export class ProcessSupervisor {
           this.config.approvalTimeoutMs,
         );
         if (!approval) break;
-        const tool = [...runtime.tools.values()].find(
-          (item) => item.toolCallId === approval.toolCallId || item.status === "running",
-        );
+        const tool = matchApprovalTool([...runtime.tools.values()], approval.toolCallId);
         if (tool) {
           tool.status = "waiting_approval";
           const args = tool.args && typeof tool.args === "object" ? (tool.args as Record<string, unknown>) : {};
