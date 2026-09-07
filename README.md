@@ -41,8 +41,8 @@ irm https://github.com/Yunz93/Qingzhou/releases/latest/download/install-windows.
 ### 发布稳定版
 
 ```bash
-git tag v0.1.12
-git push origin v0.1.12
+git tag v0.1.13
+git push origin v0.1.13
 ```
 
 这会跑 `.github/workflows/release.yml`，上传安装包、安装脚本和 `SHA256SUMS.txt`。日常 `main` 推送会更新 `nightly` 预发布。安装脚本会校验清单（旧版本没有清单时只警告）。
