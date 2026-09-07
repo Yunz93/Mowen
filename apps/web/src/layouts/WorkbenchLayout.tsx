@@ -148,13 +148,6 @@ export function WorkbenchLayout() {
     () => new Set(workItems.map((item) => item.taskId).filter((id): id is string => Boolean(id))),
     [workItems],
   );
-  const conversationTasks = useMemo(() => {
-    return tasks.filter((entry) => !workTaskIds.has(entry.id) || entry.id === activeTaskId);
-  }, [activeTaskId, tasks, workTaskIds]);
-  const workTasks = useMemo(
-    () => tasks.filter((entry) => workTaskIds.has(entry.id) && entry.id !== activeTaskId),
-    [tasks, workTaskIds, activeTaskId],
-  );
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
   const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
@@ -319,22 +312,22 @@ export function WorkbenchLayout() {
       }
       if ((event.metaKey || event.ctrlKey) && !isEditableTarget(event.target) && /^[1-9]$/.test(event.key)) {
         event.preventDefault();
-        const next = conversationTasks[Number(event.key) - 1];
+        const next = tasks[Number(event.key) - 1];
         if (next) void selectTask(next.id);
       }
       if ((event.metaKey || event.ctrlKey) && (event.key === "[" || event.key === "]") && !isEditableTarget(event.target)) {
         event.preventDefault();
-        const index = conversationTasks.findIndex((entry) => entry.id === activeTaskId);
+        const index = tasks.findIndex((entry) => entry.id === activeTaskId);
         const next =
           event.key === "["
-            ? conversationTasks[index <= 0 ? conversationTasks.length - 1 : index - 1]
-            : conversationTasks[index >= conversationTasks.length - 1 ? 0 : index + 1];
+            ? tasks[index <= 0 ? tasks.length - 1 : index - 1]
+            : tasks[index >= tasks.length - 1 ? 0 : index + 1];
         if (next) void selectTask(next.id);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [abortRun, activeTaskId, approval, conversationTasks, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, status, task, taskOpen]);
+  }, [abortRun, activeTaskId, approval, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, status, task, taskOpen, tasks]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -458,7 +451,7 @@ export function WorkbenchLayout() {
   function renderSidebar(onClose?: () => void) {
     return (
       <TaskSidebar
-        tasks={conversationTasks}
+        tasks={tasks}
         activeTaskId={activeTaskId}
         query={query}
         onQuery={setQuery}
@@ -467,7 +460,7 @@ export function WorkbenchLayout() {
         onRename={(id, title) => void renameTask(id, title)}
         pinned={leftPinned}
         onPinToggle={toggleLeftPinned}
-        workTasks={workTasks}
+        workTaskIds={workTaskIds}
         onOpenBoard={() => navigate("/board")}
         onNew={() => {
           setTaskOpen(false);

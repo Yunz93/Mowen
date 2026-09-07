@@ -32,4 +32,24 @@ describe("agent-native work mode", () => {
     expect(panel).toMatch(/执行记录/);
     expect(dashboard).not.toMatch(/<select/);
   });
+
+  it("keeps work sessions in the conversation sidebar after switching", () => {
+    const layout = readFileSync(path.resolve("apps/web/src/layouts/WorkbenchLayout.tsx"), "utf8");
+    const sidebar = readFileSync(path.resolve("apps/web/src/components/tasks/TaskSidebar.tsx"), "utf8");
+    const board = readFileSync(path.resolve("apps/web/src/pages/BoardPage.tsx"), "utf8");
+
+    expect(layout).toMatch(/tasks=\{tasks\}/);
+    expect(layout).toMatch(/workTaskIds=\{workTaskIds\}/);
+    expect(layout).not.toMatch(/!workTaskIds\.has/);
+    expect(layout).not.toMatch(/conversationTasks/);
+    expect(sidebar).toMatch(/workTaskIds\.has\(task\.id\)/);
+    expect(sidebar).toMatch(/>任务</);
+    expect(sidebar).toMatch(/打开工作台/);
+    expect(sidebar).not.toMatch(/任务中的会话/);
+    expect(board).toMatch(/setActiveTask\(taskId\)/);
+    expect(board).toMatch(/snapshot\.request/);
+    expect(board).toMatch(/sr-only/);
+    expect(board).not.toMatch(/text-\[22px\] font-semibold tracking-tight">\{project\.name\}/);
+    expect(board).not.toMatch(/folderName\(project\.cwd\)/);
+  });
 });

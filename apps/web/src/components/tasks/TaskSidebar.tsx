@@ -16,9 +16,11 @@ type Props = {
   onClose?: () => void;
   pinned?: boolean;
   onPinToggle?: () => void;
-  workTasks?: TaskRecord[];
+  workTaskIds?: Set<string>;
   onOpenBoard?: () => void;
 };
+
+const EMPTY_WORK_TASK_IDS = new Set<string>();
 
 function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
   const groups = new Map<string, TaskRecord[]>();
@@ -43,7 +45,7 @@ export function TaskSidebar({
   onClose,
   pinned = true,
   onPinToggle,
-  workTasks = [],
+  workTaskIds = EMPTY_WORK_TASK_IDS,
   onOpenBoard,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -177,7 +179,12 @@ export function TaskSidebar({
                           >
                             <PiStatusRing status={task.status} size={14} />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px] text-ink">{task.title}</span>
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="block min-w-0 truncate text-[13px] text-ink">{task.title}</span>
+                                {workTaskIds.has(task.id) ? (
+                                  <span className="shrink-0 text-[10px] font-medium text-mute">任务</span>
+                                ) : null}
+                              </span>
                               <span className="block truncate text-[11px] text-mute">
                                 {taskStatusLabel(task.status)}
                               </span>
@@ -206,15 +213,14 @@ export function TaskSidebar({
           ))
         )}
       </div>
-      {workTasks.length > 0 && onOpenBoard ? (
+      {onOpenBoard && workTaskIds.size > 0 ? (
         <div className="border-t border-line px-3 py-2">
           <button
             type="button"
             className="pressable hover-fill flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-[12px] text-mute"
             onClick={onOpenBoard}
           >
-            <span>任务中的会话</span>
-            <span className="tabular">{workTasks.length}</span>
+            <span>打开工作台</span>
           </button>
         </div>
       ) : null}
