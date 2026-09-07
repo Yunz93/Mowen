@@ -275,7 +275,9 @@ test("HTTP 401 shows a red error instead of failing silently", async ({ page }) 
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
   await page.getByLabel("输入消息").fill("FAIL401");
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByRole("alert").getByText(/登录已失效|HTTP 401/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("alert").filter({ hasText: /登录已失效|HTTP 401/ }).first()).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByText("还没有连接 AI")).toHaveCount(0);
 });
 
