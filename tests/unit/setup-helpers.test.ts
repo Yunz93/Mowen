@@ -46,10 +46,14 @@ describe("setup helpers", () => {
     expect(again.get().workspaceRoot).toBe("/tmp/work");
     expect(again.get().setupCompletedAt).toBe("2026-01-01T00:00:00.000Z");
     expect(again.get().trustProject).toBe(false);
-    await again.save({ trustProject: true });
+    expect(again.get().autoCheckForUpdates).toBe(true);
+    expect(again.get().skippedUpdateVersion).toBe("");
+    await again.save({ trustProject: true, skippedUpdateVersion: "0.1.9", autoCheckForUpdates: false });
     const trusted = new SettingsStore(dataDir);
     await trusted.load();
     expect(trusted.get().trustProject).toBe(true);
+    expect(trusted.get().autoCheckForUpdates).toBe(false);
+    expect(trusted.get().skippedUpdateVersion).toBe("0.1.9");
   });
 
   it("lists only child folders inside browse roots", async () => {

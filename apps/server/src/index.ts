@@ -223,6 +223,7 @@ export async function createApp(env: NodeJS.ProcessEnv = process.env) {
   registerUpdateRoutes(app, {
     getCurrentVersion: () => currentQingzhouVersion(env),
     env,
+    settings,
   });
 
   app.get("/api/session", async () => {

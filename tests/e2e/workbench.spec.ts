@@ -132,12 +132,14 @@ test("reduced motion disables the status ring spin", async ({ page }) => {
 
 test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) => {
   await page.goto("/settings");
+  await expect(page.getByText("启动后自动检查更新")).toBeVisible();
+  await expect(page.getByRole("button", { name: /立即检查|正在检查/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "认证" })).toBeVisible();
   await expect(page.getByRole("button", { name: "订阅登录", pressed: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("服务商")).toHaveValue("github");
   await expect(page.getByText("已登录").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "检查更新", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "检查更新" })).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "检查更新", exact: true })).toBeEnabled({ timeout: 20_000 });
   await page.getByRole("button", { name: "API Key", exact: true }).click();
   await page.getByLabel("服务商").selectOption("anthropic");
   await page.getByLabel("Anthropic (Claude) API Key").fill("sk-ant-e2e-updated-key-123456");

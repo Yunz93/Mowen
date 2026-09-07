@@ -214,8 +214,8 @@ function registerIpc(): void {
       new Notification({ title, body }).show();
     }
   });
-  registerHandle("qingzhou:restart", async () => {
-    app.relaunch();
+  registerHandle("qingzhou:restart", async (_event, payload?: { relaunch?: boolean }) => {
+    if (payload?.relaunch !== false) app.relaunch();
     app.exit(0);
   });
 }

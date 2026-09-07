@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpCircle } from "lucide-react";
 import { useUpdateStore } from "../../stores/update-store";
+import { UpdateProgressPanel } from "../settings/UpdateProgressPanel";
 
 export function UpdateBanner() {
   const latest = useUpdateStore((state) => state.latest);
@@ -8,10 +9,14 @@ export function UpdateBanner() {
   const canUpdate = useUpdateStore((state) => state.canUpdate);
   const installing = useUpdateStore((state) => state.installing);
   const notice = useUpdateStore((state) => state.notice);
+  const skippedUpdateVersion = useUpdateStore((state) => state.skippedUpdateVersion);
+  const progress = useUpdateStore((state) => state.progress);
   const install = useUpdateStore((state) => state.install);
   const dismiss = useUpdateStore((state) => state.dismiss);
+  const skipCurrent = useUpdateStore((state) => state.skipCurrent);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const skipped = Boolean(latest && skippedUpdateVersion === latest);
 
   useEffect(() => {
     const onDoc = (event: MouseEvent) => {
@@ -21,7 +26,7 @@ export function UpdateBanner() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  if (!updateAvailable || !canUpdate || !latest) return null;
+  if (!updateAvailable || !canUpdate || !latest || skipped) return null;
 
   return (
     <div ref={rootRef} className="relative app-no-drag">
@@ -37,16 +42,26 @@ export function UpdateBanner() {
       </button>
       {open ? (
         <div className="update-popover" role="status">
-          <p>{installing || notice ? notice || "正在更新…" : `轻舟 ${latest} 可用`}</p>
-          {installing || notice ? null : (
-            <div className="mt-2 flex justify-end gap-1.5">
-              <button type="button" className="pressable btn btn-ghost h-7" onClick={dismiss}>
-                稍后
-              </button>
-              <button type="button" className="pressable btn btn-primary h-7" onClick={() => void install()}>
-                更新并重启
-              </button>
-            </div>
+          {installing || notice ? (
+            <>
+              <p>{notice || "正在更新…"}</p>
+              <UpdateProgressPanel progress={progress} version={latest} />
+            </>
+          ) : (
+            <>
+              <p>轻舟 {latest} 可用</p>
+              <div className="mt-2 flex justify-end gap-1.5">
+                <button type="button" className="pressable btn btn-ghost h-7" onClick={() => void skipCurrent()}>
+                  忽略
+                </button>
+                <button type="button" className="pressable btn btn-ghost h-7" onClick={dismiss}>
+                  稍后
+                </button>
+                <button type="button" className="pressable btn btn-primary h-7" onClick={() => void install()}>
+                  更新并重启
+                </button>
+              </div>
+            </>
           )}
         </div>
       ) : null}

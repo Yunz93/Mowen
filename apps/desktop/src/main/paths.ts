@@ -15,6 +15,9 @@ export function applyDesktopEnv(): void {
 
   process.env.QINGZHOU_WEB_DIST = webDistDir();
   process.env.QINGZHOU_APPROVAL_EXTENSION = approvalExtensionPath();
+  process.env.QINGZHOU_EXEC_PATH = app.getPath("exe");
+  const appPath = packagedAppPath();
+  if (appPath) process.env.QINGZHOU_APP_PATH = appPath;
 
   const piEntry = resolvePiEntry();
   if (piEntry) {
@@ -28,6 +31,19 @@ export function applyDesktopEnv(): void {
   if (toolsDir) {
     process.env.QINGZHOU_PI_TOOLS = toolsDir;
   }
+}
+
+export function macosBundlePathFromExecPath(execPath: string): string | null {
+  const match = execPath.match(/^(.*\.app)(?=\/Contents\/MacOS\/)/);
+  return match?.[1] ?? null;
+}
+
+export function packagedAppPath(): string | null {
+  if (!app.isPackaged) return null;
+  if (process.platform === "darwin") {
+    return macosBundlePathFromExecPath(app.getPath("exe"));
+  }
+  return path.dirname(app.getPath("exe"));
 }
 
 export function webDistDir(): string {
