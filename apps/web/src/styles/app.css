@@ -47,7 +47,7 @@ html.dark {
   --color-elevated: oklch(0.27 0.012 264);
   --color-line: oklch(0.96 0.005 264 / 0.1);
   --color-ink: oklch(0.96 0.006 264);
-  --color-mute: oklch(0.66 0.012 264);
+  --color-mute: oklch(0.74 0.012 264);
   --color-accent: oklch(0.68 0.16 250);
   --color-accent-soft: oklch(0.68 0.16 250 / 0.18);
   --color-snow: oklch(0.995 0.002 255);
