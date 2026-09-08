@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 系统技能检查更新不再依赖 GitHub API 权限：SSH 远程改走 HTTPS，API 被拒时用公开压缩包对比内容。
 - 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。
 
 ## 0.1.14

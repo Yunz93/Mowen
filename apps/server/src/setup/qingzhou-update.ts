@@ -616,7 +616,7 @@ async function resolveLatestReleaseTag(
   return tag;
 }
 
-async function githubFetch(url: string, init: RequestInit = {}): Promise<Response> {
+export async function githubFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (!headers.has("user-agent")) headers.set("user-agent", "qingzhou-update-check");
   const next: RequestInit = { ...init, headers };
