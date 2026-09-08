@@ -167,7 +167,7 @@ export function PromptComposer({
   };
 
   return (
-    <div className="px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-1">
+    <div className="px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-1">
       <div
         className="composer-well relative mx-auto max-w-[720px]"
         onPaste={onPaste}
@@ -220,7 +220,7 @@ export function PromptComposer({
           placeholder={composerPlaceholder(running)}
           aria-label="输入消息"
           disabled={disabled}
-          className="max-h-[180px] min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[15px] leading-6 text-ink outline-none placeholder:text-mute"
+          className="max-h-[168px] min-h-[40px] w-full resize-none bg-transparent px-3.5 pb-1 pt-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-mute"
         />
         {fileHits.length > 0 && !menuDismissed ? (
           <MentionMenu
@@ -253,7 +253,7 @@ export function PromptComposer({
                   event.target.value = "";
                 }}
               />
-              <Plus size={16} strokeWidth={2} />
+              <Plus size={15} strokeWidth={1.75} />
             </label>
             <ComposerCapsules
               slot="mode"
@@ -308,7 +308,7 @@ export function PromptComposer({
                 aria-label="发送"
                 title="发送"
               >
-                <ArrowUp size={16} strokeWidth={2.4} />
+                <ArrowUp size={15} strokeWidth={2.2} />
               </button>
             )}
           </div>

@@ -76,9 +76,9 @@ export function InspectorSkills({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <p className={`min-w-0 flex-1 text-sm ${skills.length === 0 ? "text-mute" : "text-ink"}`}>
+        <p className={`panel-count min-w-0 flex-1 ${skills.length === 0 ? "panel-count-empty" : ""}`}>
           {skills.length === 0
             ? trustProject
               ? "还没有技能。"
@@ -133,13 +133,13 @@ export function InspectorSkills({
       ) : null}
 
       {skills.length === 0 ? null : (
-        <ul className="overflow-hidden rounded-md border border-line">
+        <ul className="inset-list">
           {skills.map((skill) => {
             const status = byPath.get(skill.path);
             return (
-              <li key={skill.path} className="flex min-h-10 items-center gap-2 border-b border-line px-2 last:border-b-0">
-                <div className="min-w-0 flex-1 py-1.5">
-                  <p className="truncate text-[13px] text-ink">{skill.name}</p>
+              <li key={skill.path} className="inset-row">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{skill.name}</p>
                   <p className="text-[11px] text-mute">
                     {skill.scope === "user" ? "用户" : "项目"}
                     {status ? ` · ${statusLabel(status)}` : ""}
@@ -156,7 +156,7 @@ export function InspectorSkills({
                     {busy === skill.path || busy === "all" ? "正在更新…" : "更新"}
                   </button>
                 ) : null}
-                <label className="mac-toggle">
+                <label className="mac-toggle mac-toggle-sm">
                   <input
                     type="checkbox"
                     checked={skill.enabled !== false}

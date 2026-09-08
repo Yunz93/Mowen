@@ -608,7 +608,7 @@ export function WorkbenchLayout() {
             <Plus size={15} />
           </button>
           <ModeSwitcher />
-          <PiStatusRing status={status} size={18} />
+          <PiStatusRing status={status} size={16} />
           <div className="app-no-drag min-w-0 flex-1">
             {editingTitle && task ? (
               <input
@@ -636,12 +636,12 @@ export function WorkbenchLayout() {
                   }
                 }}
                 aria-label="会话标题"
-                className="h-7 w-full max-w-[min(100%,360px)] rounded-md bg-fill-strong px-1.5 text-[13px] font-medium tracking-tight text-ink"
+                className="h-7 w-full max-w-[min(100%,360px)] rounded-md bg-fill-strong px-1.5 text-[12.5px] font-medium tracking-tight text-ink"
               />
             ) : (
               <div className="group/title flex min-w-0 items-center gap-1">
                 <p
-                  className="truncate text-[13px] font-medium tracking-tight text-ink"
+                  className="truncate text-[12.5px] font-medium tracking-tight text-ink"
                   title={task ? "双击重命名" : undefined}
                   onDoubleClick={() => {
                     if (!task) return;

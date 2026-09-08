@@ -192,13 +192,13 @@ export function InspectorPanel({
       className={`material-sidebar flex h-full w-full shrink-0 flex-col border-l border-line ${drawer ? "shadow-dialog" : ""}`}
       aria-label="详情"
     >
-      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-1">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {(["files", "git", "term", "browser", "resources"] as const).map((item) => (
             <button
               key={item}
               type="button"
-              className={`pressable h-7 shrink-0 whitespace-nowrap rounded-md px-2 text-[12px] ${tab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
+              className={`pressable h-6 min-h-6 shrink-0 whitespace-nowrap rounded-md px-1.5 text-[11px] font-medium ${tab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
               onClick={() => {
                 setTab(item);
                 if (item === "files") {
@@ -416,7 +416,7 @@ export function InspectorPanel({
                 <button
                   key={item}
                   type="button"
-                  className={`pressable h-7 rounded-md px-2 text-[12px] ${resourceTab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
+                  className={`pressable h-6 min-h-6 rounded-md px-1.5 text-[11px] font-medium ${resourceTab === item ? "bg-fill-strong text-ink" : "hover-fill text-mute"}`}
                   onClick={() => {
                     setResourceTab(item);
                     onLoadResources?.();
