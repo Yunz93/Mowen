@@ -24,9 +24,15 @@
   --font-mono: "Commit Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 18px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 0.84375rem;
+  --text-base--line-height: 1.6;
   --shadow-card: 0 0.5px 0 0 oklch(0.32 0.02 264 / 0.12), 0 1px 1px oklch(0.32 0.02 264 / 0.04);
   --shadow-dialog: 0 0 0 0.5px oklch(0.32 0.02 264 / 0.12), 0 22px 70px oklch(0.32 0.02 264 / 0.22);
   --shadow-composer: 0 0 0 0.5px oklch(0.32 0.02 264 / 0.12), 0 1px 2px oklch(0.32 0.02 264 / 0.04),
@@ -41,7 +47,7 @@ html.dark {
   --color-elevated: oklch(0.27 0.012 264);
   --color-line: oklch(0.96 0.005 264 / 0.1);
   --color-ink: oklch(0.96 0.006 264);
-  --color-mute: oklch(0.72 0.015 264);
+  --color-mute: oklch(0.66 0.012 264);
   --color-accent: oklch(0.68 0.16 250);
   --color-accent-soft: oklch(0.68 0.16 250 / 0.18);
   --color-snow: oklch(0.995 0.002 255);
@@ -74,7 +80,9 @@ html.dark {
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 13px;
-    letter-spacing: -0.01em;
+    line-height: 1.4;
+    letter-spacing: -0.014em;
+    font-synthesis: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     touch-action: manipulation;
@@ -196,11 +204,11 @@ html.dark {
 
   .search-field {
     display: flex;
-    height: 28px;
-    min-height: 28px;
+    height: 26px;
+    min-height: 26px;
     align-items: center;
     gap: 6px;
-    border-radius: 8px;
+    border-radius: 7px;
     background: var(--color-fill-strong);
     padding: 0 8px;
     color: var(--color-ink);
@@ -208,7 +216,7 @@ html.dark {
 
   .search-field input {
     min-height: 0;
-    height: 28px;
+    height: 26px;
   }
 
   .toolbar-btn {
@@ -223,7 +231,7 @@ html.dark {
   }
 
   .source-item {
-    border-radius: 8px;
+    border-radius: 7px;
   }
 
   .source-item-active {
@@ -262,7 +270,7 @@ html.dark {
 
   .settings-card {
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--color-elevated);
     box-shadow: var(--shadow-card);
   }
@@ -282,8 +290,8 @@ html.dark {
   .mac-toggle {
     position: relative;
     display: inline-flex;
-    width: 38px;
-    height: 22px;
+    width: 34px;
+    height: 20px;
     flex-shrink: 0;
     cursor: pointer;
   }
@@ -313,11 +321,11 @@ html.dark {
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 99px;
     background: white;
-    box-shadow: 0 1px 3px oklch(0 0 0 / 0.25);
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.22);
     transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -326,7 +334,21 @@ html.dark {
   }
 
   .mac-toggle input:checked + span::after {
-    transform: translateX(16px);
+    transform: translateX(14px);
+  }
+
+  .mac-toggle-sm {
+    width: 28px;
+    height: 16px;
+  }
+
+  .mac-toggle-sm span::after {
+    width: 12px;
+    height: 12px;
+  }
+
+  .mac-toggle-sm input:checked + span::after {
+    transform: translateX(12px);
   }
 
   .mac-toggle input:disabled + span {
@@ -394,7 +416,7 @@ html.dark {
     gap: 6px;
     border-radius: 7px;
     padding: 0 12px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 510;
     line-height: 1;
     white-space: nowrap;
@@ -431,10 +453,10 @@ html.dark {
 
   .send-btn {
     display: flex;
-    height: 32px;
-    width: 32px;
-    min-height: 32px;
-    min-width: 32px;
+    height: 28px;
+    width: 28px;
+    min-height: 28px;
+    min-width: 28px;
     align-items: center;
     justify-content: center;
     border-radius: 99px;
@@ -634,6 +656,42 @@ html.dark {
     cursor: col-resize;
   }
 
+  .inset-list {
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--color-fill);
+  }
+
+  .inset-list > li + li {
+    border-top: 0.5px solid var(--color-line);
+  }
+
+  .inset-row {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+  }
+
+  .inset-row-start {
+    align-items: flex-start;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .panel-count {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 510;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+
+  .panel-count-empty {
+    color: var(--color-mute);
+  }
+
   .inspector-skeleton {
     display: grid;
     gap: 10px;
@@ -706,12 +764,12 @@ html.dark {
   }
 
   .starter-prompt {
-    min-height: 36px;
-    border-radius: 10px;
+    min-height: 32px;
+    border-radius: 8px;
     background: var(--color-fill);
-    padding: 8px 12px;
+    padding: 7px 11px;
     color: var(--color-ink);
-    font-size: 13px;
+    font-size: 12.5px;
     text-align: left;
   }
 
@@ -821,7 +879,7 @@ html.dark {
 
   .dialog-title {
     margin: 0;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 590;
     letter-spacing: -0.022em;
     line-height: 1.3;
@@ -1046,7 +1104,7 @@ html.dark {
   }
 
   .composer-well {
-    border-radius: 22px;
+    border-radius: 16px;
     background: var(--color-elevated);
     box-shadow: var(--shadow-composer);
     transition: box-shadow 0.16s ease;
@@ -1076,8 +1134,8 @@ html.dark {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 4px;
-    padding: 2px 6px 8px 6px;
+    gap: 2px;
+    padding: 0 6px 7px 6px;
   }
 
   .composer-toolbar-start,
@@ -1285,8 +1343,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 /* Assistant markdown rendering */
 .markdown {
   color: var(--color-ink);
-  font-size: 15px;
-  line-height: 1.47;
+  font-size: 13.5px;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
 }
 
 .markdown > *:first-child {
@@ -1294,9 +1353,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 }
 
 .markdown p {
-  margin: 0.55em 0;
-  font-size: 15px;
-  line-height: 1.47;
+  margin: 0.5em 0;
+  font-size: 13.5px;
+  line-height: 1.65;
   text-wrap: pretty;
 }
 
@@ -1304,32 +1363,32 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 .markdown h2,
 .markdown h3,
 .markdown h4 {
-  margin: 1.05em 0 0.45em;
-  font-weight: 650;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  margin: 1em 0 0.4em;
+  font-weight: 590;
+  line-height: 1.35;
+  letter-spacing: -0.018em;
 }
 
 .markdown h1 {
-  font-size: 19px;
+  font-size: 16.5px;
 }
 
 .markdown h2 {
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .markdown h3 {
-  font-size: 15.5px;
+  font-size: 13.5px;
 }
 
 .markdown h4 {
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .markdown ul,
 .markdown ol {
-  margin: 0.5em 0;
-  padding-left: 1.45em;
+  margin: 0.4em 0;
+  padding-left: 1.3em;
 }
 
 .markdown ul {
@@ -1341,9 +1400,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 }
 
 .markdown li {
-  margin: 0.28em 0;
-  font-size: 15px;
-  line-height: 1.47;
+  margin: 0.18em 0;
+  font-size: 13.5px;
+  line-height: 1.65;
 }
 
 .markdown li > p {
@@ -1352,7 +1411,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .markdown li:has(> input[type="checkbox"]) {
   list-style: none;
-  margin-left: -1.45em;
+  margin-left: -1.3em;
 }
 
 .markdown input[type="checkbox"] {
@@ -1380,7 +1439,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 }
 
 .markdown strong {
-  font-weight: 650;
+  font-weight: 590;
 }
 
 .markdown em {
@@ -1421,26 +1480,26 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .markdown-inline {
   background: var(--color-fill-strong);
-  padding: 0.16em 0.42em;
-  border-radius: 6px;
+  padding: 0.08em 0.34em;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.86em;
   word-break: break-word;
 }
 
 .markdown-pre {
-  margin: 0.85em 0;
-  padding: 0.7em 0.85em;
+  margin: 0.75em 0;
+  padding: 0.6em 0.75em;
   background: var(--color-canvas);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow-x: auto;
 }
 
 .markdown-pre code {
   display: block;
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--color-ink);
 }
 
@@ -1498,7 +1557,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .work-dashboard {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .work-filter-strip {
@@ -1517,7 +1576,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   padding: 4px 9px;
   color: var(--color-mute);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 510;
 }
 
 .work-filter:hover {
@@ -1543,7 +1602,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .work-sections {
   display: grid;
-  gap: 24px;
+  gap: 18px;
 }
 
 .work-section {
@@ -1559,9 +1618,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 }
 
 .work-section-head h2 {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 12px;
+  font-weight: 590;
+  letter-spacing: -0.012em;
 }
 
 .work-section-head p {
@@ -1584,14 +1643,14 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .work-objective-list {
   overflow: hidden;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--color-line);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
 
 .work-objective-list > li + li {
-  border-top: 1px solid var(--color-line);
+  border-top: 0.5px solid var(--color-line);
 }
 
 .work-objective {
@@ -1599,8 +1658,8 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
-  padding: 9px 10px 9px 12px;
+  gap: 10px;
+  padding: 7px 9px 7px 11px;
 }
 
 .work-objective::before {
@@ -1644,9 +1703,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .work-state-icon {
   display: grid;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   place-items: center;
   border-radius: var(--radius-pill);
   background: var(--color-fill);
@@ -1686,8 +1745,9 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 .work-objective-title {
   overflow: hidden;
   color: var(--color-ink);
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 12.5px;
+  font-weight: 590;
+  letter-spacing: -0.012em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

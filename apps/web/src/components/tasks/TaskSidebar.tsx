@@ -79,9 +79,9 @@ export function TaskSidebar({
   const groups = groupByProject(filtered);
 
   return (
-    <aside className="material-sidebar flex h-full w-[min(244px,90vw)] shrink-0 flex-col border-r border-line" aria-label="会话">
+    <aside className="material-sidebar flex h-full w-[min(228px,90vw)] shrink-0 flex-col border-r border-line" aria-label="会话">
       <div className="traffic-inline app-drag flex h-[52px] items-center gap-1 px-3">
-        <p className="flex-1 text-[13px] font-semibold tracking-tight text-ink">会话</p>
+          <p className="flex-1 text-[12px] font-semibold tracking-tight text-ink">会话</p>
         {onNew ? (
           <button
             type="button"
@@ -123,7 +123,7 @@ export function TaskSidebar({
             onChange={(event) => onQuery(event.target.value)}
             placeholder="搜索"
             aria-label="搜索会话"
-            className="h-7 w-full bg-transparent text-[13px] text-ink placeholder:text-mute"
+            className="h-7 w-full bg-transparent text-[12.5px] text-ink placeholder:text-mute"
           />
         </label>
       </div>
@@ -132,8 +132,8 @@ export function TaskSidebar({
           <p className="px-2 py-4 text-[12px] leading-5 text-mute">点 + 开始。</p>
         ) : (
           groups.map(([cwd, items]) => (
-            <section key={cwd} className="mb-3">
-              <h2 className="truncate px-2 pb-1 text-[11px] font-medium text-mute" title={cwd}>
+            <section key={cwd} className="mb-2">
+              <h2 className="truncate px-2 pb-0.5 text-[11px] font-medium tracking-wide text-mute" title={cwd}>
                 {folderName(cwd)}
               </h2>
               <ul>
@@ -146,13 +146,13 @@ export function TaskSidebar({
                       >
                         {editingId === task.id ? (
                           <form
-                            className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5"
+                            className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5 py-1"
                             onSubmit={(event) => {
                               event.preventDefault();
                               commitRename(task);
                             }}
                           >
-                            <PiStatusRing status={task.status} size={14} />
+                            <PiStatusRing status={task.status} size={11} />
                             <input
                               autoFocus
                               value={draft}
@@ -175,12 +175,12 @@ export function TaskSidebar({
                             type="button"
                             onClick={() => onSelect(task.id)}
                             onDoubleClick={() => startRename(task)}
-                            className="pressable flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+                            className="pressable flex min-h-7 min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
                           >
-                            <PiStatusRing status={task.status} size={14} />
+                            <PiStatusRing status={task.status} size={11} />
                             <span className="min-w-0 flex-1">
                               <span className="flex min-w-0 items-center gap-1.5">
-                                <span className="block min-w-0 truncate text-[13px] text-ink">{task.title}</span>
+                                <span className="block min-w-0 truncate text-[12.5px] font-medium leading-snug text-ink">{task.title}</span>
                                 {workTaskIds.has(task.id) ? (
                                   <span className="shrink-0 text-[10px] font-medium text-mute">任务</span>
                                 ) : null}

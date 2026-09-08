@@ -52,9 +52,9 @@ export function InspectorExtensions({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <p className={`min-w-0 flex-1 text-sm ${extensions.length === 0 ? "text-mute" : "text-ink"}`}>
+        <p className={`panel-count min-w-0 flex-1 ${extensions.length === 0 ? "panel-count-empty" : ""}`}>
           {extensions.length === 0
             ? trustProject
               ? "还没有本地插件。"
@@ -89,13 +89,13 @@ export function InspectorExtensions({
             </button>
           ) : null}
         </div>
-        <ul className="overflow-hidden rounded-md border border-line">
+        <ul className="inset-list">
           {PRESET_PI_PACKAGES.map((item) => {
             const installed = claimed.has(item.id) || presetExtensionLoaded(item, extensions);
             return (
-              <li key={item.id} className="flex items-start gap-2 border-b border-line px-2 py-2 last:border-b-0">
+              <li key={item.id} className="inset-row inset-row-start">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] text-ink">{item.name}</p>
+                  <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.name}</p>
                   <p className="text-[11px] text-mute">{item.summary}</p>
                 </div>
                 {installed ? (
@@ -119,14 +119,14 @@ export function InspectorExtensions({
       </div>
 
       {extensions.length === 0 ? null : (
-        <ul className="overflow-hidden rounded-md border border-line">
+        <ul className="inset-list">
           {extensions.map((item) => (
-            <li key={item.path} className="flex min-h-10 items-center gap-2 border-b border-line px-2 last:border-b-0">
+            <li key={item.path} className="inset-row">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-ink">{item.name}</p>
+                <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.name}</p>
                 <p className="text-[11px] text-mute">{item.scope === "user" ? "用户" : "项目"}</p>
               </div>
-              <label className="mac-toggle">
+              <label className="mac-toggle mac-toggle-sm">
                 <input
                   type="checkbox"
                   checked={item.enabled !== false}
@@ -142,14 +142,14 @@ export function InspectorExtensions({
       {extraPackages.length > 0 ? (
         <div className="space-y-2">
           <p className="text-[12px] text-mute">已安装的包</p>
-          <ul className="overflow-hidden rounded-md border border-line">
+          <ul className="inset-list">
             {extraPackages.map((item) => (
               <li
                 key={`${item.scope}:${item.source}`}
-                className="flex min-h-10 items-center gap-2 border-b border-line px-2 last:border-b-0"
+                className="inset-row"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] text-ink">{item.source}</p>
+                  <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.source}</p>
                   <p className="text-[11px] text-mute">{item.scope === "user" ? "用户" : "项目"} · 只读</p>
                 </div>
               </li>

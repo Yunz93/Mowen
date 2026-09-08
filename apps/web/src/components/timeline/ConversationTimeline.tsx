@@ -111,14 +111,14 @@ function UserMessage({
   return (
     <article
       id={conversationMessageDomId(message.id)}
-      className={`flex w-fit max-w-[78%] shrink-0 flex-col self-end rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] leading-[1.47] text-ink ${highlighted ? "conversation-search-hit" : ""}`}
+      className={`flex w-fit max-w-[78%] shrink-0 flex-col self-end rounded-[16px] bg-bubble px-3.5 py-2 text-[13.5px] leading-[1.6] tracking-[-0.01em] text-ink ${highlighted ? "conversation-search-hit" : ""}`}
     >
       {editing ? (
         <div className="space-y-2">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            className="min-h-20 w-full resize-y bg-transparent text-[15px] leading-6 text-ink"
+            className="min-h-20 w-full resize-y bg-transparent text-[13.5px] leading-6 text-ink"
             aria-label="编辑消息"
           />
           <div className="flex justify-end gap-2">
@@ -144,11 +144,11 @@ function UserMessage({
           {!visible && message.images?.length ? (
             <p className="text-[12px] text-mute">附 {message.images.length} 张图</p>
           ) : null}
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             {visible ? (
               <button
                 type="button"
-                className="pressable h-7 text-[12px] text-mute"
+                className="pressable h-6 min-h-6 text-[11px] text-mute"
                 aria-label="复制消息"
                 onClick={() => {
                   void copyText(visible).then((ok) => {
@@ -163,7 +163,7 @@ function UserMessage({
             {canRewrite && onRetry ? (
               <button
                 type="button"
-                className="pressable h-7 text-[12px] text-mute"
+                className="pressable h-6 min-h-6 text-[11px] text-mute"
                 onClick={() => {
                   setDraft(stripModePrefix(message.text));
                   setEditing(true);
@@ -198,7 +198,7 @@ const AssistantMessage = memo(function AssistantMessage({
       {message.text ? (
         <button
           type="button"
-          className="pressable mt-2 h-7 text-[12px] text-mute"
+          className="pressable mt-1.5 h-6 min-h-6 text-[11px] text-mute"
           aria-label="复制回复"
           onClick={() => {
             void copyText(message.text).then((ok) => {
@@ -395,7 +395,7 @@ export function ConversationTimeline({
   return (
     <div
       ref={rootRef}
-      className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-7 sm:px-6"
+      className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-5 sm:px-6"
       role="log"
       aria-live="polite"
       aria-relevant="additions"
@@ -440,7 +440,7 @@ export function ConversationTimeline({
       ) : null}
       {messages.length > 0 && onClone ? (
         <div className="flex justify-end">
-          <button type="button" className="pressable h-7 text-[12px] text-mute" onClick={onClone}>
+          <button type="button" className="pressable h-6 min-h-6 text-[11px] text-mute" onClick={onClone}>
             克隆会话
           </button>
         </div>
