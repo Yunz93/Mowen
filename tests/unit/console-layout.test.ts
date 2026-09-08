@@ -36,7 +36,7 @@ describe("stick to bottom", () => {
 describe("conversation bubbles", () => {
   it("lets user bubbles shrink instead of stretching into each other", () => {
     const src = readFileSync(path.resolve("apps/web/src/components/timeline/ConversationTimeline.tsx"), "utf8");
-    expect(src).toMatch(/flex-col gap-6/);
+    expect(src).toMatch(/flex-col gap-5/);
     expect(src).toMatch(/w-fit max-w-\[78%\] shrink-0[\s\S]*self-end/);
   });
 });
