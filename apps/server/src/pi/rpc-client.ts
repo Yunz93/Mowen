@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { asNodeEnv, isJavaScriptFile } from "../config.js";
+import { envWithElectronAsNode, isJavaScriptFile, resolveElectronNodeBin } from "../config.js";
 import { attachJsonlLineReader, serializeJsonLine } from "./rpc-framer.js";
 import { redactSecrets } from "../security/redact.js";
 
@@ -65,9 +65,10 @@ export class RpcClient {
       argv = [command, ...argv];
       command = process.execPath;
     }
+    command = resolveElectronNodeBin(command);
     const child = spawn(command, argv, {
       cwd: this.options.cwd,
-      env: { ...process.env, ...asNodeEnv(command), ...this.options.extraEnv, ...this.options.env },
+      env: envWithElectronAsNode(command, process.env, this.options.extraEnv, this.options.env),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });

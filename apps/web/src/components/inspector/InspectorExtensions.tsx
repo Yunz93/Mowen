@@ -4,7 +4,6 @@ import {
   presetExtensionLoaded,
   type PiResources,
 } from "@qingzhou/protocol";
-import { useState } from "react";
 
 type Extension = PiResources["extensions"][number];
 type Package = PiResources["packages"][number];
@@ -16,7 +15,9 @@ type Props = {
   trustProject: boolean;
   onToggle: (path: string, enabled: boolean) => void;
   onReload?: () => void;
-  onInstallPresets?: (ids?: string[]) => Promise<void>;
+  busy?: string | null;
+  error?: string;
+  onInstallPresets?: (ids?: string[]) => void;
 };
 
 export function InspectorExtensions({
@@ -26,10 +27,10 @@ export function InspectorExtensions({
   trustProject,
   onToggle,
   onReload,
+  busy = null,
+  error = "",
   onInstallPresets,
 }: Props) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const claimed = new Set(claimedIds);
   const missing = PRESET_PI_PACKAGES.filter(
     (item) => !claimed.has(item.id) && !presetExtensionLoaded(item, extensions),
@@ -37,19 +38,6 @@ export function InspectorExtensions({
   const extraPackages = packages.filter(
     (item) => !PRESET_PI_PACKAGES.some((preset) => packageSourcesEqual(preset.source, item.source)),
   );
-
-  async function install(ids?: string[]) {
-    if (!onInstallPresets) return;
-    setBusy(ids?.length === 1 ? ids[0]! : "all");
-    setError("");
-    try {
-      await onInstallPresets(ids);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "安装失败");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -83,7 +71,7 @@ export function InspectorExtensions({
               type="button"
               className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
               disabled={busy !== null}
-              onClick={() => void install()}
+              onClick={() => onInstallPresets?.()}
             >
               {busy === "all" ? "正在安装…" : "安装全部"}
             </button>
@@ -105,7 +93,7 @@ export function InspectorExtensions({
                     type="button"
                     className="pressable mt-0.5 h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                     disabled={busy !== null}
-                    onClick={() => void install([item.id])}
+                    onClick={() => onInstallPresets?.([item.id])}
                     aria-label={`安装 ${item.name}`}
                   >
                     {busy === item.id || busy === "all" ? "正在安装…" : "安装"}

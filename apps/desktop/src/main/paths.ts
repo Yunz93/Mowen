@@ -22,9 +22,9 @@ export function applyDesktopEnv(): void {
   const piEntry = resolvePiEntry();
   if (piEntry) {
     process.env.QINGZHOU_PI_ENTRY = piEntry;
-    // Electron binary used as Node. Children must set ELECTRON_RUN_AS_NODE=1
-    // or macOS shows a second Dock icon (often the default Electron atom).
-    process.env.QINGZHOU_NODE_BIN = process.execPath;
+    // Electron-as-Node. Prefer Helper.app on macOS (LSUIElement) so children
+    // do not appear in the Dock as generic "exec" icons.
+    process.env.QINGZHOU_NODE_BIN = macosElectronHelperBin(process.execPath);
     process.env.QINGZHOU_PI_BUNDLED = "1";
   }
   const toolsDir = resolvePiToolsDir();
@@ -36,6 +36,18 @@ export function applyDesktopEnv(): void {
 export function macosBundlePathFromExecPath(execPath: string): string | null {
   const match = execPath.match(/^(.*\.app)(?=\/Contents\/MacOS\/)/);
   return match?.[1] ?? null;
+}
+
+/** Helper.app has LSUIElement, so Node children do not take a Dock slot. */
+export function macosElectronHelperBin(execPath: string): string {
+  const bundle = macosBundlePathFromExecPath(execPath);
+  if (!bundle) return execPath;
+  const product = path.basename(execPath);
+  for (const name of [`${product} Helper`, "Electron Helper"]) {
+    const helper = path.join(bundle, "Contents", "Frameworks", `${name}.app`, "Contents", "MacOS", name);
+    if (fs.existsSync(helper)) return helper;
+  }
+  return execPath;
 }
 
 export function packagedAppPath(): string | null {

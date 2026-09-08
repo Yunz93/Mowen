@@ -40,6 +40,7 @@ describe("desktop setup menu and export open", () => {
     expect(src).toMatch(/QINGZHOU_APP_PATH/);
     expect(src).toMatch(/QINGZHOU_EXEC_PATH/);
     expect(src).toMatch(/packagedAppPath/);
+    expect(src).toMatch(/macosElectronHelperBin/);
   });
 
   it("encodes export file URLs", () => {

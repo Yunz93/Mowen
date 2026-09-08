@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-## 0.1.15
+- 详情栏技能检查/更新和插件安装进度在切换 tab 后仍保留。
+- macOS 后台 Pi 进程改走 Electron Helper，不再在程序坞出现多个 exec 图标。## 0.1.15
 
 - 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。
 - 系统技能检查更新不再依赖 GitHub API 权限：SSH 远程改走 HTTPS，API 被拒时用公开压缩包对比内容。

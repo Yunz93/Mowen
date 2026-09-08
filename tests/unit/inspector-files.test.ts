@@ -86,6 +86,13 @@ describe("InspectorPanel tabs", () => {
     expect(src).toMatch(/aria-label=\{treeOpen \? "隐藏文件树" : "显示文件树"\}/);
     expect(src).toMatch(/aria-label="文件树"/);
     expect(src).not.toMatch(/刷新技能/);
+    expect(src).toMatch(/skillBusy/);
+    expect(src).toMatch(/pluginBusy/);
+    expect(src).toMatch(/setSkillUpdates/);
+    const skills = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorSkills.tsx"), "utf8");
+    const plugins = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorExtensions.tsx"), "utf8");
+    expect(skills).not.toMatch(/useState/);
+    expect(plugins).not.toMatch(/useState/);
     const header = src.slice(src.indexOf("tab === \"files\""), src.indexOf("tab === \"git\""));
     expect(header.indexOf("preview?.path")).toBeGreaterThan(-1);
     expect(header.indexOf("隐藏文件树")).toBeGreaterThan(header.indexOf("preview?.path"));
