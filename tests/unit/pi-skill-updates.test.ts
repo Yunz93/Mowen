@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   applySystemSkillUpdates,
   checkSystemSkillUpdates,
+  gitRemoteCommand,
   githubFolderHash,
+  githubHttpsRemoteUrl,
+  hashSkillFolder,
+  isGithubPermissionError,
   parseGithubRepo,
   parseSkillFrontmatter,
   parseSkillLock,
@@ -27,6 +31,19 @@ describe("system skill updates", () => {
     });
     expect(parseGithubRepo("git@github.com:owner/repo.git")).toEqual({ owner: "owner", repo: "repo" });
     expect(parseGithubRepo("owner/repo")).toEqual({ owner: "owner", repo: "repo" });
+    expect(githubHttpsRemoteUrl("owner", "repo")).toBe("https://github.com/owner/repo.git");
+    expect(gitRemoteCommand(["ls-remote", "origin", "HEAD"])).toEqual([
+      "-c",
+      "url.https://github.com/.insteadOf=git@github.com:",
+      "-c",
+      "url.https://github.com/.insteadOf=ssh://git@github.com/",
+      "ls-remote",
+      "origin",
+      "HEAD",
+    ]);
+    expect(isGithubPermissionError(new Error("Permission denied (publickey)"))).toBe(true);
+    expect(isGithubPermissionError(new Error("GitHub 拒绝访问（HTTP 403）。"))).toBe(true);
+    expect(isGithubPermissionError(new Error("ENOENT"))).toBe(false);
     expect(parseSkillFrontmatter("---\nname: demo\nsource: https://github.com/acme/skills\n---\nbody")).toEqual({
       name: "demo",
       source: "https://github.com/acme/skills",
@@ -187,5 +204,68 @@ describe("system skill updates", () => {
     });
     expect(pulled).toBe(true);
     expect(result.updated).toEqual([path.join(skillDir, "SKILL.md")]);
+  });
+
+  it("hashes a skill folder stably and falls back when GitHub API has no permission", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-fallback-"));
+    const skillDir = path.join(home, ".agents", "skills", "design");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# design\n");
+    const localHash = await hashSkillFolder(skillDir);
+    expect(localHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(await hashSkillFolder(skillDir)).toBe(localHash);
+
+    await mkdir(path.join(home, ".agents"), { recursive: true });
+    await writeFile(
+      path.join(home, ".agents", ".skill-lock.json"),
+      `${JSON.stringify({
+        version: 3,
+        skills: {
+          design: {
+            source: "acme/skills",
+            skillPath: "skills/design",
+            skillFolderHash: "old-tree",
+          },
+        },
+      })}\n`,
+    );
+    const skillPath = path.join(skillDir, "SKILL.md");
+    const same = await checkSystemSkillUpdates({
+      skills: [{ name: "design", path: skillPath, scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+      hooks: {
+        fetchGithubTree: async () => {
+          throw new Error("GitHub 拒绝访问（HTTP 403）。打不开 GitHub 时请设置 HTTPS_PROXY 后重试。");
+        },
+        githubFolderContentHash: async () => localHash,
+      },
+    });
+    expect(same.items[0]).toMatchObject({
+      source: "github",
+      updateAvailable: false,
+      current: localHash,
+      latest: localHash,
+    });
+    expect(same.items[0]?.error).toBeUndefined();
+
+    const newer = await checkSystemSkillUpdates({
+      skills: [{ name: "design", path: skillPath, scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+      hooks: {
+        fetchGithubTree: async () => {
+          throw new Error("Permission denied (publickey)");
+        },
+        githubFolderContentHash: async () => "remote-newer",
+      },
+    });
+    expect(newer.items[0]).toMatchObject({
+      source: "github",
+      updateAvailable: true,
+      latest: "remote-newer",
+    });
   });
 });

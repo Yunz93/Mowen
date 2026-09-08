@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -8,6 +9,7 @@ import { promisify } from "node:util";
 import type { PiResources, SkillUpdateApplyResult, SkillUpdateCheckResult, SkillUpdateItem } from "@qingzhou/protocol";
 import { qingzhouEnv } from "../config.js";
 import { isInsideRoot } from "../security/path-policy.js";
+import { githubFetch, humanizeGithubHttpStatus } from "../setup/qingzhou-update.js";
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 20_000;
@@ -41,6 +43,7 @@ export type SkillUpdateHooks = {
   gitPull?: (gitRoot: string) => Promise<void>;
   fetchGithubTree?: (input: GithubRepoRef, token?: string) => Promise<GithubTree | null>;
   applyGithub?: (input: { dest: string; remote: GithubRepoRef; token?: string }) => Promise<string>;
+  githubFolderContentHash?: (input: { dest: string; remote: GithubRepoRef; token?: string }) => Promise<string | null>;
 };
 
 export function shouldFetchSkillRemotes(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -53,6 +56,64 @@ export function shouldFetchSkillRemotes(env: NodeJS.ProcessEnv = process.env): b
 export function githubToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const token = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
   return token || undefined;
+}
+
+export function githubHttpsRemoteUrl(owner: string, repo: string, token?: string): string {
+  if (token) return `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+  return `https://github.com/${owner}/${repo}.git`;
+}
+
+/** Force git@ / ssh GitHub remotes onto HTTPS so Electron can check without SSH keys. */
+export function gitRemoteCommand(args: string[]): string[] {
+  return [
+    "-c",
+    "url.https://github.com/.insteadOf=git@github.com:",
+    "-c",
+    "url.https://github.com/.insteadOf=ssh://git@github.com/",
+    ...args,
+  ];
+}
+
+export function gitPromptlessEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return { ...env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "echo" };
+}
+
+export function isGithubPermissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /HTTP 401|HTTP 403|HTTP 429|rate limit|限流或没有权限|拒绝访问|Permission denied \(publickey\)|Authentication failed|could not read Username|terminal prompts disabled/i.test(
+    message,
+  );
+}
+
+export function skillFolderFromExtract(extractedRoot: string, skillPath?: string): string {
+  let folder = (skillPath ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (folder.toLowerCase().endsWith("/skill.md")) folder = folder.slice(0, -9);
+  else if (folder.toLowerCase().endsWith("skill.md")) folder = folder.slice(0, -8);
+  folder = folder.replace(/\/+$/g, "");
+  return folder ? path.join(extractedRoot, ...folder.split("/")) : extractedRoot;
+}
+
+export async function hashSkillFolder(root: string): Promise<string> {
+  const files: string[] = [];
+  async function walk(dir: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile()) files.push(path.relative(root, full).replaceAll("\\", "/"));
+    }
+  }
+  await walk(root);
+  files.sort();
+  const hash = createHash("sha256");
+  for (const rel of files) {
+    hash.update(rel);
+    hash.update("\0");
+    hash.update(await readFile(path.join(root, rel)));
+    hash.update("\n");
+  }
+  return hash.digest("hex");
 }
 
 export function parseGithubRepo(raw: string | undefined | null): { owner: string; repo: string } | null {
@@ -145,10 +206,11 @@ export async function findGitRoot(startDir: string, stopDir: string): Promise<st
 
 async function defaultGitHead(gitRoot: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    const { stdout } = await execFileAsync("git", gitRemoteCommand(["rev-parse", "HEAD"]), {
       cwd: gitRoot,
       timeout: GIT_TIMEOUT_MS,
       windowsHide: true,
+      env: gitPromptlessEnv(),
     });
     const sha = stdout.trim();
     return /^[0-9a-f]{7,40}$/i.test(sha) ? sha.toLowerCase() : null;
@@ -158,24 +220,22 @@ async function defaultGitHead(gitRoot: string): Promise<string | null> {
 }
 
 async function defaultGitLsRemote(gitRoot: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync("git", ["ls-remote", "origin", "HEAD"], {
-      cwd: gitRoot,
-      timeout: GIT_TIMEOUT_MS,
-      windowsHide: true,
-    });
-    const sha = stdout.trim().split(/\s+/)[0] ?? "";
-    return /^[0-9a-f]{7,40}$/i.test(sha) ? sha.toLowerCase() : null;
-  } catch {
-    return null;
-  }
+  const { stdout } = await execFileAsync("git", gitRemoteCommand(["ls-remote", "origin", "HEAD"]), {
+    cwd: gitRoot,
+    timeout: GIT_TIMEOUT_MS,
+    windowsHide: true,
+    env: gitPromptlessEnv(),
+  });
+  const sha = stdout.trim().split(/\s+/)[0] ?? "";
+  return /^[0-9a-f]{7,40}$/i.test(sha) ? sha.toLowerCase() : null;
 }
 
 async function defaultGitPull(gitRoot: string): Promise<void> {
-  await execFileAsync("git", ["pull", "--ff-only"], {
+  await execFileAsync("git", gitRemoteCommand(["pull", "--ff-only"]), {
     cwd: gitRoot,
     timeout: 120_000,
     windowsHide: true,
+    env: gitPromptlessEnv(),
   });
 }
 
@@ -188,14 +248,11 @@ async function defaultFetchGithubTree(input: GithubRepoRef, token?: string): Pro
       "User-Agent": "qingzhou-skill-update",
     };
     if (token) headers.Authorization = `Bearer ${token}`;
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    const response = await githubFetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (response.status === 404) continue;
     if (!response.ok) {
-      throw new Error(
-        response.status === 403
-          ? "GitHub API 限流或没有权限。可设置 GITHUB_TOKEN 后再检查。"
-          : `无法读取 GitHub 仓库（HTTP ${response.status}）。`,
-      );
+      const body = await response.text().catch(() => "");
+      throw new Error(humanizeGithubHttpStatus(response.status, body));
     }
     const raw = (await response.json()) as { sha?: unknown; tree?: unknown };
     if (typeof raw.sha !== "string" || !Array.isArray(raw.tree)) return null;
@@ -213,40 +270,88 @@ async function defaultFetchGithubTree(input: GithubRepoRef, token?: string): Pro
   return null;
 }
 
-async function defaultApplyGithub(input: {
-  dest: string;
-  remote: GithubRepoRef;
-  token?: string;
-}): Promise<string> {
+async function extractGithubSkillTarball(
+  remote: GithubRepoRef,
+  token?: string,
+): Promise<{ tmp: string; extractedRoot: string }> {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-"));
   try {
     const archive = path.join(tmp, "skill.tgz");
     const extractDir = path.join(tmp, "extract");
     await mkdir(extractDir, { recursive: true });
-    const url = `https://codeload.github.com/${input.remote.owner}/${input.remote.repo}/tar.gz/${encodeURIComponent(input.remote.ref || "HEAD")}`;
+    const url = `https://codeload.github.com/${remote.owner}/${remote.repo}/tar.gz/${encodeURIComponent(remote.ref || "HEAD")}`;
     const headers: Record<string, string> = { "User-Agent": "qingzhou-skill-update" };
-    if (input.token) headers.Authorization = `Bearer ${input.token}`;
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await githubFetch(url, { headers, signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
     if (!response.ok || !response.body) {
-      throw new Error(`下载技能失败（HTTP ${response.status}）。`);
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        response.status === 401 || response.status === 403 || response.status === 429
+          ? humanizeGithubHttpStatus(response.status, body)
+          : `下载技能失败（HTTP ${response.status}）。`,
+      );
     }
     await pipeline(response.body, createWriteStream(archive));
     await execFileAsync("tar", ["xf", archive, "-C", extractDir], { timeout: 60_000, windowsHide: true });
     const roots = await readdir(extractDir, { withFileTypes: true });
     const root = roots.find((item) => item.isDirectory());
     if (!root) throw new Error("下载的技能包是空的。");
-    const extractedRoot = path.join(extractDir, root.name);
-    let folder = (input.remote.skillPath || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-    if (folder.toLowerCase().endsWith("/skill.md")) folder = folder.slice(0, -9);
-    const source = folder ? path.join(extractedRoot, ...folder.split("/")) : extractedRoot;
+    return { tmp, extractedRoot: path.join(extractDir, root.name) };
+  } catch (error) {
+    await rm(tmp, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function createGithubFolderHasher(token?: string): {
+  hash: NonNullable<SkillUpdateHooks["githubFolderContentHash"]>;
+  cleanup: () => Promise<void>;
+} {
+  const extracts = new Map<string, Promise<string>>();
+  const tmps: string[] = [];
+  return {
+    hash: async (input) => {
+      const key = `${input.remote.owner}/${input.remote.repo}/${input.remote.ref || "HEAD"}`;
+      let pending = extracts.get(key);
+      if (!pending) {
+        pending = extractGithubSkillTarball(input.remote, input.token ?? token).then(({ tmp, extractedRoot }) => {
+          tmps.push(tmp);
+          return extractedRoot;
+        });
+        extracts.set(key, pending);
+      }
+      const extractedRoot = await pending;
+      const folder = skillFolderFromExtract(extractedRoot, input.remote.skillPath);
+      if (!isInsideRoot(folder, extractedRoot)) throw new Error("技能路径不合法。");
+      return hashSkillFolder(folder);
+    },
+    cleanup: async () => {
+      await Promise.all(tmps.map((dir) => rm(dir, { recursive: true, force: true })));
+    },
+  };
+}
+
+async function defaultApplyGithub(input: {
+  dest: string;
+  remote: GithubRepoRef;
+  token?: string;
+}): Promise<string> {
+  const { tmp, extractedRoot } = await extractGithubSkillTarball(input.remote, input.token);
+  try {
+    const source = skillFolderFromExtract(extractedRoot, input.remote.skillPath);
     if (!isInsideRoot(source, extractedRoot)) throw new Error("技能路径不合法。");
     const staging = `${input.dest}.qingzhou-new`;
     await rm(staging, { recursive: true, force: true });
     await cp(source, staging, { recursive: true });
     await rm(input.dest, { recursive: true, force: true });
     await rename(staging, input.dest);
-    const tree = await defaultFetchGithubTree(input.remote, input.token);
-    return (tree && githubFolderHash(tree, input.remote.skillPath)) || input.remote.ref || "updated";
+    try {
+      const tree = await defaultFetchGithubTree(input.remote, input.token);
+      return (tree && githubFolderHash(tree, input.remote.skillPath)) || (await hashSkillFolder(input.dest));
+    } catch (error) {
+      if (isGithubPermissionError(error)) return hashSkillFolder(input.dest);
+      throw error;
+    }
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -348,69 +453,101 @@ export async function checkSystemSkillUpdates(input: {
   const globalLock = path.join(input.homeDir, ".agents", ".skill-lock.json");
   const { entries } = await readLockFile(globalLock);
   const hooks = input.hooks ?? {};
+  const ownedHasher = hooks.githubFolderContentHash ? null : createGithubFolderHasher(token);
+  const hashRemoteGithub = hooks.githubFolderContentHash ?? ownedHasher!.hash;
   const items: SkillUpdateItem[] = [];
-  for (const skill of systemSkills) {
-    const resolved = await resolveSkillUpdateSource({ skill, homeDir: input.homeDir, cwd: input.cwd, locks: entries });
-    if (resolved.source === "local") {
-      items.push({ name: skill.name, path: skill.path, source: "local", updateAvailable: false });
-      continue;
-    }
-    if (!fetchRemotes) {
-      items.push({
-        name: skill.name,
-        path: skill.path,
-        source: resolved.source,
-        current: resolved.lock?.skillFolderHash,
-        updateAvailable: false,
-      });
-      continue;
-    }
-    try {
-      if (resolved.source === "git" && resolved.gitRoot) {
-        const current = (await (hooks.gitHead ?? defaultGitHead)(resolved.gitRoot)) ?? undefined;
-        const latest = (await (hooks.gitLsRemote ?? defaultGitLsRemote)(resolved.gitRoot)) ?? undefined;
+  try {
+    for (const skill of systemSkills) {
+      const resolved = await resolveSkillUpdateSource({ skill, homeDir: input.homeDir, cwd: input.cwd, locks: entries });
+      if (resolved.source === "local") {
+        items.push({ name: skill.name, path: skill.path, source: "local", updateAvailable: false });
+        continue;
+      }
+      if (!fetchRemotes) {
         items.push({
           name: skill.name,
           path: skill.path,
-          source: "git",
-          current,
-          latest,
-          updateAvailable: Boolean(current && latest && current !== latest),
-          error: !current || !latest ? "没法读取 Git 远程版本。" : undefined,
+          source: resolved.source,
+          current: resolved.lock?.skillFolderHash,
+          updateAvailable: false,
         });
         continue;
       }
-      if (resolved.remote) {
-        const tree = await (hooks.fetchGithubTree ?? defaultFetchGithubTree)(resolved.remote, token);
-        const latest = tree ? githubFolderHash(tree, resolved.remote.skillPath) ?? tree.sha : undefined;
-        const current = resolved.lock?.skillFolderHash;
+      try {
+        if (resolved.source === "git" && resolved.gitRoot) {
+          const current = (await (hooks.gitHead ?? defaultGitHead)(resolved.gitRoot)) ?? undefined;
+          let latest: string | undefined;
+          let gitError: string | undefined;
+          try {
+            latest = (await (hooks.gitLsRemote ?? defaultGitLsRemote)(resolved.gitRoot)) ?? undefined;
+          } catch (error) {
+            gitError = isGithubPermissionError(error)
+              ? humanizeGithubHttpStatus(403)
+              : error instanceof Error
+                ? error.message
+                : "没法读取 Git 远程版本。";
+          }
+          items.push({
+            name: skill.name,
+            path: skill.path,
+            source: "git",
+            current,
+            latest,
+            updateAvailable: Boolean(current && latest && current !== latest),
+            error: gitError ?? (!current || !latest ? "没法读取 Git 远程版本。" : undefined),
+          });
+          continue;
+        }
+        if (resolved.remote) {
+          try {
+            const tree = await (hooks.fetchGithubTree ?? defaultFetchGithubTree)(resolved.remote, token);
+            const latest = tree ? githubFolderHash(tree, resolved.remote.skillPath) ?? tree.sha : undefined;
+            const current = resolved.lock?.skillFolderHash;
+            items.push({
+              name: skill.name,
+              path: skill.path,
+              source: "github",
+              current,
+              latest: latest ?? undefined,
+              updateAvailable: Boolean(current && latest && current !== latest),
+              error: !current
+                ? "缺少本地版本记录，无法判断是否有更新。"
+                : !latest
+                  ? "没法读取 GitHub 上的技能版本。"
+                  : undefined,
+            });
+          } catch (error) {
+            if (!isGithubPermissionError(error)) throw error;
+            const dest = skillDir(skill.path);
+            const latest = (await hashRemoteGithub({ dest, remote: resolved.remote, token })) ?? undefined;
+            const current = await hashSkillFolder(dest);
+            items.push({
+              name: skill.name,
+              path: skill.path,
+              source: "github",
+              current,
+              latest,
+              updateAvailable: Boolean(current && latest && current !== latest),
+              error: latest ? undefined : humanizeGithubHttpStatus(403),
+            });
+          }
+          continue;
+        }
+        items.push({ name: skill.name, path: skill.path, source: "local", updateAvailable: false });
+      } catch (error) {
         items.push({
           name: skill.name,
           path: skill.path,
-          source: "github",
-          current,
-          latest: latest ?? undefined,
-          updateAvailable: Boolean(current && latest && current !== latest),
-          error: !current
-            ? "缺少本地版本记录，无法判断是否有更新。"
-            : !latest
-              ? "没法读取 GitHub 上的技能版本。"
-              : undefined,
+          source: resolved.source,
+          updateAvailable: false,
+          error: error instanceof Error ? error.message : "检查更新失败。",
         });
-        continue;
       }
-      items.push({ name: skill.name, path: skill.path, source: "local", updateAvailable: false });
-    } catch (error) {
-      items.push({
-        name: skill.name,
-        path: skill.path,
-        source: resolved.source,
-        updateAvailable: false,
-        error: error instanceof Error ? error.message : "检查更新失败。",
-      });
     }
+    return { items, checkedAt: new Date().toISOString() };
+  } finally {
+    await ownedHasher?.cleanup();
   }
-  return { items, checkedAt: new Date().toISOString() };
 }
 
 export async function applySystemSkillUpdates(input: {
