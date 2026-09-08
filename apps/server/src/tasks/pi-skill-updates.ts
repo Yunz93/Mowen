@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import type { PiResources, SkillUpdateApplyResult, SkillUpdateCheckResult, SkillUpdateItem } from "@qingzhou/protocol";
 import { qingzhouEnv } from "../config.js";
 import { isInsideRoot } from "../security/path-policy.js";
-import { githubFetch, humanizeGithubHttpStatus } from "../setup/qingzhou-update.js";
+import { githubFetch, humanizeGithubHttpStatus, isGithubAccessLimited } from "../setup/qingzhou-update.js";
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 20_000;
@@ -79,8 +79,9 @@ export function gitPromptlessEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.P
 }
 
 export function isGithubPermissionError(error: unknown): boolean {
+  if (isGithubAccessLimited(error)) return true;
   const message = error instanceof Error ? error.message : String(error);
-  return /HTTP 401|HTTP 403|HTTP 429|rate limit|限流或没有权限|拒绝访问|Permission denied \(publickey\)|Authentication failed|could not read Username|terminal prompts disabled/i.test(
+  return /Permission denied \(publickey\)|Authentication failed|could not read Username|terminal prompts disabled/i.test(
     message,
   );
 }
