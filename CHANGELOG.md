@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用内检查更新改为和墨知一样读 `latest.json`，不再打 GitHub API，避免「限制了检查次数」。
+- 打版本标签时 Release 会附带 `latest.json`（含各平台安装包地址和 SHA-256）。
 ## 0.1.15
 
 - 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。

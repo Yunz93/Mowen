@@ -15,7 +15,12 @@ import {
   installQingzhouUpdate,
   isQingzhouUpdateAvailable,
   isValidReleaseTag,
+  latestJsonDownloadUrl,
   macosBundlePathFromExecPath,
+  canonicalizeUpdaterPlatformKey,
+  changelogNotesForVersion,
+  buildQingzhouLatestJson,
+  parseQingzhouLatestJson,
   normalizeReleaseTag,
   parseQingzhouRelease,
   parseReleaseTagFromGithubUrl,
@@ -71,24 +76,71 @@ describe("Qingzhou update metadata", () => {
     expect(result.error).toBe("offline");
   });
 
+  it("checks latest.json like Mozi instead of the GitHub API", () => {
+    const src = readFileSync(path.resolve("apps/server/src/setup/qingzhou-update.ts"), "utf8");
+    expect(src).toContain("releases/latest/download/${LATEST_JSON_NAME}");
+    expect(src).not.toContain("api.github.com/repos/");
+    expect(latestJsonDownloadUrl("Yunz93/Qingzhou")).toBe(
+      "https://github.com/Yunz93/Qingzhou/releases/latest/download/latest.json",
+    );
+  });
+
   it("defaults to the renamed Qingzhou repo and humanizes GitHub 403", () => {
     expect(qingzhouRepo({})).toBe("Yunz93/Qingzhou");
     expect(humanizeGithubHttpStatus(403, "API rate limit exceeded")).toMatch(/限制了检查次数/);
     expect(humanizeGithubHttpStatus(403, "")).toMatch(/HTTPS_PROXY/);
     expect(shouldFallbackGithubRelease(new Error("GitHub 返回 HTTP 403"))).toBe(true);
+    expect(shouldFallbackGithubRelease(new Error("GitHub 返回 HTTP 404"))).toBe(true);
+    expect(shouldFallbackGithubRelease(new Error("GitHub 限制了检查次数，请稍后再试。"))).toBe(true);
     expect(shouldFallbackGithubRelease(new Error("offline"))).toBe(false);
   });
 
-  it("falls back to the GitHub releases page when the API is forbidden", async () => {
+  it("parses a Mozi-shaped latest.json and falls back to the GitHub releases page when it is missing", async () => {
+    const zip = "Qingzhou-mac-arm64.zip";
+    const hash = "a".repeat(64);
+    const parsed = parseQingzhouLatestJson({
+      version: "0.1.11",
+      notes: "from latest.json",
+      pub_date: "2026-09-08T00:00:00Z",
+      platforms: {
+        "darwin-aarch64": {
+          url: githubReleaseDownloadUrl("Yunz93/Qingzhou", "v0.1.11", zip),
+          sha256: hash,
+        },
+      },
+    });
+    expect(parsed.release.version).toBe("0.1.11");
+    expect(parsed.release.body).toBe("from latest.json");
+    expect(parsed.sums.get(zip)).toBe(hash);
+    expect(canonicalizeUpdaterPlatformKey("darwin-aarch64")).toBe("darwin-arm64");
+    expect(canonicalizeUpdaterPlatformKey("windows-x86_64")).toBe("win32-x64");
+
+    const fromManifest = await fetchLatestQingzhouRelease({
+      fetchJson: async (url) => {
+        expect(url).toBe(latestJsonDownloadUrl("Yunz93/Qingzhou"));
+        return {
+          version: "0.1.11",
+          notes: "",
+          pub_date: "2026-09-08T00:00:00Z",
+          platforms: {
+            "darwin-arm64": { url: githubReleaseDownloadUrl("Yunz93/Qingzhou", "v0.1.11", zip), sha256: hash },
+          },
+        };
+      },
+    });
+    expect(fromManifest.error).toBeNull();
+    expect(fromManifest.release?.version).toBe("0.1.11");
+    expect(fromManifest.sums?.get(zip)).toBe(hash);
+
     const result = await fetchLatestQingzhouRelease({
       fetchJson: async () => {
-        throw new Error("GitHub 返回 HTTP 403");
+        throw new Error("GitHub 限制了检查次数，请稍后再试。");
       },
       fetchLatestLocation: async () => "https://github.com/Yunz93/Qingzhou/releases/tag/v0.1.11",
     });
     expect(result.error).toBeNull();
     expect(result.release?.version).toBe("0.1.11");
-    expect(result.release?.assets.some((asset) => asset.name === "Qingzhou-mac-arm64.zip")).toBe(true);
+    expect(result.release?.assets.some((asset) => asset.name === zip)).toBe(true);
     expect(parseReleaseTagFromGithubUrl("https://github.com/Yunz93/Qingzhou/releases/tag/v0.1.10")).toBe("v0.1.10");
     expect(githubReleaseDownloadUrl("Yunz93/Qingzhou", "v0.1.11", "SHA256SUMS.txt")).toMatch(/\/v0\.1\.11\/SHA256SUMS\.txt$/);
     expect(syntheticGithubRelease("Yunz93/Qingzhou", "v0.1.11").tag_name).toBe("v0.1.11");
@@ -115,6 +167,34 @@ describe("checksummed in-app artifacts", () => {
     expect(updaterPlatformKey("darwin", "x86_64")).toBe("darwin-x64");
     expect(updaterPlatformKey("win32", "x64")).toBe("win32-x64");
     expect(() => updaterPlatformKey("linux", "x64")).toThrow(/暂不支持/);
+  });
+
+  it("writes a Mozi-shaped latest.json from SHA256SUMS.txt", () => {
+    const zip = "Qingzhou-mac-arm64.zip";
+    const exe = "Qingzhou-win-x64-setup.exe";
+    const zipHash = "b".repeat(64);
+    const exeHash = "c".repeat(64);
+    const latest = buildQingzhouLatestJson({
+      repo: "Yunz93/Qingzhou",
+      tag: "v0.1.16",
+      sums: new Map([
+        [zip, zipHash],
+        [exe, exeHash],
+      ]),
+      notes: "from changelog",
+      pubDate: "2026-09-08T00:00:00Z",
+    });
+    expect(latest.version).toBe("0.1.16");
+    expect(latest.notes).toBe("from changelog");
+    expect(latest.platforms["darwin-arm64"]).toEqual({
+      url: githubReleaseDownloadUrl("Yunz93/Qingzhou", "v0.1.16", zip),
+      sha256: zipHash,
+    });
+    expect(latest.platforms["darwin-aarch64"]).toEqual(latest.platforms["darwin-arm64"]);
+    expect(latest.platforms["windows-x86_64"]).toEqual(latest.platforms["win32-x64"]);
+    expect(changelogNotesForVersion("## Unreleased\n\n## 0.1.16\n\n- 修好了更新。\n\n## 0.1.15\n\n- 旧的。\n", "v0.1.16")).toBe(
+      "- 修好了更新。",
+    );
   });
 
   it("requires a checksummed zip or setup exe and never accepts a DMG or install script", () => {
@@ -148,8 +228,10 @@ describe("checksummed in-app artifacts", () => {
       platform: "darwin",
       arch: "arm64",
       fetchJson: async () => ({
-        tag_name: "v0.1.9",
-        assets: [{ name: "Qingzhou-mac-arm64.zip", browser_download_url: "https://example.test/app.zip", size: 8 }],
+        version: "0.1.9",
+        platforms: {
+          "darwin-arm64": { url: "https://example.test/app.zip" },
+        },
       }),
       fetchText: async () => `${"b".repeat(64)}  install-macos.sh\n`,
     });
@@ -165,10 +247,14 @@ describe("checksummed in-app artifacts", () => {
         platform: "darwin",
         arch: "arm64",
         fetchJson: async () => ({
-          tag_name: "v0.1.9",
-          assets: [{ name: "Qingzhou-mac-arm64.zip", browser_download_url: "https://example.test/app.zip", size: 8 }],
+          version: "0.1.9",
+          platforms: {
+            "darwin-arm64": {
+              url: "https://example.test/app.zip",
+              sha256: sha256Hex("good"),
+            },
+          },
         }),
-        fetchText: async () => `${sha256Hex("good")}  Qingzhou-mac-arm64.zip\n`,
         fetchToFile: async (_url, dest) => {
           await writeFile(dest, "tampered");
         },
@@ -186,10 +272,14 @@ describe("checksummed in-app artifacts", () => {
       arch: "arm64",
       env: { QINGZHOU_APP_PATH: "/Applications/Qingzhou.app" },
       fetchJson: async () => ({
-        tag_name: "v0.1.9",
-        assets: [{ name: "Qingzhou-mac-arm64.zip", browser_download_url: "https://example.test/app.zip", size: payload.length }],
+        version: "0.1.9",
+        platforms: {
+          "darwin-arm64": {
+            url: "https://example.test/app.zip",
+            sha256: hash,
+          },
+        },
       }),
-      fetchText: async () => `${hash}  Qingzhou-mac-arm64.zip\n`,
       fetchToFile: async (_url, dest, onEvent) => {
         onEvent?.({ event: "Started", data: { contentLength: payload.length } });
         await writeFile(dest, payload);
@@ -308,5 +398,11 @@ describe("atomic replace and helpers", () => {
     expect(src).not.toMatch(/install-windows\.ps1/);
     expect(src).toContain("已终止安装");
     expect(src).toContain("Qingzhou-mac-arm64.zip");
+    const workflow = readFileSync(path.resolve(".github/workflows/release.yml"), "utf8");
+    expect(workflow).toContain("write-latest-json.ts");
+    expect(workflow).toContain("dist/latest.json");
+    const writer = readFileSync(path.resolve("scripts/write-latest-json.ts"), "utf8");
+    expect(writer).toContain("buildQingzhouLatestJson");
+    expect(writer).toContain("changelogNotesForVersion");
   });
 });

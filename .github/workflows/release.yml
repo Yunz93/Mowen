@@ -97,6 +97,24 @@ jobs:
           mv /tmp/SHA256SUMS.txt dist/SHA256SUMS.txt
           cat dist/SHA256SUMS.txt
 
+      - uses: pnpm/action-setup@v5
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v5
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Write latest.json (Mozi-style updater manifest)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec tsx scripts/write-latest-json.ts "${{ github.ref_name }}" "${{ github.repository }}" dist/SHA256SUMS.txt dist/latest.json CHANGELOG.md
+          cat dist/latest.json
+
       - name: Stable release from tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
