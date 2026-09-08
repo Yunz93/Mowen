@@ -194,7 +194,8 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("系统技能")).toBeVisible();
   await page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText(/没有可更新的系统技能|本地技能/)).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("用户 · 本地技能")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐插件")).toBeVisible();
