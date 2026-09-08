@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。
+- 安装推荐插件时按 Pi 要求一次只装一个包，避免 `Unexpected argument`。
 
 ## 0.1.14
 

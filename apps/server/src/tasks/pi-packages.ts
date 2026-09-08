@@ -152,6 +152,10 @@ export async function ensureMcpServer(
   return true;
 }
 
+export function piCliInstallArgs(prefixArgs: string[], source: string): string[] {
+  return [...prefixArgs, "install", source];
+}
+
 export async function runPiCliInstall(input: {
   piCommand: string;
   prefixArgs: string[];
@@ -162,13 +166,18 @@ export async function runPiCliInstall(input: {
 }): Promise<string> {
   if (input.sources.length === 0) return "";
   const npmEnv = input.agentDir ? piNpmEnv(input.agentDir) : {};
-  const { stdout, stderr } = await execFileAsync(input.piCommand, [...input.prefixArgs, "install", ...input.sources], {
-    timeout: PI_PACKAGE_INSTALL_TIMEOUT_MS,
-    windowsHide: true,
-    maxBuffer: 2 * 1024 * 1024,
-    env: { ...process.env, ...input.env, ...input.extraEnv, ...npmEnv },
-  });
-  return `${stdout}\n${stderr}`.trim();
+  const logs: string[] = [];
+  for (const source of input.sources) {
+    const { stdout, stderr } = await execFileAsync(input.piCommand, piCliInstallArgs(input.prefixArgs, source), {
+      timeout: PI_PACKAGE_INSTALL_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 2 * 1024 * 1024,
+      env: { ...process.env, ...input.env, ...input.extraEnv, ...npmEnv },
+    });
+    const text = `${stdout}\n${stderr}`.trim();
+    if (text) logs.push(text);
+  }
+  return logs.join("\n");
 }
 
 export function formatPiInstallError(error: unknown): string {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,6 +7,8 @@ import {
   ensureMcpServer,
   formatPiInstallError,
   installPresetPiPackages,
+  piCliInstallArgs,
+  runPiCliInstall,
   shouldRunPiCliInstall,
 } from "../../apps/server/src/tasks/pi-packages.ts";
 
@@ -153,5 +155,34 @@ describe("preset pi package install", () => {
     };
     expect(settings.packages ?? []).toEqual([]);
     expect(mcp.mcpServers ?? {}).not.toHaveProperty("context-mode");
+  });
+
+  it("runs pi install once per source because the CLI only accepts one", async () => {
+    expect(piCliInstallArgs(["cli.js"], "npm:pi-web-access")).toEqual(["cli.js", "install", "npm:pi-web-access"]);
+    expect(piCliInstallArgs(["cli.js"], "npm:pi-memory")).toEqual(["cli.js", "install", "npm:pi-memory"]);
+    const dir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-pi-install-"));
+    const log = path.join(dir, "calls.txt");
+    const script = path.join(dir, "fake-pi-install.mjs");
+    await writeFile(
+      script,
+      [
+        "import { appendFileSync } from 'node:fs';",
+        "const install = process.argv.indexOf('install');",
+        "const sources = install >= 0 ? process.argv.slice(install + 1) : [];",
+        "if (sources.length !== 1) {",
+        "  process.stderr.write('Unexpected argument ' + (sources[1] ?? '') + '\\n');",
+        "  process.stderr.write('Usage: pi install <source> [-l] [--approve|--no-approve]\\n');",
+        "  process.exit(1);",
+        "}",
+        "appendFileSync(process.env.QINGZHOU_INSTALL_LOG, sources[0] + '\\n');",
+      ].join("\n"),
+    );
+    await runPiCliInstall({
+      piCommand: process.execPath,
+      prefixArgs: [script],
+      sources: ["npm:pi-web-access", "npm:pi-memory"],
+      env: { QINGZHOU_INSTALL_LOG: log },
+    });
+    expect(await readFile(log, "utf8")).toBe("npm:pi-web-access\nnpm:pi-memory\n");
   });
 });
