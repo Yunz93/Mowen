@@ -557,6 +557,14 @@ export function WorkbenchLayout() {
           if (!task) throw new Error("没有对话");
           await socketClient.send("resources.package.install", ids?.length ? { ids } : {}, task.id);
         }}
+        onCheckSkillUpdates={async () => {
+          if (!task) throw new Error("没有对话");
+          return socketClient.send("resources.skill.updates", {}, task.id);
+        }}
+        onUpdateSkills={async (paths) => {
+          if (!task) throw new Error("没有对话");
+          return socketClient.send("resources.skill.update", paths?.length ? { paths } : {}, task.id);
+        }}
         lastExportPath={lastExportPath}
         onOpenExport={(filePath) => void openExport(filePath)}
         onExport={() => {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。
+
 ## 0.1.14
 
 - macOS 安装脚本能对上 `dist/` 前缀的 SHA256SUMS，且不再因中文逗号在 bash 3.2 下报 `name unbound variable`。

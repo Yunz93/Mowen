@@ -23,6 +23,8 @@ import {
   type WorkItemColumn,
   type WorkRunKind,
   type WorkRunStatus,
+  type SkillUpdateApplyResult,
+  type SkillUpdateCheckResult,
 } from "@qingzhou/protocol";
 import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
@@ -39,6 +41,7 @@ import { TaskShells } from "./task-shell.js";
 import { openNativeTerminal } from "./open-native-terminal.js";
 import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { installPresetPiPackages } from "./pi-packages.js";
+import { applySystemSkillUpdates, checkSystemSkillUpdates } from "./pi-skill-updates.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -306,6 +309,10 @@ export class TaskService {
         return this.writeResourceFile(command.taskId, command.payload.path, command.payload.content);
       case "resources.skill.set":
         return this.setResourceSkill(command.taskId, command.payload.path, command.payload.enabled);
+      case "resources.skill.updates":
+        return this.checkResourceSkillUpdates(command.taskId, command.payload?.paths);
+      case "resources.skill.update":
+        return this.updateResourceSkills(command.taskId, command.payload?.paths);
       case "resources.extension.set":
         return this.setResourceExtension(command.taskId, command.payload.path, command.payload.enabled);
       case "resources.package.install":
@@ -958,6 +965,30 @@ export class TaskService {
     await writeContextFile(resolved, content);
     await this.reloadResources(taskId);
     return { ok: true };
+  }
+
+  private async checkResourceSkillUpdates(taskId: string, paths?: string[]): Promise<SkillUpdateCheckResult> {
+    const task = this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    return checkSystemSkillUpdates({
+      skills: resources.skills,
+      homeDir: this.config.homeDir,
+      cwd: task.cwd,
+      paths,
+    });
+  }
+
+  private async updateResourceSkills(taskId: string, paths?: string[]): Promise<SkillUpdateApplyResult> {
+    const task = this.requireTask(taskId);
+    const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
+    const result = await applySystemSkillUpdates({
+      skills: resources.skills,
+      homeDir: this.config.homeDir,
+      cwd: task.cwd,
+      paths,
+    });
+    if (result.updated.length > 0) await this.reloadResources(taskId);
+    return result;
   }
 
   private async setResourceSkill(

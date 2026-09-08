@@ -1,0 +1,191 @@
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  applySystemSkillUpdates,
+  checkSystemSkillUpdates,
+  githubFolderHash,
+  parseGithubRepo,
+  parseSkillFrontmatter,
+  parseSkillLock,
+  shouldFetchSkillRemotes,
+} from "../../apps/server/src/tasks/pi-skill-updates.ts";
+
+describe("system skill updates", () => {
+  it("skips remotes in tests and e2e", () => {
+    expect(shouldFetchSkillRemotes({ VITEST: "true" })).toBe(false);
+    expect(shouldFetchSkillRemotes({ QINGZHOU_E2E: "1" })).toBe(false);
+    expect(shouldFetchSkillRemotes({ QINGZHOU_SKIP_SKILL_UPDATE: "1" })).toBe(false);
+    expect(shouldFetchSkillRemotes({})).toBe(true);
+  });
+
+  it("parses GitHub repos, frontmatter, lock files, and folder hashes", () => {
+    expect(parseGithubRepo("https://github.com/vercel-labs/agent-skills.git")).toEqual({
+      owner: "vercel-labs",
+      repo: "agent-skills",
+    });
+    expect(parseGithubRepo("git@github.com:owner/repo.git")).toEqual({ owner: "owner", repo: "repo" });
+    expect(parseGithubRepo("owner/repo")).toEqual({ owner: "owner", repo: "repo" });
+    expect(parseSkillFrontmatter("---\nname: demo\nsource: https://github.com/acme/skills\n---\nbody")).toEqual({
+      name: "demo",
+      source: "https://github.com/acme/skills",
+    });
+    const entries = parseSkillLock({
+      version: 3,
+      skills: {
+        design: {
+          source: "vercel-labs/agent-skills",
+          sourceUrl: "https://github.com/vercel-labs/agent-skills",
+          skillPath: "skills/design",
+          skillFolderHash: "aaa",
+        },
+      },
+    });
+    expect(entries).toEqual([
+      {
+        name: "design",
+        source: "vercel-labs/agent-skills",
+        sourceUrl: "https://github.com/vercel-labs/agent-skills",
+        skillPath: "skills/design",
+        skillFolderHash: "aaa",
+        ref: undefined,
+      },
+    ]);
+    expect(
+      githubFolderHash(
+        {
+          sha: "root",
+          tree: [
+            { path: "skills/design", type: "tree", sha: "folder" },
+            { path: "skills/design/SKILL.md", type: "blob", sha: "file" },
+          ],
+        },
+        "skills/design/SKILL.md",
+      ),
+    ).toBe("folder");
+  });
+
+  it("marks local skills as not updatable and detects lockfile updates", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-home-"));
+    const skillDir = path.join(home, ".pi", "agent", "skills", "demo");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# demo\n");
+    const local = await checkSystemSkillUpdates({
+      skills: [{ name: "demo", path: path.join(skillDir, "SKILL.md"), scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+    });
+    expect(local.items).toEqual([
+      { name: "demo", path: path.join(skillDir, "SKILL.md"), source: "local", updateAvailable: false },
+    ]);
+
+    const trackedDir = path.join(home, ".agents", "skills", "design");
+    await mkdir(trackedDir, { recursive: true });
+    await writeFile(path.join(trackedDir, "SKILL.md"), "# design\n");
+    await mkdir(path.join(home, ".agents"), { recursive: true });
+    await writeFile(
+      path.join(home, ".agents", ".skill-lock.json"),
+      `${JSON.stringify({
+        version: 3,
+        skills: {
+          design: {
+            source: "acme/skills",
+            skillPath: "skills/design",
+            skillFolderHash: "old",
+          },
+        },
+      })}\n`,
+    );
+    const checked = await checkSystemSkillUpdates({
+      skills: [{ name: "design", path: path.join(trackedDir, "SKILL.md"), scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+      hooks: {
+        fetchGithubTree: async () => ({
+          sha: "root",
+          tree: [{ path: "skills/design", type: "tree", sha: "new" }],
+        }),
+      },
+    });
+    expect(checked.items[0]).toMatchObject({
+      name: "design",
+      source: "github",
+      current: "old",
+      latest: "new",
+      updateAvailable: true,
+    });
+  });
+
+  it("applies a GitHub skill update and writes the new lock hash", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-apply-"));
+    const skillDir = path.join(home, ".agents", "skills", "design");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# old\n");
+    await writeFile(
+      path.join(home, ".agents", ".skill-lock.json"),
+      `${JSON.stringify({
+        version: 3,
+        skills: {
+          design: {
+            source: "acme/skills",
+            skillPath: "skills/design",
+            skillFolderHash: "old",
+          },
+        },
+      })}\n`,
+    );
+    const skillPath = path.join(skillDir, "SKILL.md");
+    const result = await applySystemSkillUpdates({
+      skills: [{ name: "design", path: skillPath, scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+      hooks: {
+        fetchGithubTree: async () => ({
+          sha: "root",
+          tree: [{ path: "skills/design", type: "tree", sha: "new" }],
+        }),
+        applyGithub: async ({ dest }) => {
+          await writeFile(path.join(dest, "SKILL.md"), "# new\n");
+          return "new";
+        },
+      },
+    });
+    expect(result.updated).toEqual([skillPath]);
+    expect(result.failed).toEqual([]);
+    expect(result.items[0]?.updateAvailable).toBe(false);
+    expect(result.items[0]?.current).toBe("new");
+    expect(await readFile(path.join(skillDir, "SKILL.md"), "utf8")).toBe("# new\n");
+    const lock = JSON.parse(await readFile(path.join(home, ".agents", ".skill-lock.json"), "utf8")) as {
+      skills: { design: { skillFolderHash: string } };
+    };
+    expect(lock.skills.design.skillFolderHash).toBe("new");
+  });
+
+  it("pulls a git-backed skill when HEAD differs from origin", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-skill-git-"));
+    const skillDir = path.join(home, ".pi", "agent", "skills", "review");
+    await mkdir(path.join(skillDir, ".git"), { recursive: true });
+    await writeFile(path.join(skillDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+    await writeFile(path.join(skillDir, "SKILL.md"), "# review\n");
+    let pulled = false;
+    const result = await applySystemSkillUpdates({
+      skills: [{ name: "review", path: path.join(skillDir, "SKILL.md"), scope: "user", enabled: true }],
+      homeDir: home,
+      cwd: home,
+      fetchRemotes: true,
+      hooks: {
+        gitHead: async () => "aaa",
+        gitLsRemote: async () => "bbb",
+        gitPull: async () => {
+          pulled = true;
+        },
+      },
+    });
+    expect(pulled).toBe(true);
+    expect(result.updated).toEqual([path.join(skillDir, "SKILL.md")]);
+  });
+});

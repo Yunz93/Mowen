@@ -138,3 +138,13 @@ export {
   type PresetPiMcpServer,
   type PresetPiPackage,
 } from "./preset-packages.js";
+export {
+  skillUpdateSourceSchema,
+  skillUpdateItemSchema,
+  skillUpdateCheckResultSchema,
+  skillUpdateApplyResultSchema,
+  type SkillUpdateSource,
+  type SkillUpdateItem,
+  type SkillUpdateCheckResult,
+  type SkillUpdateApplyResult,
+} from "./skill-updates.js";

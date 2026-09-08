@@ -136,6 +136,21 @@ describe("protocol", () => {
       }).payload,
     ).toEqual({ ids: ["pi-web-access"] });
     expect(
+      clientCommandSchema.parse({
+        id: "9d",
+        type: "resources.skill.updates",
+        taskId: "11111111-1111-4111-8111-111111111111",
+      }).type,
+    ).toBe("resources.skill.updates");
+    expect(
+      clientCommandSchema.parse({
+        id: "9e",
+        type: "resources.skill.update",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { paths: ["/tmp/SKILL.md"] },
+      }).payload,
+    ).toEqual({ paths: ["/tmp/SKILL.md"] });
+    expect(
       piResourcesSchema.parse({
         agentsFiles: [],
         skills: [],

@@ -208,6 +208,26 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("resources.skill.updates"),
+    taskId: z.string().min(1),
+    payload: z
+      .object({
+        paths: z.array(z.string().min(1)).max(80).optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    ...commandBase,
+    type: z.literal("resources.skill.update"),
+    taskId: z.string().min(1),
+    payload: z
+      .object({
+        paths: z.array(z.string().min(1)).max(80).optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("resources.package.install"),
     taskId: z.string().min(1),
     payload: z

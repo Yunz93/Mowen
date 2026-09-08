@@ -6,6 +6,8 @@ import {
   patchLineCounts,
   PRESET_PI_PACKAGES,
   type PiResources,
+  type SkillUpdateApplyResult,
+  type SkillUpdateCheckResult,
 } from "@qingzhou/protocol";
 import { ancestorDirs, buildFileTree, gitMarksByPath, type InspectorFileEntry } from "../../lib/inspector-files";
 import { FileTree } from "./FileTree";
@@ -53,6 +55,8 @@ type Props = {
   onToggleSkill?: (path: string, enabled: boolean) => void;
   onToggleExtension?: (path: string, enabled: boolean) => void;
   onInstallPresets?: (ids?: string[]) => Promise<void>;
+  onCheckSkillUpdates?: () => Promise<SkillUpdateCheckResult>;
+  onUpdateSkills?: (paths?: string[]) => Promise<SkillUpdateApplyResult>;
   drawer?: boolean;
   pinned?: boolean;
   onPinToggle?: () => void;
@@ -89,6 +93,8 @@ export function InspectorPanel({
   onToggleSkill,
   onToggleExtension,
   onInstallPresets,
+  onCheckSkillUpdates,
+  onUpdateSkills,
   drawer,
   pinned = false,
   onPinToggle,
@@ -439,6 +445,8 @@ export function InspectorPanel({
                   onExport={onExport}
                   onOpenExport={onOpenExport}
                   onReload={onReloadResources}
+                  onCheckUpdates={onCheckSkillUpdates}
+                  onUpdateSkills={onUpdateSkills}
                 />
               ) : null}
               {resourceTab === "plugins" ? (
