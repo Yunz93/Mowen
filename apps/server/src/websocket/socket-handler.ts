@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
-import { clientCommandSchema } from "@qingzhou/protocol";
+import { clientCommandSchema, formatClientCommandError } from "@qingzhou/protocol";
 import type { AppConfig } from "../config.js";
 import { isAllowedOrigin } from "../config.js";
 import { hasSession, readSessionToken } from "../security/session-cookie.js";
@@ -67,7 +67,7 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
               : "";
           service.emit("", "request.failed", {
             requestId,
-            error: "Invalid WebSocket payload",
+            error: formatClientCommandError(result.error),
           });
           return;
         }

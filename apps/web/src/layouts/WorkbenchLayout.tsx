@@ -558,7 +558,7 @@ export function WorkbenchLayout() {
           await socketClient.send("resources.package.install", ids?.length ? { ids } : {}, task.id);
         }}
         onCheckSkillUpdates={async () => {
-          if (!task) throw new Error("没有对话");
+          if (!task?.id) throw new Error("没有对话");
           return socketClient.send("resources.skill.updates", {}, task.id);
         }}
         onUpdateSkills={async (paths) => {

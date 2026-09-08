@@ -1,6 +1,7 @@
 export {
   PROMPT_MESSAGE_MAX,
   clientCommandSchema,
+  formatClientCommandError,
   type ClientCommand,
   type ClientCommandType,
 } from "./client-commands.js";
