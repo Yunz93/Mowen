@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PROMPT_MESSAGE_MAX,
   clientCommandSchema,
+  formatClientCommandError,
   normalizeSessionStats,
   piResourcesSchema,
   serverFrameSchema,
@@ -140,8 +141,17 @@ describe("protocol", () => {
         id: "9d",
         type: "resources.skill.updates",
         taskId: "11111111-1111-4111-8111-111111111111",
+        payload: {},
       }).type,
     ).toBe("resources.skill.updates");
+    expect(formatClientCommandError(clientCommandSchema.safeParse({ id: "x", type: "nope" }).error!)).toMatch(
+      /版本不一致/,
+    );
+    expect(
+      formatClientCommandError(
+        clientCommandSchema.safeParse({ id: "x", type: "resources.skill.updates", payload: {} }).error!,
+      ),
+    ).toMatch(/没有对话/);
     expect(
       clientCommandSchema.parse({
         id: "9e",

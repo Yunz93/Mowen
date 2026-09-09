@@ -113,7 +113,7 @@ describe("integration fake-pi", () => {
 
     sock.send({ id: "bad", type: "not-a-command", payload: {} });
     const failed = await sock.waitFor("request.failed");
-    expect(failed.payload?.error).toMatch(/Invalid WebSocket payload/);
+    expect(failed.payload?.error).toMatch(/版本不一致/);
 
     sock.send({
       id: "c1",
@@ -122,6 +122,15 @@ describe("integration fake-pi", () => {
     });
     const created = await sock.waitFor("request.succeeded");
     const taskId = created?.payload?.data?.task?.id as string;
+
+    sock.send({
+      id: "skill-check",
+      type: "resources.skill.updates",
+      taskId,
+      payload: {},
+    });
+    const skillCheck = await sock.waitForRequest("skill-check", 8000);
+    expect(skillCheck.type).toBe("request.succeeded");
 
     sock.send({
       id: "ask-policy",

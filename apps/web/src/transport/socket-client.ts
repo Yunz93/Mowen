@@ -33,7 +33,9 @@ export class SocketClient {
     taskId?: string,
   ): Promise<T> {
     const id = `c${++this.requestId}`;
-    const body = { id, type, taskId, payload };
+    const body: { id: string; type: ClientCommand["type"]; taskId?: string; payload?: unknown } = { id, type };
+    if (taskId) body.taskId = taskId;
+    if (payload !== undefined) body.payload = payload;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, {
         resolve: (value) => resolve(value as T),

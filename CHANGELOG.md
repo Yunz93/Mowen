@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 详情栏检查技能更新失败时显示中文原因，不再出现 `Invalid WebSocket payload`。
+
 ## 0.1.15
 
 - 详情栏「技能」可检查并更新用户目录里来自 Git / GitHub 的系统技能。

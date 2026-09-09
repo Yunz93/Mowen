@@ -494,3 +494,15 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
 
 export type ClientCommand = z.infer<typeof clientCommandSchema>;
 export type ClientCommandType = ClientCommand["type"];
+
+export function formatClientCommandError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "请求无法识别。";
+  if (issue.code === "invalid_union_discriminator" || issue.path[0] === "type") {
+    return "界面和引擎版本不一致。请完全退出轻舟后重新打开。";
+  }
+  if (issue.path[0] === "taskId") {
+    return "没有对话。";
+  }
+  return "请求无法识别。";
+}
