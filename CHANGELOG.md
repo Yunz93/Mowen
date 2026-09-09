@@ -5,6 +5,8 @@
 - 详情栏检查技能更新失败时显示中文原因，不再出现 `Invalid WebSocket payload`。
 - 详情栏技能检查/更新和插件安装进度在切换 tab 后仍保留。
 - macOS 后台 Pi 进程改走 Electron Helper，不再在程序坞出现多个 exec 图标。
+- 应用内检查更新改为和墨知一样读 `latest.json`，不再打 GitHub API，避免「限制了检查次数」。
+- 打版本标签时 Release 会附带 `latest.json`（含各平台安装包地址和 SHA-256）。
 
 ## 0.1.15
 

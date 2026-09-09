@@ -88,9 +88,140 @@ export function syntheticGithubRelease(repo: string, tag: string): Record<string
   };
 }
 
+export const LATEST_JSON_NAME = "latest.json";
+
+const ASSET_PLATFORM_KEYS: Record<string, string[]> = {
+  "Qingzhou-mac-arm64.zip": ["darwin-arm64", "darwin-aarch64"],
+  "Qingzhou-mac-x64.zip": ["darwin-x64", "darwin-x86_64"],
+  "Qingzhou-win-x64-setup.exe": ["win32-x64", "windows-x86_64"],
+  "Qingzhou-win-arm64-setup.exe": ["win32-arm64", "windows-arm64"],
+};
+
+const PLATFORM_KEY_ALIASES: Record<string, string> = {
+  "darwin-aarch64": "darwin-arm64",
+  "darwin-x86_64": "darwin-x64",
+  "windows-x86_64": "win32-x64",
+  "windows-aarch64": "win32-arm64",
+  "windows-arm64": "win32-arm64",
+};
+
+export type QingzhouLatestPlatform = {
+  url: string;
+  sha256: string;
+};
+
+export type QingzhouLatestJson = {
+  version: string;
+  notes: string;
+  pub_date: string;
+  platforms: Record<string, QingzhouLatestPlatform>;
+};
+
+export function latestJsonDownloadUrl(repo: string): string {
+  return `https://github.com/${repo}/releases/latest/download/${LATEST_JSON_NAME}`;
+}
+
+export function canonicalizeUpdaterPlatformKey(key: string): string {
+  return PLATFORM_KEY_ALIASES[key] ?? key;
+}
+
+export function changelogNotesForVersion(markdown: string, version: string): string {
+  const normalized = version.replace(/^v/i, "");
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `## ${normalized}`);
+  if (start < 0) return "";
+  const end = lines.findIndex((line, index) => index > start && /^## /.test(line));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+}
+
+export function buildQingzhouLatestJson(input: {
+  repo: string;
+  tag: string;
+  sums: Map<string, string>;
+  notes?: string;
+  pubDate?: string;
+}): QingzhouLatestJson {
+  const tag = normalizeReleaseTag(input.tag);
+  const version = normalizeVersion(tag);
+  if (!version) throw new Error("无法从版本标签生成 latest.json。");
+  const platforms: QingzhouLatestJson["platforms"] = {};
+  for (const [file, keys] of Object.entries(ASSET_PLATFORM_KEYS)) {
+    const sha256 = input.sums.get(file);
+    if (!sha256) continue;
+    const entry = { url: githubReleaseDownloadUrl(input.repo, tag, file), sha256 };
+    for (const key of keys) platforms[key] = entry;
+  }
+  if (Object.keys(platforms).length === 0) {
+    throw new Error("SHA256SUMS.txt 没有可写入 latest.json 的平台安装包。");
+  }
+  return {
+    version,
+    notes: input.notes ?? "",
+    pub_date: input.pubDate ?? new Date().toISOString(),
+    platforms,
+  };
+}
+
+export function parseQingzhouLatestJson(
+  raw: unknown,
+  repo = qingzhouRepo(),
+): { release: QingzhouRelease; sums: Map<string, string> } {
+  if (!raw || typeof raw !== "object") throw new Error("无法解析 latest.json。");
+  const item = raw as Record<string, unknown>;
+  const version = normalizeVersion(typeof item.version === "string" ? item.version : "");
+  if (!version) throw new Error("latest.json 没有有效版本号。");
+  const tagName = normalizeReleaseTag(version);
+  const platforms = item.platforms;
+  if (!platforms || typeof platforms !== "object" || Array.isArray(platforms)) {
+    throw new Error("latest.json 缺少 platforms，已终止安装。");
+  }
+  const assets: QingzhouRelease["assets"] = [];
+  const sums = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const [key, value] of Object.entries(platforms as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const entry = value as Record<string, unknown>;
+    const url = typeof entry.url === "string" ? entry.url.trim() : "";
+    if (!url) continue;
+    let name = "";
+    try {
+      name = path.basename(new URL(url).pathname);
+    } catch {
+      name = "";
+    }
+    if (!name || !ASSET_PLATFORM_KEYS[name]) {
+      try {
+        name = requiredAssetNames(canonicalizeUpdaterPlatformKey(key))[0] ?? "";
+      } catch {
+        name = "";
+      }
+    }
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    assets.push({ name, url, size: typeof entry.size === "number" ? entry.size : 0 });
+    const sha256 = typeof entry.sha256 === "string" ? entry.sha256.trim().toLowerCase() : "";
+    if (/^[a-f0-9]{64}$/.test(sha256)) sums.set(name, sha256);
+  }
+  if (assets.length === 0) throw new Error("latest.json 缺少平台安装包，已终止安装。");
+  return {
+    release: {
+      tagName,
+      version,
+      name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : tagName,
+      url: typeof item.url === "string" ? item.url : `https://github.com/${repo}/releases/tag/${tagName}`,
+      body: typeof item.notes === "string" ? item.notes : "",
+      publishedAt: typeof item.pub_date === "string" ? item.pub_date : null,
+      prerelease: false,
+      assets,
+    },
+    sums,
+  };
+}
+
+/** latest.json 404/限流时改读公开发布页，绝不调用 GitHub API。 */
 export function shouldFallbackGithubRelease(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /HTTP 401|HTTP 403|HTTP 429|rate limit/i.test(message);
+  return /HTTP 401|HTTP 403|HTTP 404|HTTP 429|rate limit|限制了检查次数|拒绝访问/i.test(message);
 }
 
 export function humanizeGithubHttpStatus(status: number, body = ""): string {
@@ -434,21 +565,21 @@ export async function fetchLatestQingzhouRelease(options: {
   env?: NodeJS.ProcessEnv;
   fetchJson?: (url: string) => Promise<unknown>;
   fetchLatestLocation?: (url: string) => Promise<string>;
-} = {}): Promise<{ release: QingzhouRelease | null; error: string | null }> {
+} = {}): Promise<{ release: QingzhouRelease | null; sums: Map<string, string> | null; error: string | null }> {
   const repo = qingzhouRepo(options.env);
-  const fetchJson = options.fetchJson ?? fetchGithubJson;
+  const fetchJson = options.fetchJson ?? fetchJsonDocument;
   try {
-    const raw = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
-    return { release: parseQingzhouRelease(raw), error: null };
+    const parsed = parseQingzhouLatestJson(await fetchJson(latestJsonDownloadUrl(repo)), repo);
+    return { release: parsed.release, sums: parsed.sums, error: null };
   } catch (error) {
     if (!shouldFallbackGithubRelease(error)) {
-      return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
+      return { release: null, sums: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
     }
     try {
       const tag = await resolveLatestReleaseTag(repo, options.fetchLatestLocation);
-      return { release: parseQingzhouRelease(syntheticGithubRelease(repo, tag)), error: null };
+      return { release: parseQingzhouRelease(syntheticGithubRelease(repo, tag)), sums: null, error: null };
     } catch {
-      return { release: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
+      return { release: null, sums: null, error: error instanceof Error ? error.message : "无法检查轻舟更新。" };
     }
   }
 }
@@ -473,12 +604,16 @@ export async function inspectQingzhouUpdate(options: {
   }
   try {
     const arch = options.arch ?? process.arch;
-    const fetchText = options.fetchText ?? fetchTextDocument;
-    const repo = qingzhouRepo(env);
-    const sumsText = await fetchText(
-      `https://github.com/${repo}/releases/download/${result.release.tagName}/SHA256SUMS.txt`,
-    );
-    const asset = requireChecksummedAsset(result.release, parseSha256Sums(sumsText), platform, arch);
+    let sums = result.sums;
+    if (!sums || sums.size === 0) {
+      const fetchText = options.fetchText ?? fetchTextDocument;
+      const repo = qingzhouRepo(env);
+      const sumsText = await fetchText(
+        `https://github.com/${repo}/releases/download/${result.release.tagName}/SHA256SUMS.txt`,
+      );
+      sums = parseSha256Sums(sumsText);
+    }
+    const asset = requireChecksummedAsset(result.release, sums, platform, arch);
     return { release: result.release, asset, error: null };
   } catch (error) {
     return {
@@ -635,10 +770,10 @@ export async function githubFetch(url: string, init: RequestInit = {}): Promise<
   return fetch(url, next);
 }
 
-async function fetchGithubJson(url: string): Promise<unknown> {
+async function fetchJsonDocument(url: string): Promise<unknown> {
   const response = await githubFetch(url, {
     signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-    headers: { "user-agent": "qingzhou-update-check", accept: "application/vnd.github+json" },
+    headers: { "user-agent": "qingzhou-update-check", accept: "application/json" },
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
