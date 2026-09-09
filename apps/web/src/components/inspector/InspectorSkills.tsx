@@ -9,7 +9,6 @@ type Props = {
   lastExportPath?: string | null;
   onExport?: () => void;
   onOpenExport?: (path: string) => void;
-  onReload?: () => void;
   busy?: string | null;
   error?: string;
   updates?: SkillUpdateItem[] | null;
@@ -32,7 +31,6 @@ export function InspectorSkills({
   lastExportPath = null,
   onExport,
   onOpenExport,
-  onReload,
   busy = null,
   error = "",
   updates = null,
@@ -41,6 +39,7 @@ export function InspectorSkills({
 }: Props) {
   const byPath = new Map((updates ?? []).map((item) => [item.path, item]));
   const outdated = (updates ?? []).filter((item) => item.updateAvailable);
+  const checking = busy === "check";
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -52,52 +51,35 @@ export function InspectorSkills({
               : "未信任项目，只显示用户技能。"
             : `${skills.length} 个技能`}
         </p>
-        {onReload ? (
-          <button
-            type="button"
-            className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-            onClick={() => onReload()}
-          >
-            刷新技能
-          </button>
-        ) : null}
+        <div className="flex shrink-0 gap-1">
+          {onCheckUpdates ? (
+            <button
+              type="button"
+              className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
+              disabled={busy !== null}
+              onClick={() => onCheckUpdates()}
+            >
+              {checking ? "正在检查…" : "检查更新"}
+            </button>
+          ) : null}
+          {onUpdateSkills && outdated.length > 0 ? (
+            <button
+              type="button"
+              className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
+              disabled={busy !== null}
+              onClick={() => onUpdateSkills(outdated.map((item) => item.path))}
+            >
+              {busy === "all" ? "正在更新…" : `更新全部（${outdated.length}）`}
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      {onCheckUpdates ? (
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[12px] text-mute">系统技能</p>
-              <p className="mt-0.5 text-[11px] text-mute">检查用户目录里来自 Git / GitHub 的技能，有更新可以一键装上。</p>
-            </div>
-            <div className="flex shrink-0 gap-1">
-              <button
-                type="button"
-                className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-                disabled={busy !== null}
-                onClick={() => onCheckUpdates()}
-              >
-                {busy === "check" ? "正在检查…" : "检查更新"}
-              </button>
-              {onUpdateSkills && outdated.length > 0 ? (
-                <button
-                  type="button"
-                  className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-                  disabled={busy !== null}
-                  onClick={() => onUpdateSkills?.(outdated.map((item) => item.path))}
-                >
-                  {busy === "all" ? "正在更新…" : "更新全部"}
-                </button>
-              ) : null}
-            </div>
-          </div>
-          {updates && updates.length === 0 ? <p className="text-[12px] text-mute">没有可检查的系统技能。</p> : null}
-          {updates && updates.every((item) => !item.updateAvailable) && updates.length > 0 ? (
-            <p className="text-[12px] text-mute">没有可更新的系统技能。</p>
-          ) : null}
-          {error ? <p className="text-[12px] text-danger">{error}</p> : null}
-        </div>
+      {updates && updates.length === 0 ? <p className="text-[12px] text-mute">没有来自 Git 的系统技能。</p> : null}
+      {updates && updates.length > 0 && outdated.length === 0 ? (
+        <p className="text-[12px] text-mute">没有可更新的系统技能。</p>
       ) : null}
+      {error ? <p className="text-[12px] text-danger">{error}</p> : null}
 
       {skills.length === 0 ? null : (
         <ul className="inset-list">
@@ -117,7 +99,7 @@ export function InspectorSkills({
                     type="button"
                     className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                     disabled={busy !== null}
-                    onClick={() => onUpdateSkills?.([skill.path])}
+                    onClick={() => onUpdateSkills([skill.path])}
                     aria-label={`更新 ${skill.name}`}
                   >
                     {busy === skill.path || busy === "all" ? "正在更新…" : "更新"}

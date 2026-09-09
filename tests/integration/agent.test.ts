@@ -539,10 +539,12 @@ describe("integration fake-pi", () => {
       });
       await sock.waitForRequest("branch");
 
-      sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false } });
+      sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false, fastMode: true } });
       await sock.waitForRequest("rt");
       const runtime = await sock.waitFor("runtime.status");
       expect((runtime.payload as { autoCompaction?: boolean }).autoCompaction).toBe(false);
+      expect((runtime.payload as { fastModeEnabled?: boolean }).fastModeEnabled).toBe(true);
+      expect((runtime.payload as { fastModeActive?: boolean }).fastModeActive).toBe(true);
 
       sock.send({ id: "list", type: "sessions.list", payload: {} });
       const listed = await sock.waitFor("sessions.listed");

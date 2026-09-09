@@ -358,6 +358,8 @@ export class ProcessSupervisor {
       compacting: Boolean(stateData.isCompacting),
       autoCompaction: stateData.autoCompactionEnabled !== false,
       autoRetry: typeof stateData.autoRetryEnabled === "boolean" ? stateData.autoRetryEnabled : true,
+      ...(typeof stateData.fastModeEnabled === "boolean" ? { fastModeEnabled: stateData.fastModeEnabled } : {}),
+      ...(typeof stateData.fastModeActive === "boolean" ? { fastModeActive: stateData.fastModeActive } : {}),
     };
     await this.refreshSessionTree(task.id);
 

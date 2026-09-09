@@ -922,6 +922,13 @@ export function WorkbenchLayout() {
             onRemoveImage={removeComposerImage}
             onNeedFiles={requestFiles}
             images={composerImages}
+            fastModeEnabled={runtime.fastModeEnabled}
+            fastModeActive={runtime.fastModeActive}
+            onFastMode={
+              typeof runtime.fastModeEnabled === "boolean"
+                ? (enabled) => void socketClient.send("runtime.set", { fastMode: enabled }, task.id)
+                : undefined
+            }
           />
         ) : null}
       </div>

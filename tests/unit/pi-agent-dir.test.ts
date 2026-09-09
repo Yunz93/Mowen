@@ -52,6 +52,9 @@ describe("Pi agent dir and auth errors", () => {
     expect(humanizeAuthHttpError("HTTP 401 Unauthorized")).toMatch(/登录已失效/);
     expect(humanizeUserFacingError(new Error("HTTP 401 Unauthorized"))).toMatch(/HTTP 401/);
     expect(humanizeUserFacingError(new Error("403 Forbidden"))).toMatch(/HTTP 403/);
+    expect(humanizeUserFacingError(new Error("Fast mode is unavailable for the current model."))).toBe(
+      "当前模型不支持 Fast 模式。",
+    );
     expect(shouldSurfacePiStderr("HTTP 401: authentication_error")).toBe(true);
     expect(shouldSurfacePiStderr("EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'")).toBe(true);
     expect(shouldSurfacePiStderr("fd not found. Downloading...")).toBe(false);

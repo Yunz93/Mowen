@@ -56,6 +56,7 @@ describe("running status copy", () => {
     const busy = composerPlaceholder(true);
     expect(busy).toBe("回车补充，Shift+Enter 排队");
     expect(busy).not.toMatch(/正在处理|正在回复|等待/);
+    expect(composerPlaceholder(true, "followUp")).toBe("回车排队，Shift+Enter 补充");
     expect(composerPlaceholder(false)).toBe("输入消息");
   });
 

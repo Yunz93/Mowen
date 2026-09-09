@@ -81,7 +81,6 @@ export function InspectorPanel({
   onLoadTree,
   onLoadGit,
   onLoadResources,
-  onReloadResources,
   onCreateAgents,
   onGitDiff,
   onGitCommit,
@@ -117,6 +116,7 @@ export function InspectorPanel({
   const [skillUpdates, setSkillUpdates] = useState<SkillUpdateItem[] | null>(null);
   const [pluginBusy, setPluginBusy] = useState<string | null>(null);
   const [pluginError, setPluginError] = useState("");
+  const skillAutoChecked = useRef(false);
   const onLoadTreeRef = useRef(onLoadTree);
   const onLoadGitRef = useRef(onLoadGit);
   onLoadTreeRef.current = onLoadTree;
@@ -127,6 +127,8 @@ export function InspectorPanel({
     onLoadTreeRef.current();
     onLoadGitRef.current();
     const timer = window.setTimeout(() => setAwaitingTree(false), 600);
+    skillAutoChecked.current = false;
+    setSkillUpdates(null);
     return () => window.clearTimeout(timer);
   }, [taskId]);
 
@@ -201,10 +203,18 @@ export function InspectorPanel({
       setSkillUpdates(result.items);
     } catch (caught) {
       setSkillError(caught instanceof Error ? caught.message : "检查更新失败");
+      setSkillUpdates((current) => current ?? []);
     } finally {
       setSkillBusy(null);
     }
   }
+
+  useEffect(() => {
+    if (tab !== "resources" || resourceTab !== "skills") return;
+    if (!onCheckSkillUpdates || skillAutoChecked.current) return;
+    skillAutoChecked.current = true;
+    void checkSkillUpdates();
+  }, [tab, resourceTab, taskId, onCheckSkillUpdates]);
 
   async function updateSkills(paths?: string[]) {
     if (!onUpdateSkills) return;
@@ -501,7 +511,6 @@ export function InspectorPanel({
                   lastExportPath={lastExportPath}
                   onExport={onExport}
                   onOpenExport={onOpenExport}
-                  onReload={onReloadResources}
                   busy={skillBusy}
                   error={skillError}
                   updates={skillUpdates}
@@ -516,7 +525,6 @@ export function InspectorPanel({
                   claimedIds={claimedPresetIds}
                   trustProject={Boolean(resources?.trustProject)}
                   onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
-                  onReload={onReloadResources}
                   busy={pluginBusy}
                   error={pluginError}
                   onInstallPresets={onInstallPresets ? (ids) => void installPresets(ids) : undefined}

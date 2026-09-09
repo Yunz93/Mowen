@@ -2,6 +2,7 @@ import {
   PRESET_PI_PACKAGES,
   packageSourcesEqual,
   presetExtensionLoaded,
+  presetExtensionNames,
   type PiResources,
 } from "@qingzhou/protocol";
 
@@ -14,11 +15,15 @@ type Props = {
   claimedIds?: string[];
   trustProject: boolean;
   onToggle: (path: string, enabled: boolean) => void;
-  onReload?: () => void;
   busy?: string | null;
   error?: string;
   onInstallPresets?: (ids?: string[]) => void;
 };
+
+function matchingExtension(preset: (typeof PRESET_PI_PACKAGES)[number], extensions: Extension[]): Extension | undefined {
+  const names = new Set(presetExtensionNames(preset).map((name) => name.toLowerCase()));
+  return extensions.find((item) => names.has(item.name.toLowerCase()));
+}
 
 export function InspectorExtensions({
   extensions,
@@ -26,7 +31,6 @@ export function InspectorExtensions({
   claimedIds = [],
   trustProject,
   onToggle,
-  onReload,
   busy = null,
   error = "",
   onInstallPresets,
@@ -35,6 +39,9 @@ export function InspectorExtensions({
   const missing = PRESET_PI_PACKAGES.filter(
     (item) => !claimed.has(item.id) && !presetExtensionLoaded(item, extensions),
   );
+  const extraExtensions = extensions.filter(
+    (item) => !PRESET_PI_PACKAGES.some((preset) => matchingExtension(preset, [item])),
+  );
   const extraPackages = packages.filter(
     (item) => !PRESET_PI_PACKAGES.some((preset) => packageSourcesEqual(preset.source, item.source)),
   );
@@ -42,73 +49,69 @@ export function InspectorExtensions({
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <p className={`panel-count min-w-0 flex-1 ${extensions.length === 0 ? "panel-count-empty" : ""}`}>
-          {extensions.length === 0
+        <p className={`panel-count min-w-0 flex-1 ${extensions.length === 0 && missing.length === 0 ? "panel-count-empty" : ""}`}>
+          {extensions.length === 0 && missing.length === PRESET_PI_PACKAGES.length
             ? trustProject
-              ? "还没有本地插件。"
+              ? "还没有本地插件。可先装推荐项。"
               : "未信任项目，只显示用户插件。"
             : `${extensions.length} 个插件`}
         </p>
-        {onReload ? (
+        {onInstallPresets && missing.length > 0 ? (
           <button
             type="button"
             className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-            onClick={() => onReload()}
+            disabled={busy !== null}
+            onClick={() => onInstallPresets()}
           >
-            刷新插件
+            {busy === "all" ? "正在安装…" : `安装推荐（${missing.length}）`}
           </button>
         ) : null}
       </div>
+      {error ? <p className="text-[12px] text-danger">{error}</p> : null}
 
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[12px] text-mute">推荐插件</p>
-            <p className="mt-0.5 text-[11px] text-mute">装上后可用网页搜索、记忆、待办、子代理和 MCP。</p>
-          </div>
-          {onInstallPresets && missing.length > 0 ? (
-            <button
-              type="button"
-              className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-              disabled={busy !== null}
-              onClick={() => onInstallPresets?.()}
-            >
-              {busy === "all" ? "正在安装…" : "安装全部"}
-            </button>
-          ) : null}
-        </div>
-        <ul className="inset-list">
-          {PRESET_PI_PACKAGES.map((item) => {
-            const installed = claimed.has(item.id) || presetExtensionLoaded(item, extensions);
-            return (
-              <li key={item.id} className="inset-row inset-row-start">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.name}</p>
-                  <p className="text-[11px] text-mute">{item.summary}</p>
-                </div>
-                {installed ? (
+      <ul className="inset-list">
+        {PRESET_PI_PACKAGES.map((item) => {
+          const installed = claimed.has(item.id) || presetExtensionLoaded(item, extensions);
+          const loaded = matchingExtension(item, extensions);
+          return (
+            <li key={item.id} className="inset-row inset-row-start">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.name}</p>
+                <p className="text-[11px] text-mute">{item.summary}</p>
+              </div>
+              {installed ? (
+                loaded ? (
+                  <label className="mac-toggle mac-toggle-sm mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={loaded.enabled !== false}
+                      onChange={(event) => onToggle(loaded.path, event.target.checked)}
+                      aria-label={loaded.enabled === false ? `启用 ${item.name}` : `停用 ${item.name}`}
+                    />
+                    <span />
+                  </label>
+                ) : (
                   <span className="mt-0.5 shrink-0 text-[11px] text-mute">已安装</span>
-                ) : onInstallPresets ? (
-                  <button
-                    type="button"
-                    className="pressable mt-0.5 h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
-                    disabled={busy !== null}
-                    onClick={() => onInstallPresets?.([item.id])}
-                    aria-label={`安装 ${item.name}`}
-                  >
-                    {busy === item.id || busy === "all" ? "正在安装…" : "安装"}
-                  </button>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-        {error ? <p className="text-[12px] text-danger">{error}</p> : null}
-      </div>
+                )
+              ) : onInstallPresets ? (
+                <button
+                  type="button"
+                  className="pressable mt-0.5 h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
+                  disabled={busy !== null}
+                  onClick={() => onInstallPresets([item.id])}
+                  aria-label={`安装 ${item.name}`}
+                >
+                  {busy === item.id || busy === "all" ? "正在安装…" : "安装"}
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
 
-      {extensions.length === 0 ? null : (
+      {extraExtensions.length > 0 ? (
         <ul className="inset-list">
-          {extensions.map((item) => (
+          {extraExtensions.map((item) => (
             <li key={item.path} className="inset-row">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.name}</p>
@@ -126,16 +129,13 @@ export function InspectorExtensions({
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
       {extraPackages.length > 0 ? (
         <div className="space-y-2">
           <p className="text-[12px] text-mute">已安装的包</p>
           <ul className="inset-list">
             {extraPackages.map((item) => (
-              <li
-                key={`${item.scope}:${item.source}`}
-                className="inset-row"
-              >
+              <li key={`${item.scope}:${item.source}`} className="inset-row">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12.5px] font-medium leading-snug text-ink">{item.source}</p>
                   <p className="text-[11px] text-mute">{item.scope === "user" ? "用户" : "项目"} · 只读</p>

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { approvalRiskLevel, splitDangerousCommand } from "../../apps/web/src/lib/approval-risk.ts";
-import { clampInspectorWidth, INSPECTOR_WIDTH_MIN } from "../../apps/web/src/lib/ui-prefs.ts";
+import { clampInspectorWidth, INSPECTOR_WIDTH_MIN, busySubmitKind } from "../../apps/web/src/lib/ui-prefs.ts";
 import { groupToolExecutions, toolGroupLabel } from "../../apps/web/src/lib/tool-groups.ts";
 import { shortcutLabel } from "../../apps/web/src/lib/hotkeys.ts";
 import { taskStatusTone, workViewTone } from "../../apps/web/src/lib/status-tone.ts";
@@ -45,6 +45,9 @@ describe("ui prefs and tones", () => {
     expect(taskStatusTone("waiting_approval")).toBe("wait");
     expect(taskStatusTone("error")).toBe("danger");
     expect(workViewTone("completed")).toBe("ok");
+    expect(busySubmitKind("steer", false)).toBe("steer");
+    expect(busySubmitKind("steer", true)).toBe("followUp");
+    expect(busySubmitKind("followUp", true)).toBe("steer");
   });
 
   it("formats shortcut labels", () => {
@@ -58,5 +61,15 @@ describe("conversation interaction chrome", () => {
     expect(timeline).toContain("回到最新");
     expect(timeline).toContain("克隆会话");
     expect(timeline).toContain("附 ");
+  });
+
+  it("lets the composer switch 追加 and 排队, and Fast when the engine reports it", () => {
+    const composer = readFileSync(path.resolve("apps/web/src/components/composer/PromptComposer.tsx"), "utf8");
+    const capsules = readFileSync(path.resolve("apps/web/src/components/composer/ComposerCapsules.tsx"), "utf8");
+    expect(composer).toContain("追加");
+    expect(composer).toContain("排队");
+    expect(composer).toContain("busySubmitKind");
+    expect(composer).toContain("aria-label=\"发送\"");
+    expect(capsules).toContain("Fast 模式");
   });
 });

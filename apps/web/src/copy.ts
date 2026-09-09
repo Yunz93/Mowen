@@ -92,9 +92,10 @@ export function headerSubtitle(cwd: string | undefined, hasTask: boolean, status
 }
 
 /** Composer placeholder: steer/queue hints only while busy — do not repeat RunStatusBar progress copy. */
-export function composerPlaceholder(busy: boolean): string {
-  if (busy) return "回车补充，Shift+Enter 排队";
-  return "输入消息";
+export function composerPlaceholder(busy: boolean, sendMode: "steer" | "followUp" = "steer"): string {
+  if (!busy) return "输入消息";
+  if (sendMode === "followUp") return "回车排队，Shift+Enter 补充";
+  return "回车补充，Shift+Enter 排队";
 }
 
 export const STARTER_PROMPTS = [

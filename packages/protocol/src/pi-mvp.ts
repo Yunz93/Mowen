@@ -64,6 +64,8 @@ export const runtimeStateSchema = z.object({
   followUp: z.array(z.string()),
   autoCompaction: z.boolean().optional(),
   autoRetry: z.boolean().optional(),
+  fastModeEnabled: z.boolean().optional(),
+  fastModeActive: z.boolean().optional(),
 });
 export type RuntimeState = z.infer<typeof runtimeStateSchema>;
 

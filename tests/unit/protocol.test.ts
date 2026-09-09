@@ -56,9 +56,9 @@ describe("protocol", () => {
         id: "2",
         type: "runtime.set",
         taskId: "11111111-1111-4111-8111-111111111111",
-        payload: { autoCompaction: false },
+        payload: { autoCompaction: false, fastMode: true },
       }).payload,
-    ).toEqual({ autoCompaction: false });
+    ).toEqual({ autoCompaction: false, fastMode: true });
     expect(
       clientCommandSchema.parse({
         id: "3",

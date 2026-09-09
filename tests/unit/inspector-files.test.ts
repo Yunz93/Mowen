@@ -91,8 +91,15 @@ describe("InspectorPanel tabs", () => {
     expect(src).toMatch(/setSkillUpdates/);
     const skills = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorSkills.tsx"), "utf8");
     const plugins = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorExtensions.tsx"), "utf8");
+    const preview = readFileSync(path.resolve("apps/web/src/components/inspector/FilePreview.tsx"), "utf8");
     expect(skills).not.toMatch(/useState/);
     expect(plugins).not.toMatch(/useState/);
+    expect(skills).not.toMatch(/刷新技能/);
+    expect(plugins).not.toMatch(/刷新插件/);
+    expect(skills).not.toMatch(/>系统技能</);
+    expect(plugins).not.toMatch(/推荐插件/);
+    expect(preview).toMatch(/whitespace-pre-wrap/);
+    expect(preview).toMatch(/break-words/);
     const header = src.slice(src.indexOf("tab === \"files\""), src.indexOf("tab === \"git\""));
     expect(header.indexOf("preview?.path")).toBeGreaterThan(-1);
     expect(header.indexOf("隐藏文件树")).toBeGreaterThan(header.indexOf("preview?.path"));

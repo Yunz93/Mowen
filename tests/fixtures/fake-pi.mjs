@@ -38,6 +38,8 @@ const state = {
   generationStamp: Date.now(),
   autoCompactionEnabled: true,
   autoRetryEnabled: true,
+  fastModeEnabled: false,
+  fastModeActive: false,
   steering: [],
 };
 
@@ -396,6 +398,8 @@ function handleLine(line) {
         sessionId: state.sessionId,
         autoCompactionEnabled: state.autoCompactionEnabled,
         autoRetryEnabled: state.autoRetryEnabled,
+        fastModeEnabled: state.fastModeEnabled,
+        fastModeActive: state.fastModeActive,
         messageCount: state.messages.length,
         pendingMessageCount: state.followUps.length,
       });
@@ -517,6 +521,11 @@ function handleLine(line) {
     case "set_auto_retry":
       state.autoRetryEnabled = Boolean(parsed.enabled);
       respond(id, type, true);
+      break;
+    case "set_fast_mode":
+      state.fastModeEnabled = Boolean(parsed.enabled);
+      state.fastModeActive = Boolean(parsed.enabled);
+      respond(id, type, true, { enabled: state.fastModeEnabled, active: state.fastModeActive });
       break;
     case "get_session_stats":
       respond(id, type, true, {

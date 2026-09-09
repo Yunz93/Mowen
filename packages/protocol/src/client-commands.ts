@@ -337,6 +337,7 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     payload: z.object({
       autoCompaction: z.boolean().optional(),
       autoRetry: z.boolean().optional(),
+      fastMode: z.boolean().optional(),
     }),
   }),
   z.object({

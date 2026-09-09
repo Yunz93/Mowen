@@ -178,9 +178,16 @@ export function humanizeProviderRequestError(error: unknown): string | null {
   return `API 请求失败：${raw}`;
 }
 
+export function humanizeFastModeError(error: unknown): string | null {
+  const raw = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
+  if (/Fast mode is unavailable/i.test(raw)) return "当前模型不支持 Fast 模式。";
+  return null;
+}
+
 export function humanizeUserFacingError(error: unknown): string {
   const text = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
   return (
+    humanizeFastModeError(error) ??
     humanizeAuthAccessError(error) ??
     humanizeNpmCacheAccessError(error) ??
     humanizeSearchToolDownloadError(text) ??

@@ -4,6 +4,7 @@ import { extractAtMentions } from "@qingzhou/protocol";
 import { ArrowUp, Plus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";
+import { busySubmitKind, readBusySendMode, writeBusySendMode, type BusySendMode } from "../../lib/ui-prefs";
 import { ComposerCapsules } from "./ComposerCapsules";
 import { MentionMenu, type MentionItem } from "./MentionMenu";
 
@@ -36,6 +37,9 @@ type Props = {
   onRemoveImage: (id: string) => void;
   onNeedFiles: () => void;
   images: ComposerImage[];
+  fastModeEnabled?: boolean;
+  fastModeActive?: boolean;
+  onFastMode?: (enabled: boolean) => void;
 };
 
 function mentionQuery(value: string, caret: number): { start: number; query: string } | null {
@@ -77,12 +81,16 @@ export function PromptComposer({
   onRemoveImage,
   onNeedFiles,
   images,
+  fastModeEnabled,
+  fastModeActive,
+  onFastMode,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
   const [caret, setCaret] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDismissed, setMenuDismissed] = useState(false);
+  const [busySendMode, setBusySendMode] = useState<BusySendMode>(() => readBusySendMode());
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
   const mention = mentionQuery(value, caret);
@@ -122,10 +130,20 @@ export function PromptComposer({
       .map((item) => ({ id: item.name, primary: `/${item.name}`, secondary: item.description }));
   }, [commands, slash]);
 
-  const submit = () => {
-    if (running) onSteer();
-    else if (followUp) onFollowUp();
+  const submit = (shiftKey = false) => {
+    if (running) {
+      const kind = busySubmitKind(busySendMode, shiftKey);
+      if (kind === "followUp") onFollowUp();
+      else onSteer();
+      return;
+    }
+    if (followUp) onFollowUp();
     else onSend();
+  };
+
+  const setSendMode = (mode: BusySendMode) => {
+    setBusySendMode(mode);
+    writeBusySendMode(mode);
   };
 
   const insert = (start: number, from: string, text: string) => {
@@ -150,7 +168,7 @@ export function PromptComposer({
     if (menuOpen) return;
     if (event.key === "Enter" && event.shiftKey && running && !composingRef.current) {
       event.preventDefault();
-      onFollowUp();
+      submit(true);
       return;
     }
     if (!shouldSubmitOnEnter(event, composingRef.current)) return;
@@ -217,7 +235,7 @@ export function PromptComposer({
               composingRef.current = false;
             }, 0);
           }}
-          placeholder={composerPlaceholder(running)}
+          placeholder={composerPlaceholder(running, busySendMode)}
           aria-label="输入消息"
           disabled={disabled}
           className="max-h-[168px] min-h-[40px] w-full resize-none bg-transparent px-3.5 pb-1 pt-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-mute"
@@ -263,26 +281,38 @@ export function PromptComposer({
               modelId={modelId}
               thinkingLevel={thinkingLevel}
               thinkingLevels={thinkingLevels}
+              fastModeEnabled={fastModeEnabled}
+              fastModeActive={fastModeActive}
               onPolicy={onPolicy}
               onModel={onModel}
               onThinking={onThinking}
+              onFastMode={onFastMode}
             />
             {attachedCount > 0 ? (
               <span className="hidden text-[11px] text-mute sm:inline">{attachedCount} 个文件</span>
             ) : null}
           </div>
           <div className="composer-toolbar-end">
-            {running ? (
+            <div className="flex rounded-md bg-fill p-0.5" role="group" aria-label="回复时发送方式">
               <button
                 type="button"
-                className="pressable composer-capsule"
-                onClick={onFollowUp}
-                disabled={disabled || !composerCanSubmit(value, images.length)}
-                title="排队下一条（Shift+Enter）"
+                className={`pressable h-6 rounded-[5px] px-1.5 text-[11px] ${busySendMode === "steer" ? "bg-surface text-ink" : "text-mute"}`}
+                aria-pressed={busySendMode === "steer"}
+                title="回复过程中立即补充"
+                onClick={() => setSendMode("steer")}
+              >
+                追加
+              </button>
+              <button
+                type="button"
+                className={`pressable h-6 rounded-[5px] px-1.5 text-[11px] ${busySendMode === "followUp" ? "bg-surface text-ink" : "text-mute"}`}
+                aria-pressed={busySendMode === "followUp"}
+                title="等这次回复结束后再发"
+                onClick={() => setSendMode("followUp")}
               >
                 排队
               </button>
-            ) : null}
+            </div>
             <ComposerCapsules
               slot="model"
               mode={mode}
@@ -291,26 +321,28 @@ export function PromptComposer({
               modelId={modelId}
               thinkingLevel={thinkingLevel}
               thinkingLevels={thinkingLevels}
+              fastModeEnabled={fastModeEnabled}
+              fastModeActive={fastModeActive}
               onPolicy={onPolicy}
               onModel={onModel}
               onThinking={onThinking}
+              onFastMode={onFastMode}
             />
             {running ? (
               <button type="button" className="pressable send-btn send-btn-stop" onClick={onAbort} aria-label="停止">
                 <Square size={10} fill="currentColor" />
               </button>
-            ) : (
-              <button
-                type="button"
-                className="pressable send-btn"
-                onClick={submit}
-                disabled={disabled || !composerCanSubmit(value, images.length)}
-                aria-label="发送"
-                title="发送"
-              >
-                <ArrowUp size={15} strokeWidth={2.2} />
-              </button>
-            )}
+            ) : null}
+            <button
+              type="button"
+              className="pressable send-btn"
+              onClick={() => submit()}
+              disabled={disabled || !composerCanSubmit(value, images.length)}
+              aria-label="发送"
+              title={running ? (busySendMode === "followUp" ? "排队下一条" : "补充这条回复") : "发送"}
+            >
+              <ArrowUp size={15} strokeWidth={2.2} />
+            </button>
           </div>
         </div>
       </div>

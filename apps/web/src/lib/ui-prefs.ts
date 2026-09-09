@@ -3,6 +3,9 @@ export const RIGHT_PINNED_KEY = "qingzhou.ui.rightPinned";
 export const INSPECTOR_OPEN_KEY = "qingzhou.ui.inspectorOpen";
 export const INSPECTOR_WIDTH_KEY = "qingzhou.ui.inspectorWidth";
 export const BOARD_SHOW_ARCHIVED_KEY = "qingzhou.ui.boardShowArchived";
+export const BUSY_SEND_MODE_KEY = "qingzhou.ui.busySendMode";
+
+export type BusySendMode = "steer" | "followUp";
 
 export const INSPECTOR_WIDTH_MIN = 320;
 export const INSPECTOR_WIDTH_DEFAULT = 360;
@@ -48,6 +51,31 @@ export function writeUiNumber(key: string, value: number): void {
   } catch {
     // ignore quota / private mode
   }
+}
+
+export function readBusySendMode(): BusySendMode {
+  try {
+    const stored =
+      localStorage.getItem(BUSY_SEND_MODE_KEY) ??
+      (legacyUiKey(BUSY_SEND_MODE_KEY) ? localStorage.getItem(legacyUiKey(BUSY_SEND_MODE_KEY)!) : null);
+    if (stored === "followUp" || stored === "steer") return stored;
+  } catch {
+    // localStorage can throw in private mode
+  }
+  return "steer";
+}
+
+export function writeBusySendMode(value: BusySendMode): void {
+  try {
+    localStorage.setItem(BUSY_SEND_MODE_KEY, value);
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+export function busySubmitKind(mode: BusySendMode, shiftKey: boolean): BusySendMode {
+  if (!shiftKey) return mode;
+  return mode === "steer" ? "followUp" : "steer";
 }
 
 export function clampInspectorWidth(width: number, viewport = typeof window === "undefined" ? 1280 : window.innerWidth): number {

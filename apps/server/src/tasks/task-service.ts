@@ -969,6 +969,7 @@ export class TaskService {
 
   private async checkResourceSkillUpdates(taskId: string, paths?: string[]): Promise<SkillUpdateCheckResult> {
     const task = this.requireTask(taskId);
+    await this.reloadResources(taskId);
     const resources = this.resources.get(taskId) ?? (await this.emitResources(taskId));
     return checkSystemSkillUpdates({
       skills: resources.skills,
@@ -1237,7 +1238,7 @@ export class TaskService {
 
   private async setRuntime(
     taskId: string,
-    payload: { autoCompaction?: boolean; autoRetry?: boolean },
+    payload: { autoCompaction?: boolean; autoRetry?: boolean; fastMode?: boolean },
   ): Promise<{ ok: true }> {
     this.requireTask(taskId);
     if (payload.autoCompaction != null) {
@@ -1252,10 +1253,31 @@ export class TaskService {
         enabled: payload.autoRetry,
       });
     }
-    this.supervisor.patchRuntime(taskId, {
-      autoCompaction: payload.autoCompaction,
-      autoRetry: payload.autoRetry,
-    });
+    const patch: {
+      autoCompaction?: boolean;
+      autoRetry?: boolean;
+      fastModeEnabled?: boolean;
+      fastModeActive?: boolean;
+    } = {};
+    if (payload.autoCompaction != null) patch.autoCompaction = payload.autoCompaction;
+    if (payload.autoRetry != null) patch.autoRetry = payload.autoRetry;
+    if (payload.fastMode != null) {
+      try {
+        const data = (await this.supervisor.rpcData(taskId, {
+          type: "set_fast_mode",
+          enabled: payload.fastMode,
+        })) as { enabled?: unknown; active?: unknown } | undefined;
+        patch.fastModeEnabled = typeof data?.enabled === "boolean" ? data.enabled : payload.fastMode;
+        patch.fastModeActive = typeof data?.active === "boolean" ? data.active : payload.fastMode;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/unavailable|unknown command|not found|unsupported|does not exist/i.test(message)) {
+          throw new Error("当前模型不支持 Fast 模式。");
+        }
+        throw error;
+      }
+    }
+    this.supervisor.patchRuntime(taskId, patch);
     return { ok: true };
   }
 

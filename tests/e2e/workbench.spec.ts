@@ -192,12 +192,13 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" }).first()).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("系统技能")).toBeVisible();
-  await page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("用户 · 本地技能")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐插件")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("pi-web-access")).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible();
   await page.getByRole("button", { name: "文件" }).click();
@@ -205,9 +206,8 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible();
   await page.getByRole("button", { name: "插件" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐插件")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("pi-web-access")).toBeVisible();
-  await expect(page.getByRole("button", { name: "安装全部" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /安装推荐/ })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装")).toHaveCount(0);
   const presetSources = [
     "npm:pi-web-access",
@@ -229,7 +229,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   };
   await page.getByRole("button", { name: "安装 pi-web-access" }).click();
   await expect.poll(readPiPackages).toContain("npm:pi-web-access");
-  await page.getByRole("button", { name: "安装全部" }).click();
+  await page.getByRole("button", { name: /安装推荐/ }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装")).toHaveCount(6);
   await expect(page.getByRole("button", { name: "正在安装…" })).toHaveCount(0);
   await expect.poll(readPiPackages).toEqual(expect.arrayContaining(presetSources));
@@ -444,8 +444,11 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
     "placeholder",
     /正在处理/,
   );
-  await page.getByLabel("输入消息").fill("queued next");
   await page.getByRole("button", { name: "排队" }).click();
+  await expect(page.getByRole("button", { name: "排队" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("输入消息")).toHaveAttribute("placeholder", "回车排队，Shift+Enter 补充");
+  await page.getByLabel("输入消息").fill("queued next");
+  await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText("Follow-up: queued next").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 

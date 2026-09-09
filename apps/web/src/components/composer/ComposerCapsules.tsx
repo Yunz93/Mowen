@@ -26,6 +26,9 @@ type Props = {
   onPolicy: (mode: InteractionMode, approvalPolicy: ApprovalPolicy) => void;
   onModel: (provider: string, modelId: string) => void;
   onThinking: (level: ThinkingLevel) => void;
+  fastModeEnabled?: boolean;
+  fastModeActive?: boolean;
+  onFastMode?: (enabled: boolean) => void;
 };
 
 export function ComposerCapsules({
@@ -39,6 +42,9 @@ export function ComposerCapsules({
   onPolicy,
   onModel,
   onThinking,
+  fastModeEnabled,
+  fastModeActive,
+  onFastMode,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -47,6 +53,8 @@ export function ComposerCapsules({
   const currentModel = models.find((model) => `${model.provider}/${model.id}` === modelId);
   const modelLabel = currentModel?.name ?? currentModel?.id ?? (models.length === 0 ? "暂无模型" : "选择模型");
   const thinkingLabel = THINKING_LABEL[thinkingLevel] ?? thinkingLevel;
+  const showFast = typeof fastModeEnabled === "boolean" && onFastMode;
+  const fastOn = fastModeActive === true || (fastModeActive !== false && fastModeEnabled === true);
 
   useEffect(() => {
     const onDoc = (event: MouseEvent) => {
@@ -126,6 +134,7 @@ export function ComposerCapsules({
         <span className="min-w-0 truncate">
           {modelLabel}
           {thinkingLevel !== "off" ? ` · ${thinkingLabel}` : ""}
+          {showFast && fastOn ? " · Fast" : ""}
         </span>
         <ChevronDown size={12} strokeWidth={2} className="shrink-0 opacity-70" />
       </button>
@@ -164,6 +173,23 @@ export function ComposerCapsules({
               思考：{THINKING_LABEL[level] ?? level}
             </button>
           ))}
+          {showFast ? (
+            <>
+              <div className="composer-popover-sep" />
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={fastOn}
+                className={`pressable composer-popover-item ${fastOn ? "composer-popover-active" : ""}`}
+                onClick={() => {
+                  onFastMode?.(!fastModeEnabled);
+                  setOpen(false);
+                }}
+              >
+                Fast 模式{fastOn ? " · 开" : " · 关"}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

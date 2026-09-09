@@ -23,6 +23,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
   const connection = useAgentStore((state) => state.connection);
   const approval = useAgentStore((state) => state.approval);
   const pendingInteractions = useAgentStore((state) => state.pendingInteractions);
+  const runtime = useAgentStore((state) => state.runtime);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImage[]>([]);
   const task = useMemo(() => tasks.find((entry) => entry.id === item.taskId), [item.taskId, tasks]);
@@ -106,6 +107,13 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
           onRemoveImage={(id) => setImages((current) => current.filter((image) => image.id !== id))}
           onNeedFiles={() => void socketClient.send("files.tree", {}, task.id)}
           images={images}
+          fastModeEnabled={runtime.fastModeEnabled}
+          fastModeActive={runtime.fastModeActive}
+          onFastMode={
+            typeof runtime.fastModeEnabled === "boolean"
+              ? (enabled) => void socketClient.send("runtime.set", { fastMode: enabled }, task.id)
+              : undefined
+          }
         />
       </aside>
     </div>
