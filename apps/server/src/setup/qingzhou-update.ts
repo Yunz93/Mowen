@@ -218,15 +218,26 @@ export function parseQingzhouLatestJson(
   };
 }
 
+const GITHUB_ACCESS_LIMITED =
+  /HTTP 401|HTTP 403|HTTP 429|rate limit|限制了检查次数|限流|拒绝访问/i;
+
+export function isGithubAccessLimited(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return GITHUB_ACCESS_LIMITED.test(message);
+}
+
 /** latest.json 404/限流时改读公开发布页，绝不调用 GitHub API。 */
 export function shouldFallbackGithubRelease(error: unknown): boolean {
+  if (isGithubAccessLimited(error)) return true;
   const message = error instanceof Error ? error.message : String(error);
-  return /HTTP 401|HTTP 403|HTTP 404|HTTP 429|rate limit|限制了检查次数|拒绝访问/i.test(message);
+  return /HTTP 404/.test(message);
 }
 
 export function humanizeGithubHttpStatus(status: number, body = ""): string {
-  if (status === 403 || status === 429) {
-    if (/rate limit/i.test(body)) return "GitHub 限制了检查次数，请稍后再试。";
+  if (status === 429 || (status === 403 && /rate limit/i.test(body))) {
+    return "GitHub 限制了检查次数，请稍后再试。";
+  }
+  if (status === 403) {
     return "GitHub 拒绝访问（HTTP 403）。打不开 GitHub 时请设置 HTTPS_PROXY 后重试。";
   }
   return `GitHub 返回 HTTP ${status}`;

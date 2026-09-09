@@ -43,6 +43,7 @@ describe("system skill updates", () => {
     ]);
     expect(isGithubPermissionError(new Error("Permission denied (publickey)"))).toBe(true);
     expect(isGithubPermissionError(new Error("GitHub 拒绝访问（HTTP 403）。"))).toBe(true);
+    expect(isGithubPermissionError(new Error("GitHub 限制了检查次数，请稍后再试。"))).toBe(true);
     expect(isGithubPermissionError(new Error("ENOENT"))).toBe(false);
     expect(parseSkillFrontmatter("---\nname: demo\nsource: https://github.com/acme/skills\n---\nbody")).toEqual({
       name: "demo",
@@ -237,7 +238,7 @@ describe("system skill updates", () => {
       fetchRemotes: true,
       hooks: {
         fetchGithubTree: async () => {
-          throw new Error("GitHub 拒绝访问（HTTP 403）。打不开 GitHub 时请设置 HTTPS_PROXY 后重试。");
+          throw new Error("GitHub 限制了检查次数，请稍后再试。");
         },
         githubFolderContentHash: async () => localHash,
       },

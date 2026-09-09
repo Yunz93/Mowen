@@ -88,10 +88,13 @@ describe("Qingzhou update metadata", () => {
   it("defaults to the renamed Qingzhou repo and humanizes GitHub 403", () => {
     expect(qingzhouRepo({})).toBe("Yunz93/Qingzhou");
     expect(humanizeGithubHttpStatus(403, "API rate limit exceeded")).toMatch(/限制了检查次数/);
+    expect(humanizeGithubHttpStatus(429, "")).toMatch(/限制了检查次数/);
     expect(humanizeGithubHttpStatus(403, "")).toMatch(/HTTPS_PROXY/);
     expect(shouldFallbackGithubRelease(new Error("GitHub 返回 HTTP 403"))).toBe(true);
     expect(shouldFallbackGithubRelease(new Error("GitHub 返回 HTTP 404"))).toBe(true);
     expect(shouldFallbackGithubRelease(new Error("GitHub 限制了检查次数，请稍后再试。"))).toBe(true);
+    expect(shouldFallbackGithubRelease(new Error(humanizeGithubHttpStatus(403, "API rate limit exceeded")))).toBe(true);
+    expect(shouldFallbackGithubRelease(new Error(humanizeGithubHttpStatus(429)))).toBe(true);
     expect(shouldFallbackGithubRelease(new Error("offline"))).toBe(false);
   });
 

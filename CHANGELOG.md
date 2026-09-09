@@ -7,6 +7,7 @@
 - macOS 后台 Pi 进程改走 Electron Helper，不再在程序坞出现多个 exec 图标。
 - 应用内检查更新改为和墨知一样读 `latest.json`，不再打 GitHub API，避免「限制了检查次数」。
 - 打版本标签时 Release 会附带 `latest.json`（含各平台安装包地址和 SHA-256）。
+- 技能检查遇到 GitHub 限流时也会改走公开压缩包对比，不再只显示「限制了检查次数」。
 
 ## 0.1.15
 
