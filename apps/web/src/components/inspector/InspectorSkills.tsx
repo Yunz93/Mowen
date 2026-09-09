@@ -1,5 +1,4 @@
 import type { PiResources, SkillUpdateItem } from "@qingzhou/protocol";
-import { useState } from "react";
 
 type Skill = PiResources["skills"][number];
 
@@ -11,12 +10,11 @@ type Props = {
   onExport?: () => void;
   onOpenExport?: (path: string) => void;
   onReload?: () => void;
-  onCheckUpdates?: () => Promise<{ items: SkillUpdateItem[] }>;
-  onUpdateSkills?: (paths?: string[]) => Promise<{
-    updated: string[];
-    failed: Array<{ path: string; error: string }>;
-    items: SkillUpdateItem[];
-  }>;
+  busy?: string | null;
+  error?: string;
+  updates?: SkillUpdateItem[] | null;
+  onCheckUpdates?: () => void;
+  onUpdateSkills?: (paths?: string[]) => void;
 };
 
 function statusLabel(item: SkillUpdateItem | undefined): string {
@@ -35,45 +33,14 @@ export function InspectorSkills({
   onExport,
   onOpenExport,
   onReload,
+  busy = null,
+  error = "",
+  updates = null,
   onCheckUpdates,
   onUpdateSkills,
 }: Props) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [updates, setUpdates] = useState<SkillUpdateItem[] | null>(null);
   const byPath = new Map((updates ?? []).map((item) => [item.path, item]));
   const outdated = (updates ?? []).filter((item) => item.updateAvailable);
-
-  async function check() {
-    if (!onCheckUpdates) return;
-    setBusy("check");
-    setError("");
-    try {
-      const result = await onCheckUpdates();
-      setUpdates(result.items);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "检查更新失败");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function update(paths?: string[]) {
-    if (!onUpdateSkills) return;
-    setBusy(paths?.length === 1 ? paths[0]! : "all");
-    setError("");
-    try {
-      const result = await onUpdateSkills(paths);
-      setUpdates(result.items);
-      if (result.failed.length > 0) {
-        setError(result.failed.map((item) => item.error).join("；"));
-      }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "更新失败");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -108,7 +75,7 @@ export function InspectorSkills({
                 type="button"
                 className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                 disabled={busy !== null}
-                onClick={() => void check()}
+                onClick={() => onCheckUpdates()}
               >
                 {busy === "check" ? "正在检查…" : "检查更新"}
               </button>
@@ -117,7 +84,7 @@ export function InspectorSkills({
                   type="button"
                   className="pressable h-7 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                   disabled={busy !== null}
-                  onClick={() => void update(outdated.map((item) => item.path))}
+                  onClick={() => onUpdateSkills?.(outdated.map((item) => item.path))}
                 >
                   {busy === "all" ? "正在更新…" : "更新全部"}
                 </button>
@@ -150,7 +117,7 @@ export function InspectorSkills({
                     type="button"
                     className="pressable h-7 shrink-0 rounded-md bg-fill-strong px-2 text-[12px] text-ink"
                     disabled={busy !== null}
-                    onClick={() => void update([skill.path])}
+                    onClick={() => onUpdateSkills?.([skill.path])}
                     aria-label={`更新 ${skill.name}`}
                   >
                     {busy === skill.path || busy === "all" ? "正在更新…" : "更新"}

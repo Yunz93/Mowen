@@ -8,6 +8,7 @@ import {
   type PiResources,
   type SkillUpdateApplyResult,
   type SkillUpdateCheckResult,
+  type SkillUpdateItem,
 } from "@qingzhou/protocol";
 import { ancestorDirs, buildFileTree, gitMarksByPath, type InspectorFileEntry } from "../../lib/inspector-files";
 import { FileTree } from "./FileTree";
@@ -111,6 +112,11 @@ export function InspectorPanel({
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
   const [treeOpen, setTreeOpen] = useState(true);
   const [claimedPresetIds, setClaimedPresetIds] = useState<string[]>([]);
+  const [skillBusy, setSkillBusy] = useState<string | null>(null);
+  const [skillError, setSkillError] = useState("");
+  const [skillUpdates, setSkillUpdates] = useState<SkillUpdateItem[] | null>(null);
+  const [pluginBusy, setPluginBusy] = useState<string | null>(null);
+  const [pluginError, setPluginError] = useState("");
   const onLoadTreeRef = useRef(onLoadTree);
   const onLoadGitRef = useRef(onLoadGit);
   onLoadTreeRef.current = onLoadTree;
@@ -185,6 +191,57 @@ export function InspectorPanel({
     onGitCommit(message, commitMode === "push" && canPush);
     closeCommit();
   };
+
+  async function checkSkillUpdates() {
+    if (!onCheckSkillUpdates) return;
+    setSkillBusy("check");
+    setSkillError("");
+    try {
+      const result = await onCheckSkillUpdates();
+      setSkillUpdates(result.items);
+    } catch (caught) {
+      setSkillError(caught instanceof Error ? caught.message : "检查更新失败");
+    } finally {
+      setSkillBusy(null);
+    }
+  }
+
+  async function updateSkills(paths?: string[]) {
+    if (!onUpdateSkills) return;
+    setSkillBusy(paths?.length === 1 ? paths[0]! : "all");
+    setSkillError("");
+    try {
+      const result = await onUpdateSkills(paths);
+      setSkillUpdates(result.items);
+      if (result.failed.length > 0) {
+        setSkillError(result.failed.map((item) => item.error).join("；"));
+      }
+    } catch (caught) {
+      setSkillError(caught instanceof Error ? caught.message : "更新失败");
+    } finally {
+      setSkillBusy(null);
+    }
+  }
+
+  async function installPresets(ids?: string[]) {
+    if (!onInstallPresets) return;
+    setPluginBusy(ids?.length === 1 ? ids[0]! : "all");
+    setPluginError("");
+    try {
+      await onInstallPresets(ids);
+      setClaimedPresetIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids?.length ? ids : PRESET_PI_PACKAGES.map((item) => item.id)) {
+          next.add(id);
+        }
+        return [...next];
+      });
+    } catch (caught) {
+      setPluginError(caught instanceof Error ? caught.message : "安装失败");
+    } finally {
+      setPluginBusy(null);
+    }
+  }
 
   return (
     <>
@@ -445,8 +502,11 @@ export function InspectorPanel({
                   onExport={onExport}
                   onOpenExport={onOpenExport}
                   onReload={onReloadResources}
-                  onCheckUpdates={onCheckSkillUpdates}
-                  onUpdateSkills={onUpdateSkills}
+                  busy={skillBusy}
+                  error={skillError}
+                  updates={skillUpdates}
+                  onCheckUpdates={onCheckSkillUpdates ? () => void checkSkillUpdates() : undefined}
+                  onUpdateSkills={onUpdateSkills ? (paths) => void updateSkills(paths) : undefined}
                 />
               ) : null}
               {resourceTab === "plugins" ? (
@@ -457,20 +517,9 @@ export function InspectorPanel({
                   trustProject={Boolean(resources?.trustProject)}
                   onToggle={(path, enabled) => onToggleExtension?.(path, enabled)}
                   onReload={onReloadResources}
-                  onInstallPresets={
-                    onInstallPresets
-                      ? async (ids) => {
-                          await onInstallPresets(ids);
-                          setClaimedPresetIds((prev) => {
-                            const next = new Set(prev);
-                            for (const id of ids?.length ? ids : PRESET_PI_PACKAGES.map((item) => item.id)) {
-                              next.add(id);
-                            }
-                            return [...next];
-                          });
-                        }
-                      : undefined
-                  }
+                  busy={pluginBusy}
+                  error={pluginError}
+                  onInstallPresets={onInstallPresets ? (ids) => void installPresets(ids) : undefined}
                 />
               ) : null}
             </div>

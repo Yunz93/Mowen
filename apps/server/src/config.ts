@@ -87,14 +87,67 @@ export function isJavaScriptFile(file: string): boolean {
 
 /**
  * Desktop reuses the Electron binary as Node. macOS treats a second launch of
- * that executable as another app (separate Dock icon, often the default
- * Electron atom) unless ELECTRON_RUN_AS_NODE=1 is set on the child.
+ * Contents/MacOS/<App> as a GUI app (generic "exec" Dock icon) even with
+ * ELECTRON_RUN_AS_NODE=1. Electron Helper.app sets LSUIElement, so spawn that
+ * instead. Always set ELECTRON_RUN_AS_NODE=1 on the child.
  */
 export function asNodeEnv(command: string): NodeJS.ProcessEnv {
-  if (process.versions.electron || command === process.execPath) {
+  if (process.versions.electron || command === process.execPath || isMacosElectronHelperPath(command)) {
     return { ELECTRON_RUN_AS_NODE: "1" };
   }
   return {};
+}
+
+export function isMacosElectronHelperPath(command: string): boolean {
+  const normalized = command.replaceAll("\\", "/");
+  return /\/[^/]+ Helper(?: \([^)]+\))?\.app\/Contents\/MacOS\/[^/]+$/.test(normalized);
+}
+
+export function macosAppContentsDir(execPath: string): string | null {
+  const macosDir = path.dirname(execPath);
+  if (path.basename(macosDir) !== "MacOS") return null;
+  const contentsDir = path.dirname(macosDir);
+  if (path.basename(contentsDir) !== "Contents") return null;
+  return contentsDir;
+}
+
+/**
+ * Prefer the LSUIElement Helper binary so background Node children stay out of
+ * the macOS Dock. No-op on other platforms or when Helper.app is missing.
+ */
+export function resolveElectronNodeBin(command: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "darwin") return command;
+  const contentsDir = macosAppContentsDir(command);
+  if (!contentsDir && command !== process.execPath) return command;
+  const searchRoots = contentsDir
+    ? [contentsDir]
+    : (() => {
+        const self = macosAppContentsDir(process.execPath);
+        return self ? [self] : [];
+      })();
+  const product = path.basename(contentsDir ? command : process.execPath);
+  const helperNames = [`${product} Helper`, "Electron Helper"];
+  for (const root of searchRoots) {
+    for (const name of helperNames) {
+      const helper = path.join(root, "Frameworks", `${name}.app`, "Contents", "MacOS", name);
+      if (existsSync(helper)) return helper;
+    }
+  }
+  return command;
+}
+
+/** Merge env layers, then force ELECTRON_RUN_AS_NODE last so it cannot be dropped. */
+export function envWithElectronAsNode(
+  command: string,
+  ...layers: Array<NodeJS.ProcessEnv | undefined>
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const layer of layers) {
+    if (!layer) continue;
+    Object.assign(env, layer);
+  }
+  Object.assign(env, asNodeEnv(command));
+  return env;
 }
 
 /** Prefer package.json next to a bundled CLI so startup does not spawn Electron. */
@@ -127,12 +180,13 @@ export function readPiPackageVersion(entryFile: string): string | null {
 export function resolvePiRuntime(env: NodeJS.ProcessEnv = process.env): PiRuntime {
   const entry = qingzhouEnv(env, "PI_ENTRY")?.trim();
   if (entry) {
-    const command = qingzhouEnv(env, "NODE_BIN")?.trim() || process.execPath;
+    const command = resolveElectronNodeBin(qingzhouEnv(env, "NODE_BIN")?.trim() || process.execPath);
     return { command, prefixArgs: [path.resolve(entry)], extraEnv: asNodeEnv(command) };
   }
   const bin = resolvePiBin(env.PI_BIN ?? "pi");
   if (isJavaScriptFile(bin)) {
-    return { command: process.execPath, prefixArgs: [bin], extraEnv: asNodeEnv(process.execPath) };
+    const command = resolveElectronNodeBin(process.execPath);
+    return { command, prefixArgs: [bin], extraEnv: asNodeEnv(command) };
   }
   return {
     command: bin,
@@ -227,7 +281,7 @@ export async function readPiVersion(
     const { stdout } = await execFileAsync(command, [...prefixArgs, "--version"], {
       timeout: 8000,
       windowsHide: true,
-      env: { ...process.env, ...asNodeEnv(command), ...extraEnv },
+      env: envWithElectronAsNode(command, process.env, extraEnv),
     });
     const version = stdout.trim().split("\n")[0] ?? "";
     return { version: version || null, error: null };

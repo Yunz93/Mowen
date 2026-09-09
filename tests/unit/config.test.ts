@@ -5,12 +5,15 @@ import {
   asNodeEnv,
   defaultAllowedRoots,
   defaultDataDir,
+  envWithElectronAsNode,
   expandHome,
   isAllowedHost,
   isAllowedOrigin,
+  isMacosElectronHelperPath,
   loadConfig,
   parseAllowedRoots,
   readPiVersion,
+  resolveElectronNodeBin,
   resolvePiRuntime,
 } from "../../apps/server/src/config.ts";
 import { loadDotEnv } from "../../apps/server/src/env.ts";
@@ -136,6 +139,37 @@ describe("portable config", () => {
   it("marks the current executable as a Node interpreter", () => {
     expect(asNodeEnv(process.execPath).ELECTRON_RUN_AS_NODE).toBe("1");
     expect(asNodeEnv("/usr/bin/pi").ELECTRON_RUN_AS_NODE).toBeUndefined();
+  });
+
+  it("keeps ELECTRON_RUN_AS_NODE on even if an env layer clears it", () => {
+    expect(
+      envWithElectronAsNode(process.execPath, { ELECTRON_RUN_AS_NODE: "", PATH: "/bin" }).ELECTRON_RUN_AS_NODE,
+    ).toBe("1");
+  });
+
+  it("spawns the macOS Electron Helper so Pi does not take a Dock slot", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-helper-"));
+    const macos = path.join(root, "Qingzhou.app", "Contents", "MacOS");
+    const helperDir = path.join(
+      root,
+      "Qingzhou.app",
+      "Contents",
+      "Frameworks",
+      "Qingzhou Helper.app",
+      "Contents",
+      "MacOS",
+    );
+    await mkdir(macos, { recursive: true });
+    await mkdir(helperDir, { recursive: true });
+    const execPath = path.join(macos, "Qingzhou");
+    const helper = path.join(helperDir, "Qingzhou Helper");
+    await writeFile(execPath, "");
+    await writeFile(helper, "");
+    expect(resolveElectronNodeBin(execPath, "linux")).toBe(execPath);
+    expect(resolveElectronNodeBin(execPath, "darwin")).toBe(helper);
+    expect(isMacosElectronHelperPath(helper)).toBe(true);
+    expect(asNodeEnv(helper).ELECTRON_RUN_AS_NODE).toBe("1");
+    expect(resolveElectronNodeBin("/usr/bin/pi", "darwin")).toBe("/usr/bin/pi");
   });
 
   it("reads bundled Pi version from package.json without spawning", async () => {

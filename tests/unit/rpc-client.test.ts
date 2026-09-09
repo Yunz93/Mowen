@@ -24,9 +24,10 @@ describe("rpc client correlation", () => {
     await client.stop();
   });
 
-  it("runs Electron as Node so macOS does not show a second Dock icon", () => {
+  it("runs Electron as Node and prefers the macOS Helper binary so Dock stays clean", () => {
     const src = readFileSync(path.resolve("apps/server/src/pi/rpc-client.ts"), "utf8");
-    expect(src).toContain("asNodeEnv(command)");
+    expect(src).toContain("resolveElectronNodeBin(command)");
+    expect(src).toContain("envWithElectronAsNode(");
     expect(src).toContain("windowsHide: true");
   });
 });
