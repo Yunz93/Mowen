@@ -7,6 +7,7 @@ describe("native terminal and in-app updates", () => {
     const src = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorTerminal.tsx"), "utf8");
     expect(src).toContain("@xterm/xterm");
     expect(src).toContain("addon-fit");
+    expect(src).toContain("allowTransparency: true");
     expect(src).toContain('aria-label", "终端"');
     expect(src).not.toContain("term-input");
   });

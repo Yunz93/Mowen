@@ -24,12 +24,15 @@ export type TermPalette = {
   brightWhite: string;
 };
 
+/** xterm paints this on every default cell; keep it clear so the inspector material shows through. */
+export const TERM_TRANSPARENT_BG = "#00000000";
+
 const DARK_TERM: TermPalette = {
-  background: "#2c2c31",
-  foreground: "#ececf1",
+  background: TERM_TRANSPARENT_BG,
+  foreground: "#f3f3f6",
   cursor: "#8bb4ff",
-  cursorAccent: "#2c2c31",
-  selectionBackground: "#4c6cb3",
+  cursorAccent: "#f3f3f6",
+  selectionBackground: "rgba(139, 180, 255, 0.38)",
   black: "#1c1c1e",
   red: "#ff6b6b",
   green: "#63d48e",
@@ -49,11 +52,11 @@ const DARK_TERM: TermPalette = {
 };
 
 const LIGHT_TERM: TermPalette = {
-  background: "#f3f3f6",
+  background: TERM_TRANSPARENT_BG,
   foreground: "#2a2a33",
   cursor: "#3b6fd9",
-  cursorAccent: "#f3f3f6",
-  selectionBackground: "#c5d4f5",
+  cursorAccent: "#2a2a33",
+  selectionBackground: "rgba(59, 111, 217, 0.28)",
   black: "#2a2a33",
   red: "#c23b3b",
   green: "#1a7f4c",
@@ -72,6 +75,29 @@ const LIGHT_TERM: TermPalette = {
   brightWhite: "#1c1c1e",
 };
 
+export function resolveCssColor(value: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  const probe = document.createElement("div");
+  probe.style.color = value;
+  probe.style.position = "fixed";
+  probe.style.left = "-9999px";
+  document.documentElement.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  return resolved && resolved !== "rgba(0, 0, 0, 0)" ? resolved : fallback;
+}
+
 export function termTheme(theme: Theme): TermPalette {
-  return theme === "dark" ? DARK_TERM : LIGHT_TERM;
+  const base = theme === "dark" ? DARK_TERM : LIGHT_TERM;
+  return {
+    ...base,
+    background: TERM_TRANSPARENT_BG,
+    foreground: resolveCssColor("var(--color-ink)", base.foreground),
+    cursor: resolveCssColor("var(--color-accent)", base.cursor),
+    cursorAccent: resolveCssColor("var(--color-ink)", base.cursorAccent),
+    selectionBackground: resolveCssColor(
+      "color-mix(in oklch, var(--color-accent) 38%, transparent)",
+      base.selectionBackground,
+    ),
+  };
 }

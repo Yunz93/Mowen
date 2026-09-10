@@ -62,7 +62,7 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
       scrollback: 5000,
       theme: termTheme(readTheme()),
       macOptionIsMeta: true,
-      allowTransparency: false,
+      allowTransparency: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

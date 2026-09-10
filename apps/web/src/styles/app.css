@@ -978,9 +978,9 @@ html.dark {
     outline-offset: 3px;
   }
 
-  /* Inspector terminal chrome follows the app theme; xterm colors are set in JS. */
+  /* Terminal sits on the inspector material — no extra canvas/sidebar slab. */
   .term-shell {
-    background: var(--color-canvas);
+    background: transparent;
     color: var(--color-ink);
     --term-dim: var(--color-mute);
     --term-line: var(--color-line);
@@ -1012,7 +1012,7 @@ html.dark {
     align-items: center;
     gap: 8px;
     border-bottom: 0.5px solid var(--term-line);
-    background: var(--color-sidebar);
+    background: transparent;
     padding: 0 10px;
   }
 
@@ -1063,6 +1063,13 @@ html.dark {
     min-height: 0;
     flex: 1;
     padding: 8px 10px 10px;
+    background: transparent;
+  }
+
+  .term-xterm .xterm,
+  .term-xterm .xterm-screen,
+  .term-xterm .xterm-viewport {
+    background: transparent !important;
   }
 
   .term-xterm .xterm {
