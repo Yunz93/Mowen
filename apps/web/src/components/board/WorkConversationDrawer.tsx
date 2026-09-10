@@ -6,6 +6,7 @@ import { ConversationTimeline } from "../timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../composer/PromptComposer";
 import { useAgentStore } from "../../stores/agent-store";
 import { socketClient } from "../../transport/socket-client";
+import { clientErrorMessage, reportRequestError } from "../../lib/client-error";
 
 type Props = {
   item: WorkItemSummary;
@@ -37,9 +38,11 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
   const runtime = useAgentStore((state) =>
     item.taskId ? (state.runtimeByTask[item.taskId] ?? state.runtime) : state.runtime,
   );
+  const requestError = useAgentStore((state) => state.requestError);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImage[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const task = useMemo(() => tasks.find((entry) => entry.id === item.taskId), [item.taskId, tasks]);
   const status = task?.status ?? "stopped";
   const hasTurns = messages.some((message) => message.role === "user");
@@ -48,37 +51,53 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
 
   async function uploadImages(filesToUpload: FileList | File[]) {
     const next: ComposerImage[] = [];
-    for (const file of [...filesToUpload]) {
-      const body = new FormData();
-      body.append("file", file);
-      const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
-      if (!response.ok) {
-        setUploadError(response.status === 413 ? "图片太大，换一张再试。" : "图片上传失败，请再试一次。");
-        continue;
+    try {
+      for (const file of [...filesToUpload]) {
+        const body = new FormData();
+        body.append("file", file);
+        const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
+        if (!response.ok) {
+          setUploadError(response.status === 413 ? "图片太大，换一张再试。" : "图片上传失败，请再试一次。");
+          continue;
+        }
+        const json = (await response.json()) as { id: string };
+        next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
       }
-      const json = (await response.json()) as { id: string };
-      next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
+    } catch (error) {
+      setUploadError(clientErrorMessage(error, "图片上传失败，请再试一次。"));
+      return;
     }
     if (next.length === 0) return;
     setUploadError(null);
     setImages((current) => [...current, ...next]);
   }
 
-  function send(type: "prompt.send" | "prompt.steer" | "prompt.followUp") {
-    if (!task) return;
-    if (type === "prompt.send" && itemClosed) return;
+  async function send(type: "prompt.send" | "prompt.steer" | "prompt.followUp") {
+    if (sending || !task) return;
+    if (type === "prompt.send" && itemClosed) {
+      reportRequestError(new Error("这个目标已经结束，请先重新打开。"));
+      return;
+    }
     const text = draft;
     const attached = images;
-    setDraft("");
-    setImages([]);
-    const request =
-      type === "prompt.send"
-        ? socketClient.send("workItem.feedback", { id: item.id, text }, task.id)
-        : socketClient.send(type, { message: text, imageIds: attached.map((image) => image.id) }, task.id);
-    void request.catch(() => {
+    setSending(true);
+    useAgentStore.getState().clearRequestError();
+    try {
+      if (type === "prompt.send") {
+        await socketClient.send("workItem.feedback", { id: item.id, text }, task.id);
+      } else {
+        await socketClient.send(type, { message: text, imageIds: attached.map((image) => image.id) }, task.id);
+      }
+      setDraft("");
+      setImages([]);
+      for (const image of attached) URL.revokeObjectURL(image.previewUrl);
+    } catch (error) {
       setDraft(text);
       setImages(attached);
-    });
+      reportRequestError(error);
+    } finally {
+      setSending(false);
+    }
   }
 
   if (!item.taskId || !task) {
@@ -125,12 +144,17 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
             {uploadError}
           </p>
         ) : null}
+        {requestError ? (
+          <p className="px-4 pb-1 text-[12px] text-danger" role="alert">
+            {requestError}
+          </p>
+        ) : null}
         {itemClosed ? (
           <p className="px-4 pb-2 text-[12px] text-mute">这个目标已经结束，请先重新打开。</p>
         ) : null}
         <PromptComposer
           status={status}
-          disabled={connection !== "open" || blockingInteraction || itemClosed}
+          disabled={sending || connection !== "open" || blockingInteraction || itemClosed}
           models={models}
           thinkingLevels={thinkingLevels}
           modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
@@ -142,10 +166,14 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
           hasTurns={hasTurns}
           value={draft}
           onChange={setDraft}
-          onSend={() => send("prompt.send")}
-          onSteer={() => send("prompt.steer")}
-          onFollowUp={() => send("prompt.followUp")}
-          onAbort={() => void socketClient.send("agent.abort", {}, task.id)}
+          onSend={() => void send("prompt.send")}
+          onSteer={() => void send("prompt.steer")}
+          onFollowUp={() => void send("prompt.followUp")}
+          onAbort={() =>
+            void socketClient.send("agent.abort", {}, task.id).catch((error: unknown) => {
+              reportRequestError(error, "停止失败");
+            })
+          }
           onModel={(provider, modelId) => void socketClient.send("model.set", { provider, modelId }, task.id)}
           onThinking={(level: ThinkingLevel) => void socketClient.send("thinking.set", { level }, task.id)}
           onPolicy={(mode: InteractionMode, approvalPolicy: ApprovalPolicy) =>

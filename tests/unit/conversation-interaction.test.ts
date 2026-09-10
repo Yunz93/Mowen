@@ -30,9 +30,9 @@ describe("pending RPC", () => {
     const pending = new Map<string, { reject: (error: Error) => void; resolve: (value: unknown) => void }>();
     const first = new Promise((_, reject) => pending.set("a", { resolve: () => undefined, reject }));
     const second = new Promise((_, reject) => pending.set("b", { resolve: () => undefined, reject }));
-    failPendingRequests(pending, new Error("Socket closed"));
-    await expect(first).rejects.toThrow("Socket closed");
-    await expect(second).rejects.toThrow("Socket closed");
+      failPendingRequests(pending, new Error("连接已断开。"));
+    await expect(first).rejects.toThrow("连接已断开。");
+    await expect(second).rejects.toThrow("连接已断开。");
     expect(pending.size).toBe(0);
   });
 });
@@ -73,6 +73,31 @@ describe("agent store transcripts", () => {
     expect(useAgentStore.getState().messages).toEqual([]);
     store.setActiveTask("task-a");
     expect(useAgentStore.getState().messages.map((item) => item.text)).toEqual(["from A", "still A"]);
+  });
+
+  it("keeps request errors after later unrelated successes", () => {
+    const store = useAgentStore.getState();
+    store.clearRequestError();
+    store.applyEvent(
+      event({
+        taskId: "task-a",
+        sequence: 90,
+        type: "request.failed",
+        payload: { requestId: "c-fail", error: "模型不可用" },
+      }),
+    );
+    expect(useAgentStore.getState().requestError).toBe("模型不可用");
+    store.applyEvent(
+      event({
+        taskId: "task-a",
+        sequence: 91,
+        type: "request.succeeded",
+        payload: { requestId: "c-ok", data: { ok: true } },
+      }),
+    );
+    expect(useAgentStore.getState().requestError).toBe("模型不可用");
+    store.clearRequestError();
+    expect(useAgentStore.getState().requestError).toBeNull();
   });
 
   it("does not replace the visible transcript with a snapshot for another task", () => {
@@ -243,7 +268,9 @@ describe("conversation UI contracts", () => {
     expect(layout).toContain("function WorkbenchConversation");
     expect(layout).toContain("const hasTurns = useAgentStore");
     expect(layout).toContain("isEditableTarget(event.target)");
-    expect(layout).toContain("setComposerImages(images)");
+    expect(layout).toContain("reportRequestError");
+    expect(layout).toContain('writeComposerDraft(taskId, text)');
+    expect(layout).not.toMatch(/setDraft\(""\);\s*writeComposerDraft\(task\.id, ""\)/);
     expect(layout).toContain("readComposerDraft");
     expect(layout).toContain('role="alert"');
     expect(layout).toContain("clearRequestError");
@@ -253,6 +280,8 @@ describe("conversation UI contracts", () => {
     expect(timeline).toContain('role="log"');
     expect(timeline).toContain("MessageImages");
     expect(socket).toContain("failPendingRequests");
+    expect(socket).toContain("还没连上服务，请稍后再发。");
+    expect(socket).toContain("连接已断开，请稍后再发。");
     expect(approval).toContain("已超时");
     expect(approval).toContain("disabled={remaining <= 0}");
     expect(taskService).toContain("scheduleAbortFallback");

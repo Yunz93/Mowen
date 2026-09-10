@@ -43,7 +43,7 @@ export class SocketClient {
       });
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         this.pending.delete(id);
-        reject(new Error("Socket is not connected"));
+        reject(new Error("还没连上服务，请稍后再发。"));
         return;
       }
       this.socket.send(JSON.stringify(body));
@@ -99,7 +99,7 @@ export class SocketClient {
     socket.addEventListener("close", () => {
       if (socket !== this.socket) return;
       useAgentStore.getState().setConnection("closed");
-      failPendingRequests(this.pending, new Error("Socket closed"));
+      failPendingRequests(this.pending, new Error("连接已断开，请稍后再发。"));
       if (this.closedByUser) return;
       const delay = Math.min(1000 * 2 ** this.retries, 8000);
       this.retries += 1;

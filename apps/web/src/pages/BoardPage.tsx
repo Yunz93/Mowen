@@ -14,6 +14,7 @@ import { ApprovalSheet } from "../components/approval/ApprovalSheet";
 import { InteractionSheet } from "../components/interaction/InteractionSheet";
 import { useAgentStore } from "../stores/agent-store";
 import { socketClient } from "../transport/socket-client";
+import { clientErrorMessage } from "../lib/client-error";
 
 export function BoardPage() {
   const items = useAgentStore((state) => state.workItems);
@@ -68,7 +69,7 @@ export function BoardPage() {
       })
       .catch((error: unknown) => {
         if (!current) return;
-        setNotice(error instanceof Error ? error.message : "读取任务详情失败");
+        setNotice(clientErrorMessage(error, "读取任务详情失败"));
         setDetails(null);
         setSearchParams({});
       });
@@ -78,7 +79,7 @@ export function BoardPage() {
   }, [focusItemId, selectedSummary?.updatedAt, selectedSummary?.runCount, selectedSummary?.feedbackCount, setSearchParams]);
 
   function showError(error: unknown, fallback: string) {
-    setNotice(error instanceof Error ? error.message : fallback);
+    setNotice(clientErrorMessage(error, fallback));
   }
 
   function openDetails(item: WorkItemSummary) {

@@ -56,7 +56,7 @@ export function registerWebsocket(app: FastifyInstance, config: AppConfig, servi
         try {
           parsed = JSON.parse(String(raw));
         } catch {
-          service.emit("", "request.failed", { requestId: "", error: "Invalid JSON" });
+          service.emit("", "request.failed", { requestId: "", error: "请求格式无效。" });
           return;
         }
         const result = clientCommandSchema.safeParse(parsed);

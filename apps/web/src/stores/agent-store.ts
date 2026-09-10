@@ -815,7 +815,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
         set({ lastSeen, requestError: event.payload.error });
         break;
       case "request.succeeded":
-        set({ lastSeen, requestError: null });
+        set({ lastSeen });
         break;
       case "server.error":
         set({
