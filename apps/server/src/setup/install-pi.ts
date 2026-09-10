@@ -114,14 +114,25 @@ export function windowsNpmInstallArgs(): string[] {
   ];
 }
 
-export function unixInstallChildEnv(base: NodeJS.ProcessEnv, homeDir: string): NodeJS.ProcessEnv {
-  return {
+export function unixInstallChildEnv(
+  base: NodeJS.ProcessEnv,
+  homeDir: string,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
     ...base,
     HOME: homeDir,
     TERM: "dumb",
     CI: "1",
     npm_config_progress: "false",
   };
+  if (platform !== "win32") {
+    for (const dir of ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]) {
+      const parts = (env.PATH ?? "").split(":").filter(Boolean);
+      if (!parts.includes(dir)) env.PATH = [...parts, dir].join(":");
+    }
+  }
+  return env;
 }
 
 export function pathEnvKey(env: NodeJS.ProcessEnv, platform = process.platform): string {
@@ -276,7 +287,7 @@ async function runOfficialPiInstallUnserialized(options: {
     result = await runCommand(
       "npm.cmd",
       windowsNpmInstallArgs(),
-      unixInstallChildEnv(env, options.homeDir),
+      unixInstallChildEnv(env, options.homeDir, platform),
       timeoutMs,
     );
   } else {
@@ -290,7 +301,7 @@ async function runOfficialPiInstallUnserialized(options: {
     const scriptPath = path.join(dir, "install.sh");
     try {
       writeFileSync(scriptPath, script, { mode: 0o700 });
-      result = await runCommand("sh", [scriptPath], unixInstallChildEnv(env, options.homeDir), timeoutMs);
+      result = await runCommand("/bin/sh", [scriptPath], unixInstallChildEnv(env, options.homeDir, platform), timeoutMs);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -301,7 +312,10 @@ async function runOfficialPiInstallUnserialized(options: {
     throw new InstallPiError(installFailureMessage(log), 500, log);
   }
 
-  const bin = await discoverPiExecutable({ homeDir: options.homeDir, env: unixInstallChildEnv(env, options.homeDir) });
+  const bin = await discoverPiExecutable({
+    homeDir: options.homeDir,
+    env: unixInstallChildEnv(env, options.homeDir, platform),
+  });
   return { ok: true, log, bin };
 }
 

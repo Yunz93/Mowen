@@ -64,7 +64,10 @@ export function guiSearchToolDirs(homeDir: string, platform = process.platform):
       path.join(homeDir, "AppData", "Local", "Microsoft", "WinGet", "Links"),
     ];
   }
-  return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"];
+  if (platform === "darwin") {
+    return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"];
+  }
+  return ["/usr/local/bin", "/usr/bin"];
 }
 
 export function shouldFetchPinnedSearchTools(env: NodeJS.ProcessEnv = process.env): boolean {

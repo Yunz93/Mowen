@@ -169,8 +169,8 @@ export function WorkbenchLayout() {
   }, [connection, activeTaskId]);
 
   useEffect(() => {
-    if (creating) void socketClient.send("sessions.list", {});
-  }, [creating]);
+    if (creating && connection === "open") void socketClient.send("sessions.list", {});
+  }, [creating, connection]);
 
   const task = useMemo(
     () => tasks.find((item) => item.id === activeTaskId),

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ describe("casual chat workspace", () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-casual-"));
     dirs.push(home);
     const cwd = await ensureCasualChatCwd(home, [home]);
-    expect(cwd).toBe(path.join(home, "Qingzhou Chat"));
+    expect(cwd).toBe(path.join(await realpath(home), "Qingzhou Chat"));
   });
 
   it("falls back to the first allowed root", async () => {
@@ -25,6 +25,6 @@ describe("casual chat workspace", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-casual-root-"));
     dirs.push(home, root);
     const cwd = await ensureCasualChatCwd(home, [root]);
-    expect(cwd).toBe(path.join(root, "Qingzhou Chat"));
+    expect(cwd).toBe(path.join(await realpath(root), "Qingzhou Chat"));
   });
 });

@@ -153,10 +153,11 @@ describe("official Pi installer helpers", () => {
       },
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.command).toBe("sh");
+    expect(calls[0]?.command).toBe("/bin/sh");
     expect(calls[0]?.args[0]).toMatch(/install\.sh$/);
     expect(calls[0]?.env.TERM).toBe("dumb");
     expect(calls[0]?.env.HOME).toBe(home);
+    expect(calls[0]?.env.PATH?.split(":")).toContain("/bin");
     expect(result.ok).toBe(true);
     expect(result.bin).toBe(path.join(binDir, "pi"));
     expect(result.log).toContain("Pi was installed successfully");

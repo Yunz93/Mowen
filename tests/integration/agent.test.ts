@@ -51,10 +51,10 @@ async function openSocket(base: string) {
     ws.once("error", reject);
   });
   let cursor = 0;
-  const waitFor = async (type: string, timeout = 12_000) => {
+  const waitFor = async (type: string, timeout = 12_000, after = cursor) => {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const match = events.slice(cursor).find((event) => event.type === type);
+      const match = events.slice(after).find((event) => event.type === type);
       if (match) {
         cursor = events.indexOf(match) + 1;
         return match;
@@ -539,9 +539,10 @@ describe("integration fake-pi", () => {
       });
       await sock.waitForRequest("branch");
 
+      const beforeRuntimeSet = sock.events.length;
       sock.send({ id: "rt", type: "runtime.set", taskId, payload: { autoCompaction: false, autoRetry: false, fastMode: true } });
       await sock.waitForRequest("rt");
-      const runtime = await sock.waitFor("runtime.status");
+      const runtime = await sock.waitFor("runtime.status", 12_000, beforeRuntimeSet);
       expect((runtime.payload as { autoCompaction?: boolean }).autoCompaction).toBe(false);
       expect((runtime.payload as { fastModeEnabled?: boolean }).fastModeEnabled).toBe(true);
       expect((runtime.payload as { fastModeActive?: boolean }).fastModeActive).toBe(true);
