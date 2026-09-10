@@ -1547,49 +1547,79 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 /* Agent-native work mode */
 .work-page-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
 }
 
-.work-head-spacer {
-  flex: 1;
-  min-width: 8px;
-}
-
-.work-project-row {
+.work-head-start {
   display: flex;
   min-width: 0;
-  flex: none;
+  align-items: center;
+}
+
+.work-head-end {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.work-project-picker {
+  position: relative;
+  min-width: 0;
+  justify-self: center;
+}
+
+.work-project-button {
+  display: inline-flex;
+  max-width: min(42vw, 28rem);
+  min-height: 36px;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
-}
-
-/* Titlebar control: native <select> menu, no Field/chip chrome. */
-.work-project-select {
-  appearance: none;
-  -webkit-appearance: none;
-  box-sizing: border-box;
-  width: auto;
-  min-width: 4.5rem;
-  max-width: 12rem;
-  height: 28px;
-  min-height: 28px;
-  margin: 0;
   border: 0;
-  border-radius: 7px;
-  background-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 4px 12px;
   color: inherit;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 510;
-  line-height: 1;
-  field-sizing: content;
+  font-size: 16px;
+  font-weight: 620;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  cursor: pointer;
 }
 
-.work-project-select:hover {
-  background-color: var(--color-fill);
+.work-project-button:hover {
+  background: var(--color-fill);
+}
+
+.work-project-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-project-button-caret {
+  flex: none;
+  opacity: 0.55;
+}
+
+.work-project-menu {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 50%;
+  min-width: 12rem;
+  transform: translateX(-50%);
+}
+
+.work-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .work-dashboard {
@@ -1849,6 +1879,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 
 .work-search {
   width: min(320px, 100%);
+  flex: 1 1 auto;
 }
 
 .work-conversation-panel {
@@ -2040,21 +2071,15 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 @media (max-width: 640px) {
   .work-page-head {
     min-height: 88px;
-    flex-wrap: wrap;
-    align-content: center;
+    grid-template-columns: minmax(0, 1fr) auto;
     padding-top: 6px;
     padding-bottom: 6px;
   }
 
-  .work-head-spacer {
-    display: none;
-  }
-
-  .work-project-row {
+  .work-project-picker {
+    grid-column: 1 / -1;
     order: 3;
-    width: 100%;
-    flex-basis: 100%;
-    margin-left: 0;
+    justify-self: center;
   }
 
   .work-objective {

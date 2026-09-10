@@ -155,6 +155,7 @@ export function isProviderRequestError(raw: string): boolean {
     /\b(400|404|408|409|413|422|429|500|502|503|504|529)\b/.test(message) ||
     /http\s+[45]\d\d/i.test(raw) ||
     /rate[_ ]limit|too many requests|overloaded|insufficient[_ ]quota|quota[_ ]exceeded/.test(message) ||
+    /额度不足|余额不足|out of credits|credit.?balance|billing.?hard.?limit/.test(message) ||
     /context[_ ]length|model[_ ]not[_ ]found|invalid[_ ]request|billing|credit|payment[_ ]required/.test(message) ||
     /api[_ ]error|server[_ ]error|overloaded_error|rate_limit_error/.test(message)
   );
@@ -168,6 +169,20 @@ export function humanizeAuthHttpError(error: unknown): string | null {
     return "当前密钥没有权限调用这个模型（HTTP 403）。打开设置换一个可用的 API Key，或换一个模型。";
   }
   return "登录已失效或密钥不正确（HTTP 401）。打开设置检查 API Key，或重新登录。";
+}
+
+export function isQuotaError(raw: string): boolean {
+  const message = raw.toLowerCase();
+  return (
+    /insufficient[_ ]quota|quota[_ ]exceeded|quota.?limit/.test(message) ||
+    /额度不足|余额不足|out of credits|credit.?balance|billing.?hard.?limit|payment[_ ]required/.test(message)
+  );
+}
+
+export function humanizeQuotaError(error: unknown): string | null {
+  const raw = extractErrorText(error);
+  if (!raw || !isQuotaError(raw)) return null;
+  return "额度不足，暂时无法调用模型。请检查账户余额或更换密钥。";
 }
 
 export function humanizeProviderRequestError(error: unknown): string | null {
@@ -193,6 +208,7 @@ export function humanizeUserFacingError(error: unknown): string {
     humanizeSearchToolDownloadError(text) ??
     humanizeUnsupportedRegionError(error) ??
     humanizeAuthHttpError(error) ??
+    humanizeQuotaError(error) ??
     humanizeProviderRequestError(error) ??
     stripPiSourceDump(text)
   );

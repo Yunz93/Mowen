@@ -48,6 +48,13 @@ describe("protocol", () => {
   it("accepts pi mvp session and runtime commands", () => {
     expect(
       clientCommandSchema.parse({
+        id: "casual",
+        type: "task.create",
+        payload: { title: "随便聊聊" },
+      }).payload,
+    ).toEqual({ title: "随便聊聊" });
+    expect(
+      clientCommandSchema.parse({
         id: "1",
         type: "session.resume",
         payload: { sessionPath: "/tmp/session.jsonl" },

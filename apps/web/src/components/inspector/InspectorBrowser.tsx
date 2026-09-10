@@ -1,8 +1,10 @@
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
+import { createElement, useState, type FormEvent, type KeyboardEvent } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink, RotateCw } from "lucide-react";
+import { isDesktopApp } from "../../desktop-bridge";
 import { normalizeBrowserUrl } from "../../lib/browser-url";
 
 export function InspectorBrowser() {
+  const desktop = isDesktopApp();
   const [draft, setDraft] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [index, setIndex] = useState(-1);
@@ -77,23 +79,45 @@ export function InspectorBrowser() {
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onDraftKey}
           aria-label="网址"
-          placeholder="127.0.0.1:5173"
+          placeholder="example.com"
           className="field ml-0.5 h-6 min-h-6 min-w-0 flex-1 rounded-md px-2 font-mono text-[11px]"
         />
+        {url ? (
+          <button
+            type="button"
+            className="pressable icon-btn"
+            aria-label="用系统浏览器打开"
+            onClick={() => window.open(url, "_blank", "noopener")}
+          >
+            <ExternalLink size={13} />
+          </button>
+        ) : null}
       </form>
       {url ? (
-        <iframe
-          key={`${url}:${reloadKey}`}
-          title="浏览器预览"
-          src={url}
-          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-same-origin"
-          className="min-h-0 flex-1 border-0 bg-surface"
-        />
+        desktop ? (
+          createElement("webview", {
+            key: `${url}:${reloadKey}`,
+            src: url,
+            title: "浏览器",
+            partition: "persist:qingzhou-browser",
+            allowpopups: "on",
+            className: "min-h-0 flex-1 border-0 bg-surface",
+            style: { width: "100%", height: "100%" },
+          })
+        ) : (
+          <iframe
+            key={`${url}:${reloadKey}`}
+            title="浏览器预览"
+            src={url}
+            sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-same-origin"
+            className="min-h-0 flex-1 border-0 bg-surface"
+          />
+        )
       ) : (
         <div className="flex min-h-0 flex-1 items-start p-3">
           <p className="text-sm leading-6 text-mute">
-            预览本地页面，例如 <span className="font-mono text-[12px] text-ink">127.0.0.1:5173</span>
-            。很多网站禁止嵌入，打不开就换本机地址。
+            输入网址打开网页，例如 <span className="font-mono text-[12px] text-ink">example.com</span>
+            。桌面版用内置网页容器，不受网站禁止嵌入限制。
           </p>
         </div>
       )}

@@ -22,7 +22,6 @@ import { stripModePrefix, workItemIsClosed } from "@qingzhou/protocol";
 import { headerSubtitle, STARTER_PROMPTS } from "../copy";
 import { tasksInSidebarOrder } from "../lib/task-list";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
-import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
 import { isEditableTarget } from "../lib/hotkeys";
 import { readComposerDraft, writeComposerDraft } from "../lib/composer-drafts";
@@ -131,7 +130,6 @@ export function WorkbenchLayout() {
   const overlayLeft = taskOpen && !dockLeft;
   const overlayRight = inspectorOpen && !dockRight;
   const [notice, setNotice] = useState("");
-  const [lastExportPath, setLastExportPath] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const skipTitleCommitRef = useRef(false);
@@ -375,14 +373,6 @@ export function WorkbenchLayout() {
     const current = tasks.find((item) => item.id === taskId);
     if (!next || next === current?.title) return;
     await socketClient.send("task.rename", { title: next }, taskId);
-  }
-
-  async function openExport(filePath: string) {
-    try {
-      await openExportedFile(filePath);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "无法打开导出文件");
-    }
   }
 
   async function selectTask(taskId: string) {
@@ -652,20 +642,6 @@ export function WorkbenchLayout() {
           if (!task) throw new Error("没有对话");
           return socketClient.send("resources.skill.update", paths?.length ? { paths } : {}, task.id);
         }}
-        lastExportPath={lastExportPath}
-        onOpenExport={(filePath) => void openExport(filePath)}
-        onExport={() => {
-          if (!task) return;
-          void socketClient
-            .send<{ path: string }>("session.export", {}, task.id)
-            .then((result) => {
-              setLastExportPath(result.path);
-              setNotice(`已导出到 ${result.path}`);
-            })
-            .catch((error: unknown) =>
-              setNotice(error instanceof Error ? error.message : "导出失败"),
-            );
-        }}
       />
     );
   }
@@ -844,11 +820,11 @@ export function WorkbenchLayout() {
         ) : null}
         {serverError || requestError || task?.errorMessage ? (
           <div className="banner-note whitespace-pre-wrap text-danger" role="alert">
-            <span className="min-w-0 flex-1">{serverError ?? requestError ?? task?.errorMessage}</span>
+            <span className="min-w-0 flex-1">{requestError ?? serverError ?? task?.errorMessage}</span>
             <button
               type="button"
               className="pressable app-no-drag shrink-0 text-accent"
-              onClick={() => useAgentStore.getState().clearRequestError()}
+              onClick={() => useAgentStore.getState().dismissErrors()}
             >
               关闭
             </button>
@@ -860,15 +836,6 @@ export function WorkbenchLayout() {
         ) : notice ? (
           <div className="banner-note text-mute" role="status">
             <span className="min-w-0 truncate">{notice}</span>
-            {lastExportPath ? (
-              <button
-                type="button"
-                className="pressable app-no-drag shrink-0 text-accent"
-                onClick={() => void openExport(lastExportPath)}
-              >
-                打开
-              </button>
-            ) : null}
           </div>
         ) : null}
         {otherApproval ? (
@@ -932,13 +899,23 @@ export function WorkbenchLayout() {
           ) : (
             <div className="mx-auto flex h-full max-w-[420px] flex-col items-center justify-center px-6 pb-16 text-center">
               <p className="text-[28px] font-semibold tracking-tight text-ink">你好，我是轻舟</p>
-              <div className="mt-7 flex items-center gap-2">
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   className="pressable btn btn-primary"
-                  onClick={() => setCreating(true)}
+                  onClick={() => {
+                    void socketClient
+                      .send<{ task?: { id: string } }>("task.create", { title: "随便聊聊" })
+                      .then((result) => {
+                        if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
+                      })
+                      .catch((error: unknown) => reportRequestError(error, "创建对话失败"));
+                  }}
                 >
-                  开始对话
+                  随便聊聊
+                </button>
+                <button type="button" className="pressable btn btn-secondary" onClick={() => setCreating(true)}>
+                  选择文件夹
                 </button>
                 <Link to="/board" className="pressable btn btn-secondary">
                   去任务
@@ -1117,8 +1094,11 @@ export function WorkbenchLayout() {
           sessions={piSessions}
           onCancel={() => setCreating(false)}
           onCreate={async (directory, title) => {
-            setCwd(directory);
-            const result = await socketClient.send<{ task?: { id: string } }>("task.create", { cwd: directory, title });
+            if (directory) setCwd(directory);
+            const result = await socketClient.send<{ task?: { id: string } }>(
+              "task.create",
+              directory ? { cwd: directory, title } : { title: title || "随便聊聊" },
+            );
             setCreating(false);
             if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
           }}

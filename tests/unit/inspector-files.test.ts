@@ -102,7 +102,11 @@ describe("InspectorPanel tabs", () => {
     expect(skills).not.toMatch(/刷新技能/);
     expect(plugins).not.toMatch(/刷新插件/);
     expect(skills).not.toMatch(/>系统技能</);
-    expect(plugins).not.toMatch(/推荐插件/);
+    expect(plugins).toMatch(/推荐安装/);
+    expect(plugins).toMatch(/已安装/);
+    expect(plugins).toMatch(/presetPackageInstalled/);
+    expect(skills).toMatch(/检查更新/);
+    expect(skills).not.toMatch(/导出 HTML/);
     expect(preview).toMatch(/whitespace-pre-wrap/);
     expect(preview).toMatch(/break-words/);
     const header = src.slice(src.indexOf("tab === \"files\""), src.indexOf("tab === \"git\""));

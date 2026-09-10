@@ -148,7 +148,7 @@ export class ProcessSupervisor {
       runtime: RuntimeState;
       sessionTree: SessionTreeNode[];
       sessionLeafId: string | null;
-      stderrAlerted: boolean;
+      stderrAlerted: string | null;
     }
   >();
   private readonly pendingApprovals = new Map<string, ApprovalPending>();
@@ -279,7 +279,7 @@ export class ProcessSupervisor {
       runtime: emptyRuntime(),
       sessionTree: [] as SessionTreeNode[],
       sessionLeafId: null as string | null,
-      stderrAlerted: false,
+      stderrAlerted: null as string | null,
     };
 
     const client = new RpcClient({
@@ -305,12 +305,14 @@ export class ProcessSupervisor {
           console.warn(`[pi ${task.id}] ${redactSecrets(chunk.trim())}`);
         }
         const current = this.runtimes.get(task.id);
-        if (!current || current.generation !== generation || current.stderrAlerted) return;
+        if (!current || current.generation !== generation) return;
         if (!shouldSurfacePiStderr(chunk)) return;
-        current.stderrAlerted = true;
+        const message = humanizeUserFacingError(new Error(chunk));
+        if (current.stderrAlerted === message) return;
+        current.stderrAlerted = message;
         this.emit(task.id, "server.error", {
           code: "pi.stderr",
-          message: humanizeUserFacingError(new Error(chunk)),
+          message,
         });
       },
       onExit: (code, signal) => {

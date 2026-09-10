@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import type { WorkItemDetails, WorkItemSummary } from "@qingzhou/protocol";
 import { WorkDashboard, type WorkFilter } from "../components/board/WorkDashboard";
 import { WorkObjectivePanel } from "../components/board/WorkObjectivePanel";
 import { WorkConversationDrawer } from "../components/board/WorkConversationDrawer";
 import { NewWorkItemDialog } from "../components/board/NewWorkItemDialog";
 import { NewWorkProjectDialog } from "../components/board/NewWorkProjectDialog";
+import { WorkProjectPicker } from "../components/board/WorkProjectPicker";
 import { ModeSwitcher } from "../components/app/ModeSwitcher";
 import { UpdateBanner } from "../components/app/UpdateBanner";
 import { ThemeToggle } from "../components/status/ThemeToggle";
@@ -149,49 +150,21 @@ export function BoardPage() {
         跳到正文
       </a>
       <header className="titlebar app-drag traffic-inline work-page-head border-b border-line px-3">
-        <ModeSwitcher />
-        <div className="work-head-spacer" aria-hidden="true" />
-        <div className="work-project-row">
-          <label className="app-no-drag min-w-0">
-            <span className="sr-only">项目</span>
-            <select
-              className="work-project-select"
-              value={project?.id ?? ""}
-              title={project?.cwd}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (next === "__new__") {
-                  setCreatingProject(true);
-                  return;
-                }
-                if (!next) return;
-                closeDetails();
-                void socketClient
-                  .send("workProject.select", { id: next })
-                  .catch((error: unknown) => showError(error, "切换项目失败"));
-              }}
-            >
-              {projects.length === 0 ? <option value="">选择项目</option> : null}
-              {projects.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-              <option value="__new__">新项目…</option>
-            </select>
-          </label>
-          {project ? (
-            <button
-              type="button"
-              className="pressable app-no-drag btn btn-primary h-7"
-              onClick={() => setCreating(true)}
-            >
-              <Plus size={14} />
-              新建任务
-            </button>
-          ) : null}
+        <div className="work-head-start">
+          <ModeSwitcher />
         </div>
-        <div className="app-no-drag flex items-center gap-0.5">
+        <WorkProjectPicker
+          projects={projects}
+          project={project}
+          onSelect={(id) => {
+            closeDetails();
+            void socketClient
+              .send("workProject.select", { id })
+              .catch((error: unknown) => showError(error, "切换项目失败"));
+          }}
+          onCreate={() => setCreatingProject(true)}
+        />
+        <div className="work-head-end">
           <UpdateBanner />
           <ThemeToggle />
           <Link to="/settings" aria-label="设置" className="pressable icon-btn">
@@ -219,6 +192,7 @@ export function BoardPage() {
               filter={filter}
               query={query}
               onQuery={setQuery}
+              onCreate={project ? () => setCreating(true) : undefined}
               onFilter={setFilter}
               onSelect={openDetails}
               onStart={startItem}

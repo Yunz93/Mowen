@@ -131,6 +131,7 @@ async function createMainWindow(port: number): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      webviewTag: true,
     },
   });
 

@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import {
   normalizePackageSource,
   packageSourcesEqual,
-  presetExtensionLoaded,
+  presetPackageInstalled,
   resolvePresetPackages,
   type PresetPiPackage,
 } from "@qingzhou/protocol";
@@ -191,16 +191,6 @@ export function formatPiInstallError(error: unknown): string {
   return `插件下载失败。${humanizeUserFacingError(new Error(combined || String(error)))}`;
 }
 
-async function rollbackFailedPresetInstall(agentDir: string, presets: PresetPiPackage[]): Promise<void> {
-  await removePackageSources(
-    agentDir,
-    presets.map((item) => item.source),
-  );
-  for (const preset of presets) {
-    if (preset.mcp) await removeMcpServer(agentDir, preset.mcp.name);
-  }
-}
-
 export async function installPresetPiPackages(input: {
   agentDir: string;
   ids?: string[];
@@ -221,7 +211,7 @@ export async function installPresetPiPackages(input: {
   const already: string[] = [];
   const toInstall: PresetPiPackage[] = [];
   for (const preset of presets) {
-    if (presetExtensionLoaded(preset, input.extensions ?? [])) {
+    if (presetPackageInstalled(preset, input.packages, input.extensions ?? [])) {
       already.push(preset.id);
     } else {
       toInstall.push(preset);
@@ -229,10 +219,14 @@ export async function installPresetPiPackages(input: {
   }
 
   const addedSources: string[] = [];
+  const addedMcp: string[] = [];
   for (const preset of toInstall) {
     const result = await addPackageSources(input.agentDir, [preset.source]);
     addedSources.push(...result.added);
-    if (preset.mcp) await ensureMcpServer(input.agentDir, preset.mcp);
+    if (preset.mcp) {
+      const created = await ensureMcpServer(input.agentDir, preset.mcp);
+      if (created) addedMcp.push(preset.mcp.name);
+    }
   }
 
   const cliSources = toInstall.map((item) => normalizePackageSource(item.source));
@@ -249,7 +243,8 @@ export async function installPresetPiPackages(input: {
         agentDir: input.agentDir,
       });
     } catch (error) {
-      await rollbackFailedPresetInstall(input.agentDir, toInstall);
+      if (addedSources.length > 0) await removePackageSources(input.agentDir, addedSources);
+      for (const name of addedMcp) await removeMcpServer(input.agentDir, name);
       piInstallError = formatPiInstallError(error);
     }
   }

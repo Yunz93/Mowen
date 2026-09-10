@@ -49,9 +49,6 @@ type Props = {
   onGitCommit?: (message: string, push?: boolean) => void | Promise<void>;
   onGitRestore?: (path?: string) => void;
   onGitInit?: () => void;
-  onExport?: () => void;
-  lastExportPath?: string | null;
-  onOpenExport?: (path: string) => void;
   onReadResource?: (path: string) => Promise<{ path: string; content: string; truncated: boolean }>;
   onWriteResource?: (path: string, content: string) => Promise<void>;
   onToggleSkill?: (path: string, enabled: boolean) => void;
@@ -87,9 +84,6 @@ export function InspectorPanel({
   onGitCommit,
   onGitRestore,
   onGitInit,
-  onExport,
-  lastExportPath = null,
-  onOpenExport,
   onReadResource,
   onWriteResource,
   onToggleSkill,
@@ -124,20 +118,30 @@ export function InspectorPanel({
   const skillAutoChecked = useRef(false);
   const onLoadTreeRef = useRef(onLoadTree);
   const onLoadGitRef = useRef(onLoadGit);
+  const onLoadResourcesRef = useRef(onLoadResources);
   onLoadTreeRef.current = onLoadTree;
   onLoadGitRef.current = onLoadGit;
+  onLoadResourcesRef.current = onLoadResources;
 
   useEffect(() => {
-    setAwaitingTree(true);
-    onLoadTreeRef.current();
-    onLoadGitRef.current();
-    const timer = window.setTimeout(() => setAwaitingTree(false), 600);
     skillAutoChecked.current = false;
     setSkillUpdates(null);
     setClaimedPresetIds([]);
     setPluginError("");
-    return () => window.clearTimeout(timer);
   }, [taskId]);
+
+  useEffect(() => {
+    if (tab === "resources") onLoadResourcesRef.current?.();
+  }, [taskId, tab]);
+
+  useEffect(() => {
+    if (tab !== "files" && tab !== "git") return;
+    setAwaitingTree(true);
+    if (tab === "files") onLoadTreeRef.current();
+    onLoadGitRef.current();
+    const timer = window.setTimeout(() => setAwaitingTree(false), 600);
+    return () => window.clearTimeout(timer);
+  }, [taskId, tab]);
 
   useEffect(() => {
     if (files.length > 0) setAwaitingTree(false);
@@ -543,6 +547,7 @@ export function InspectorPanel({
                 <InspectorRules
                   files={resources?.agentsFiles ?? []}
                   cwd={cwd}
+                  loading={!resources}
                   onRead={onReadResource ?? (async () => ({ path: "", content: "", truncated: false }))}
                   onWrite={onWriteResource ?? (async () => {})}
                   onCreate={onCreateAgents}
@@ -553,13 +558,10 @@ export function InspectorPanel({
                   skills={resources?.skills ?? []}
                   trustProject={Boolean(resources?.trustProject)}
                   onToggle={(path, enabled) => onToggleSkill?.(path, enabled)}
-                  lastExportPath={lastExportPath}
-                  onExport={onExport}
-                  onOpenExport={onOpenExport}
                   busy={skillBusy}
                   error={skillError}
                   updates={skillUpdates}
-                  onCheckUpdates={undefined}
+                  onCheckUpdates={onCheckSkillUpdates ? () => void checkSkillUpdates() : undefined}
                   onUpdateSkills={onUpdateSkills ? (paths) => void updateSkills(paths) : undefined}
                 />
               ) : null}

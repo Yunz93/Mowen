@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeBrowserUrl } from "../../apps/web/src/lib/browser-url";
 
@@ -15,5 +17,16 @@ describe("normalizeBrowserUrl", () => {
     expect(normalizeBrowserUrl("data:text/html,hi")).toBeNull();
     expect(normalizeBrowserUrl("file:///etc/passwd")).toBeNull();
     expect(normalizeBrowserUrl("")).toBeNull();
+  });
+});
+
+describe("inspector browser", () => {
+  it("uses an Electron webview for internet pages in the desktop shell", () => {
+    const browser = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorBrowser.tsx"), "utf8");
+    const desktop = readFileSync(path.resolve("apps/desktop/src/main/index.ts"), "utf8");
+    expect(browser).toMatch(/createElement\("webview"/);
+    expect(browser).toMatch(/partition: "persist:qingzhou-browser"/);
+    expect(browser).toMatch(/用系统浏览器打开/);
+    expect(desktop).toMatch(/webviewTag:\s*true/);
   });
 });
