@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel, WorkItemSummary } from "@qingzhou/protocol";
 import { workItemIsClosed } from "@qingzhou/protocol";
@@ -42,7 +42,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImage[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const task = useMemo(() => tasks.find((entry) => entry.id === item.taskId), [item.taskId, tasks]);
   const status = task?.status ?? "stopped";
   const hasTurns = messages.some((message) => message.role === "user");
@@ -73,14 +73,14 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
   }
 
   async function send(type: "prompt.send" | "prompt.steer" | "prompt.followUp") {
-    if (sending || !task) return;
+    if (sendingRef.current || !task) return;
     if (type === "prompt.send" && itemClosed) {
       reportRequestError(new Error("这个目标已经结束，请先重新打开。"));
       return;
     }
     const text = draft;
     const attached = images;
-    setSending(true);
+    sendingRef.current = true;
     useAgentStore.getState().clearRequestError();
     try {
       if (type === "prompt.send") {
@@ -88,15 +88,20 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
       } else {
         await socketClient.send(type, { message: text, imageIds: attached.map((image) => image.id) }, task.id);
       }
-      setDraft("");
-      setImages([]);
-      for (const image of attached) URL.revokeObjectURL(image.previewUrl);
+      setDraft((current) => (current === text ? "" : current));
+      setImages((current) => {
+        const unchanged =
+          current.length === attached.length && current.every((image, index) => image.id === attached[index]?.id);
+        if (!unchanged) return current;
+        for (const image of attached) URL.revokeObjectURL(image.previewUrl);
+        return [];
+      });
     } catch (error) {
-      setDraft(text);
-      setImages(attached);
+      setDraft((current) => current || text);
+      setImages((current) => (current.length > 0 ? current : attached));
       reportRequestError(error);
     } finally {
-      setSending(false);
+      sendingRef.current = false;
     }
   }
 
@@ -154,7 +159,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
         ) : null}
         <PromptComposer
           status={status}
-          disabled={sending || connection !== "open" || blockingInteraction || itemClosed}
+          disabled={connection !== "open" || blockingInteraction || itemClosed}
           models={models}
           thinkingLevels={thinkingLevels}
           modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
