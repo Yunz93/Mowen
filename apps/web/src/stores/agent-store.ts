@@ -293,9 +293,19 @@ function applyCwdReorder(tasks: TaskRecord[], cwd: string, taskIds: string[]): T
   const members = tasks.filter((task) => task.cwd === cwd);
   if (members.length !== taskIds.length) return tasks;
   const byId = new Map(members.map((task) => [task.id, task]));
-  if (taskIds.some((id) => !byId.has(id))) return tasks;
+  const ordered: TaskRecord[] = [];
+  for (const id of taskIds) {
+    const next = byId.get(id);
+    if (!next) return tasks;
+    ordered.push(next);
+  }
   let cursor = 0;
-  return tasks.map((task) => (task.cwd === cwd ? byId.get(taskIds[cursor++])! : task));
+  return tasks.map((task) => {
+    if (task.cwd !== cwd) return task;
+    const next = ordered[cursor];
+    cursor += 1;
+    return next ?? task;
+  });
 }
 
 export const useAgentStore = create<AgentState>((set, get) => {
