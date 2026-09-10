@@ -32,20 +32,7 @@ test.beforeAll(() => {
   rmSync(path.join(project, "denied.txt"), { force: true });
   writeFileSync(
     path.join(home, ".pi", "agent", "settings.json"),
-    `${JSON.stringify(
-      {
-        packages: [
-          "npm:pi-web-access",
-          "npm:pi-memory",
-          "npm:@juicesharp/rpiv-todo",
-          "npm:pi-subagents",
-          "npm:pi-mcp-adapter",
-          "npm:context-mode",
-        ],
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify({ packages: [] }, null, 2)}\n`,
   );
   rmSync(path.join(home, ".pi", "agent", "mcp.json"), { force: true });
 });
@@ -619,7 +606,7 @@ test("sidebars can pin into the layout and the terminal tab embeds zsh", async (
 
 test("work project picker is a centered titlebar button", async ({ page }) => {
   await page.goto("/board");
-  const button = page.getByRole("button", { name: "项目" });
+  const button = page.getByRole("button", { name: "项目", exact: true });
   await expect(button).toBeVisible();
   await expect(page.locator("header.titlebar select")).toHaveCount(0);
   const fontSize = await button.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
