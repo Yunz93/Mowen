@@ -74,6 +74,17 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("prompt.queue.edit"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      kind: z.enum(["steering", "followUp"]),
+      index: z.number().int().nonnegative(),
+      previousMessage: z.string().min(1).max(PROMPT_MESSAGE_MAX),
+      message: z.string().trim().min(1).max(PROMPT_MESSAGE_MAX),
+    }),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("agent.abort"),
     taskId: z.string().min(1),
     payload: z.object({}).optional(),

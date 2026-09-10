@@ -350,7 +350,9 @@ async function handlePrompt(message, mode) {
     state.isStreaming = false;
     persist();
     const queued = state.followUps.splice(0);
+    state.steering = [];
     state.pendingMessageCount = 0;
+    send({ type: "queue_update", steering: [], followUp: [] });
     for (const queuedMessage of queued) {
       enqueuePrompt(queuedMessage, "follow_up");
     }
@@ -434,13 +436,24 @@ function handleLine(line) {
     case "follow_up":
       respond(id, type, true);
       if (state.isStreaming) {
-        enqueuePrompt(parsed.message, "follow_up");
+        state.followUps.push(parsed.message);
+        state.pendingMessageCount = state.followUps.length;
+        send({ type: "queue_update", steering: [...state.steering], followUp: [...state.followUps] });
       } else {
         state.followUps.push(parsed.message);
         state.pendingMessageCount = state.followUps.length;
         send({ type: "queue_update", steering: [], followUp: [...state.followUps] });
       }
       break;
+    case "clear_queue": {
+      const queued = { steering: [...state.steering], followUp: [...state.followUps] };
+      state.steering = [];
+      state.followUps = [];
+      state.pendingMessageCount = 0;
+      send({ type: "queue_update", steering: [], followUp: [] });
+      respond(id, type, true, queued);
+      break;
+    }
     case "abort":
       state.aborted = true;
       respond(id, type, true);

@@ -1,3 +1,11 @@
+export type AuthEntryLike = {
+  id: string;
+  label: string;
+  kind: "api_key" | "oauth" | "other";
+  source?: "auth_file" | "env" | "models_json" | "other";
+  envVar?: string;
+};
+
 export type AuthCatalogItem = {
   id: string;
   label: string;
@@ -22,10 +30,10 @@ export function oauthAuthIds(providerId: string): string[] {
 }
 
 export function findAuthEntry(
-  entries: Array<{ id: string; label: string; kind: "api_key" | "oauth" | "other" }>,
+  entries: AuthEntryLike[],
   providerId: string,
   mode: AuthMode,
-): { id: string; label: string; kind: "api_key" | "oauth" | "other" } | undefined {
+): AuthEntryLike | undefined {
   if (mode === "oauth") {
     const ids = new Set(oauthAuthIds(providerId));
     return entries.find((entry) => ids.has(entry.id) && entry.kind === "oauth");
@@ -110,6 +118,31 @@ export function authStatusLabel(
   if (kind === "other") return "已连接";
   if (capabilities.oauth) return "未登录";
   return "未配置密钥";
+}
+
+/** Where a saved credential lives, for entries the UI does not manage itself. */
+export function authSourceLabel(entry?: Pick<AuthEntryLike, "source" | "envVar">): string | null {
+  if (!entry?.source || entry.source === "auth_file") return null;
+  if (entry.source === "env") return entry.envVar ? `环境变量 ${entry.envVar}` : "环境变量";
+  if (entry.source === "models_json") return "models.json";
+  return "外部设置";
+}
+
+/** Entries the UI can remove from auth.json (external credentials cannot be unset here). */
+export function isRemovableAuthEntry(entry?: Pick<AuthEntryLike, "source">): boolean {
+  return entry !== undefined && (entry.source === undefined || entry.source === "auth_file");
+}
+
+/** Status text for an auth entry; external credentials report their origin instead of "saved". */
+export function authEntryStatusLabel(
+  entry?: AuthEntryLike,
+  capabilities: { oauth?: boolean; apiKey?: boolean } = {},
+): string {
+  const source = authSourceLabel(entry);
+  if (entry?.source === "env") return source ?? "环境变量";
+  if (entry?.source === "models_json") return `${source} 中的密钥`;
+  if (entry?.source === "other") return "外部设置";
+  return authStatusLabel(entry?.kind, capabilities);
 }
 
 export function oauthButtonLabel(kind: "api_key" | "oauth" | "other" | undefined): string {

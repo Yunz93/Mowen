@@ -1007,6 +1007,18 @@ export function WorkbenchLayout() {
             fastModeActive={runtime.fastModeActive}
             queuedSteering={runtime.steering}
             queuedFollowUp={runtime.followUp}
+            onEditQueued={async (kind, index, previousMessage, message) => {
+              try {
+                await socketClient.send(
+                  "prompt.queue.edit",
+                  { kind, index, previousMessage, message },
+                  task.id,
+                );
+              } catch (error) {
+                reportRequestError(error, "修改队列消息失败");
+                throw error;
+              }
+            }}
             onFastMode={
               typeof runtime.fastModeEnabled === "boolean"
                 ? (enabled) => void socketClient.send("runtime.set", { fastMode: enabled }, task.id)

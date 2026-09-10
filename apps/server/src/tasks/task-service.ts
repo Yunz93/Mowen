@@ -66,6 +66,7 @@ export class TaskService {
   private readonly queue: string[] = [];
   private readonly booting = new Map<string, Promise<void>>();
   private readonly abortFallback = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly queueEdits = new Set<string>();
   private static readonly ABORT_CONFIRM_MS = 8_000;
   private activeTaskId: string | null = null;
   private readonly uploads = new UploadStore();
@@ -264,6 +265,8 @@ export class TaskService {
         return this.prompt(command.taskId, command.payload.message, command.payload.imageIds, "steer");
       case "prompt.followUp":
         return this.prompt(command.taskId, command.payload.message, command.payload.imageIds, "follow_up");
+      case "prompt.queue.edit":
+        return this.editQueuedPrompt(command.taskId, command.payload);
       case "agent.abort":
         return this.abort(command.taskId);
       case "model.set":
@@ -660,6 +663,44 @@ export class TaskService {
       }
     }
     return { ok: true };
+  }
+
+  private async editQueuedPrompt(
+    taskId: string,
+    payload: { kind: "steering" | "followUp"; index: number; previousMessage: string; message: string },
+  ): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    if (task.status !== "running" && task.status !== "waiting_approval") {
+      throw new Error("只有正在回复时才能修改队列消息。");
+    }
+    if (!this.supervisor.has(taskId)) throw new Error("AI 还没启动");
+    if (this.queueEdits.has(taskId)) throw new Error("队列正在更新，请稍后再试。");
+    this.queueEdits.add(taskId);
+
+    try {
+      const cleared = (await this.supervisor.rpcData(taskId, { type: "clear_queue" })) as {
+        steering?: unknown;
+        followUp?: unknown;
+      };
+      const queues = {
+        steering: Array.isArray(cleared.steering) ? cleared.steering.filter((item): item is string => typeof item === "string") : [],
+        followUp: Array.isArray(cleared.followUp) ? cleared.followUp.filter((item): item is string => typeof item === "string") : [],
+      };
+      const target = queues[payload.kind];
+      const unchanged = target[payload.index] === payload.previousMessage;
+      if (unchanged) target[payload.index] = payload.message.trim();
+
+      for (const message of queues.steering) {
+        await this.supervisor.rpcData(taskId, { type: "steer", message });
+      }
+      for (const message of queues.followUp) {
+        await this.supervisor.rpcData(taskId, { type: "follow_up", message });
+      }
+      if (!unchanged) throw new Error("这条消息已经发送或发生变化，请重新编辑。");
+      return { ok: true };
+    } finally {
+      this.queueEdits.delete(taskId);
+    }
   }
 
   private async attachMentionedFiles(task: TaskRecord, message: string): Promise<string> {

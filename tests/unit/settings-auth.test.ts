@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  authEntryStatusLabel,
+  authSourceLabel,
   authStatusLabel,
   findAuthEntry,
+  isRemovableAuthEntry,
   logoutNotice,
   mergeAuthCatalog,
   oauthButtonLabel,
@@ -62,6 +65,26 @@ describe("settings auth catalog", () => {
     expect(oauthButtonLabel("oauth")).toBe("重新登录");
     expect(logoutNotice("api_key")).toBe("已移除密钥。");
     expect(logoutNotice("oauth")).toBe("已退出登录。");
+  });
+
+  it("reports external credentials by their source", () => {
+    expect(authSourceLabel({ source: "auth_file" })).toBeNull();
+    expect(authSourceLabel(undefined)).toBeNull();
+    expect(authSourceLabel({ source: "env", envVar: "KIMI_API_KEY" })).toBe("环境变量 KIMI_API_KEY");
+    expect(authSourceLabel({ source: "env" })).toBe("环境变量");
+    expect(authSourceLabel({ source: "models_json" })).toBe("models.json");
+    const env = { id: "kimi-coding", label: "Kimi For Coding", kind: "api_key" as const, source: "env" as const, envVar: "KIMI_API_KEY" };
+    expect(authEntryStatusLabel(env)).toBe("环境变量 KIMI_API_KEY");
+    expect(authEntryStatusLabel({ ...env, source: "models_json", envVar: undefined })).toBe("models.json 中的密钥");
+    expect(authEntryStatusLabel({ ...env, source: "auth_file", envVar: undefined })).toBe("已保存密钥");
+    expect(authEntryStatusLabel({ ...env, source: undefined, envVar: undefined })).toBe("已保存密钥");
+    expect(authEntryStatusLabel({ id: "github", label: "GitHub Copilot", kind: "oauth", source: "auth_file" })).toBe("已登录");
+    expect(isRemovableAuthEntry(undefined)).toBe(false);
+    expect(isRemovableAuthEntry({ source: "auth_file" })).toBe(true);
+    expect(isRemovableAuthEntry({})).toBe(true);
+    expect(isRemovableAuthEntry({ source: "env" })).toBe(false);
+    expect(isRemovableAuthEntry({ source: "models_json" })).toBe(false);
+    expect(isRemovableAuthEntry({ source: "other" })).toBe(false);
   });
 
   it("exposes OpenAI as an oauth login provider", () => {

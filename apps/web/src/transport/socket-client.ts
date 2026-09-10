@@ -13,18 +13,35 @@ export class SocketClient {
   private requestId = 0;
   private retries = 0;
   private closedByUser = false;
+  private connecting = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   async connect(): Promise<void> {
     this.closedByUser = false;
-    await fetch("/api/session", { credentials: "same-origin" });
-    this.open();
+    if (this.connecting || this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+    this.connecting = true;
+    useAgentStore.getState().setConnection("connecting");
+    try {
+      const response = await fetch("/api/session", { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`Session bootstrap failed (${response.status})`);
+      if (!this.closedByUser) this.open();
+    } catch {
+      if (!this.closedByUser) this.scheduleReconnect();
+    } finally {
+      this.connecting = false;
+    }
   }
 
   disconnect(): void {
     this.closedByUser = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.socket?.close();
+    this.socket = null;
   }
 
   send<T = unknown>(
@@ -65,7 +82,6 @@ export class SocketClient {
   }
 
   private open(): void {
-    useAgentStore.getState().setConnection("connecting");
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${protocol}://${location.host}/ws`);
     this.socket = socket;
@@ -73,6 +89,10 @@ export class SocketClient {
     socket.addEventListener("open", () => {
       if (socket !== this.socket) return;
       this.retries = 0;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       useAgentStore.getState().setConnection("open");
     });
 
@@ -98,18 +118,22 @@ export class SocketClient {
 
     socket.addEventListener("close", () => {
       if (socket !== this.socket) return;
+      this.socket = null;
       useAgentStore.getState().setConnection("closed");
       failPendingRequests(this.pending, new Error("连接已断开，请稍后再发。"));
-      if (this.closedByUser) return;
-      const delay = Math.min(1000 * 2 ** this.retries, 8000);
-      this.retries += 1;
-      this.reconnectTimer = setTimeout(() => {
-        void this.connect().then(() => {
-          const taskId = useAgentStore.getState().activeTaskId;
-          return this.send("snapshot.request", taskId ? { taskId } : undefined, taskId ?? undefined);
-        });
-      }, delay);
+      this.scheduleReconnect();
     });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closedByUser || this.reconnectTimer) return;
+    useAgentStore.getState().setConnection("connecting");
+    const delay = Math.min(1000 * 2 ** this.retries, 8000);
+    this.retries += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.connect();
+    }, delay);
   }
 }
 

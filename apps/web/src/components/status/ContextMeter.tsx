@@ -68,7 +68,7 @@ export function ContextMeter({
         <div
           role="dialog"
           aria-label="上下文用量"
-          className="dialog-panel absolute right-0 top-12 z-40 w-[min(340px,calc(100vw-24px))] max-w-none"
+          className="dialog-panel dialog-panel-solid absolute right-0 top-12 z-40 w-[min(340px,calc(100vw-24px))] max-w-none"
         >
           <div className="dialog-head">
             <div className="dialog-head-text">

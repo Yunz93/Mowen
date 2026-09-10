@@ -10,6 +10,7 @@ import {
   tryRepairAgentDir,
 } from "./pi-agent-dir.js";
 import { oauthAuthIds, runPiOAuthLogin, type PiOAuthLoginResult } from "./pi-oauth-login.js";
+import { listPiAuthEntries, mergeAuthEntries } from "./pi-auth-entries.js";
 
 export const OAUTH_PROVIDERS = [
   { id: "github", label: "GitHub Copilot" },
@@ -99,6 +100,7 @@ export function authKind(type: string | undefined): AuthEntry["kind"] {
 export async function listAuthEntries(
   homeDir = os.homedir(),
   agentDir = defaultPiAgentDir(homeDir),
+  options: { pi?: { command: string; prefixArgs: string[] } } = {},
 ): Promise<AuthEntry[]> {
   const auth = await readAuthFile(homeDir, agentDir);
   const fromFile: AuthEntry[] = Object.entries(auth)
@@ -113,18 +115,33 @@ export async function listAuthEntries(
       id,
       label: PROVIDER_LABELS[id] ?? id,
       kind: authKind(value?.type),
+      source: "auth_file" as const,
     }));
 
-  const fromEnv = BEGINNER_PROVIDERS.filter((provider) => {
+  const fromEnv: AuthEntry[] = BEGINNER_PROVIDERS.filter((provider) => {
     const value = process.env[provider.envVar];
     return Boolean(value && value.trim()) && !fromFile.some((entry) => entry.id === provider.id);
   }).map((provider) => ({
     id: provider.id,
     label: provider.label,
     kind: "api_key" as const,
+    source: "env" as const,
+    envVar: provider.envVar,
   }));
 
-  return [...fromFile, ...fromEnv].sort((a, b) => a.id.localeCompare(b.id));
+  const entries = [...fromFile, ...fromEnv];
+  if (options.pi) {
+    mergeAuthEntries(
+      entries,
+      await listPiAuthEntries({
+        agentDir,
+        piCommand: options.pi.command,
+        piPrefixArgs: options.pi.prefixArgs,
+      }),
+    );
+  }
+
+  return entries.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function listConfiguredProviders(

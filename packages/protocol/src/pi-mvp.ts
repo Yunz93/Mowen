@@ -1,9 +1,16 @@
 import { z } from "zod";
 
+export const authEntrySourceSchema = z.enum(["auth_file", "env", "models_json", "other"]);
+export type AuthEntrySource = z.infer<typeof authEntrySourceSchema>;
+
 export const authEntrySchema = z.object({
   id: z.string(),
   label: z.string(),
   kind: z.enum(["api_key", "oauth", "other"]),
+  /** Where the credential comes from; omitted payloads are treated as auth.json. */
+  source: authEntrySourceSchema.optional(),
+  /** Environment variable name when `source` is "env". */
+  envVar: z.string().optional(),
 });
 export type AuthEntry = z.infer<typeof authEntrySchema>;
 

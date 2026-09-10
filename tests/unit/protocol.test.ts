@@ -45,6 +45,24 @@ describe("protocol", () => {
     ).toBe(false);
   });
 
+  it("validates edits to queued prompts", () => {
+    const command = {
+      id: "queue-edit",
+      type: "prompt.queue.edit",
+      taskId: "11111111-1111-4111-8111-111111111111",
+      payload: {
+        kind: "followUp",
+        index: 1,
+        previousMessage: "old text",
+        message: "corrected text",
+      },
+    };
+    expect(clientCommandSchema.parse(command).payload).toEqual(command.payload);
+    expect(
+      clientCommandSchema.safeParse({ ...command, payload: { ...command.payload, message: "   " } }).success,
+    ).toBe(false);
+  });
+
   it("accepts pi mvp session and runtime commands", () => {
     expect(
       clientCommandSchema.parse({

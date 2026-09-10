@@ -21,11 +21,29 @@ describe("pi mvp helpers", () => {
     const entries = await listAuthEntries(home);
     expect(entries).toEqual(
       expect.arrayContaining([
-        { id: "anthropic", label: "Anthropic (Claude)", kind: "api_key" },
-        { id: "github", label: "GitHub Copilot", kind: "oauth" },
+        { id: "anthropic", label: "Anthropic (Claude)", kind: "api_key", source: "auth_file" },
+        { id: "github", label: "GitHub Copilot", kind: "oauth", source: "auth_file" },
       ]),
     );
     expect(JSON.stringify(entries)).not.toContain("sk-secret");
+  });
+
+  it("marks shell env credentials with their env var", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-auth-env-"));
+    const previous = process.env.DEEPSEEK_API_KEY;
+    process.env.DEEPSEEK_API_KEY = "sk-deepseek-test";
+    try {
+      const entries = await listAuthEntries(home);
+      expect(entries).toEqual(
+        expect.arrayContaining([
+          { id: "deepseek", label: "DeepSeek", kind: "api_key", source: "env", envVar: "DEEPSEEK_API_KEY" },
+        ]),
+      );
+      expect(JSON.stringify(entries)).not.toContain("sk-deepseek-test");
+    } finally {
+      if (previous === undefined) delete process.env.DEEPSEEK_API_KEY;
+      else process.env.DEEPSEEK_API_KEY = previous;
+    }
   });
 
   it("removes a provider from auth.json", async () => {

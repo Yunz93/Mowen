@@ -65,7 +65,9 @@ export async function buildSetupStatus(
 ): Promise<SetupStatus> {
   const userSettings = settings.get();
   const agentDir = config.piAgentDir;
-  const authEntries = await listAuthEntries(config.homeDir, agentDir);
+  const authEntries = await listAuthEntries(config.homeDir, agentDir, {
+    pi: { command: config.piCommand, prefixArgs: config.piPrefixArgs },
+  });
   const configuredProviders = authEntries.map((entry) => entry.id);
   const authConfigured = configuredProviders.length > 0 || (await hasAnyAuth(config.homeDir, agentDir));
   const models = await inspectModelsFile(config.homeDir, agentDir);

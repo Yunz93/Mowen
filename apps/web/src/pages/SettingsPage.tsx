@@ -5,7 +5,7 @@ import { useAgentStore } from "../stores/agent-store";
 import { SetupWizard, type SetupStatus, setupStorePayload } from "../components/setup/SetupWizard";
 import { useTheme } from "../hooks/useTheme";
 import { socketClient } from "../transport/socket-client";
-import { authStatusLabel, findAuthEntry, logoutNotice, mergeAuthCatalog, oauthButtonLabel, pickDefaultProvider, providersForMode, type AuthMode } from "../lib/settings-auth";
+import { authEntryStatusLabel, findAuthEntry, isRemovableAuthEntry, logoutNotice, mergeAuthCatalog, oauthButtonLabel, pickDefaultProvider, providersForMode, type AuthMode } from "../lib/settings-auth";
 import { UpdateBanner } from "../components/app/UpdateBanner";
 import { AppUpdateSection } from "../components/settings/AppUpdateSection";
 
@@ -395,7 +395,7 @@ export function SettingsPage() {
                     <div className="min-w-0">
                       <p className="text-[13px] text-ink">{activeItem.label}</p>
                       <p className="mt-0.5 text-[12px] text-mute">
-                        {authStatusLabel(activeEntry?.kind, {
+                        {authEntryStatusLabel(activeEntry, {
                           oauth: authMode === "oauth",
                           apiKey: authMode === "api_key",
                         })}
@@ -424,7 +424,7 @@ export function SettingsPage() {
                           </button>
                         </>
                       ) : null}
-                      {activeEntry ? (
+                      {activeEntry && isRemovableAuthEntry(activeEntry) ? (
                         <button
                           type="button"
                           className="pressable btn btn-ghost"
@@ -498,16 +498,18 @@ export function SettingsPage() {
                       <li key={entry.id} className="flex items-center justify-between gap-2 text-[13px] text-ink">
                         <span className="min-w-0 truncate">
                           {entry.label}
-                          <span className="ml-2 text-[12px] text-mute">{authStatusLabel(entry.kind)}</span>
+                          <span className="ml-2 text-[12px] text-mute">{authEntryStatusLabel(entry)}</span>
                         </span>
-                        <button
-                          type="button"
-                          className="pressable btn btn-ghost shrink-0"
-                          disabled={authBusy === entry.id}
-                          onClick={() => void logoutProvider(entry.id)}
-                        >
-                          {entry.kind === "api_key" ? "移除" : "退出"}
-                        </button>
+                        {isRemovableAuthEntry(entry) ? (
+                          <button
+                            type="button"
+                            className="pressable btn btn-ghost shrink-0"
+                            disabled={authBusy === entry.id}
+                            onClick={() => void logoutProvider(entry.id)}
+                          >
+                            {entry.kind === "api_key" ? "移除" : "退出"}
+                          </button>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@qingzhou/protocol";
 import { extractAtMentions } from "@qingzhou/protocol";
-import { ArrowUp, Clock3, CornerUpRight, Plus, Square, X } from "lucide-react";
+import { ArrowUp, Check, Clock3, CornerUpRight, Pencil, Plus, Square, X } from "lucide-react";
 import { composerCanSubmit, filesFromClipboard, nextComposerDomValue, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";
 import { busySubmitKind, readBusySendMode, writeBusySendMode, type BusySendMode } from "../../lib/ui-prefs";
@@ -42,6 +42,12 @@ type Props = {
   onFastMode?: (enabled: boolean) => void;
   queuedSteering?: string[];
   queuedFollowUp?: string[];
+  onEditQueued?: (
+    kind: "steering" | "followUp",
+    index: number,
+    previousMessage: string,
+    message: string,
+  ) => Promise<void>;
 };
 
 function mentionQuery(value: string, caret: number): { start: number; query: string } | null {
@@ -88,6 +94,7 @@ export function PromptComposer({
   onFastMode,
   queuedSteering = [],
   queuedFollowUp = [],
+  onEditQueued,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
@@ -97,6 +104,13 @@ export function PromptComposer({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [busySendMode, setBusySendMode] = useState<BusySendMode>(() => readBusySendMode());
+  const [queueEdit, setQueueEdit] = useState<{
+    kind: "steering" | "followUp";
+    index: number;
+    previousMessage: string;
+    message: string;
+    saving: boolean;
+  } | null>(null);
   const starting = status === "booting" || status === "queued";
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
@@ -125,6 +139,12 @@ export function PromptComposer({
   useEffect(() => {
     if (mention) onNeedFiles();
   }, [mention, onNeedFiles]);
+
+  useEffect(() => {
+    if (!queueEdit || queueEdit.saving) return;
+    const items = queueEdit.kind === "steering" ? queuedSteering : queuedFollowUp;
+    if (items[queueEdit.index] !== queueEdit.previousMessage) setQueueEdit(null);
+  }, [queueEdit, queuedFollowUp, queuedSteering]);
 
   const fileHits = useMemo(() => {
     if (!mention) return [];
@@ -199,6 +219,93 @@ export function PromptComposer({
     onImages(pasted);
   };
 
+  const saveQueueEdit = async () => {
+    if (!queueEdit || !onEditQueued || !queueEdit.message.trim()) return;
+    const current = queueEdit;
+    setQueueEdit({ ...current, saving: true });
+    try {
+      await onEditQueued(current.kind, current.index, current.previousMessage, current.message.trim());
+      setQueueEdit(null);
+    } catch {
+      setQueueEdit((value) => (value ? { ...value, saving: false } : value));
+    }
+  };
+
+  const queueRow = (kind: "steering" | "followUp", text: string, index: number) => {
+    const editing = queueEdit?.kind === kind && queueEdit.index === index && queueEdit.previousMessage === text;
+    const label = kind === "steering" ? "补充中" : "回复后发送";
+    return (
+      <div
+        key={`${kind}-${index}`}
+        className="flex min-h-6 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 py-0.5 text-[11.5px] leading-5"
+      >
+        {kind === "steering" ? (
+          <CornerUpRight size={11} className="shrink-0 text-accent" />
+        ) : (
+          <Clock3 size={11} className="shrink-0 text-accent" />
+        )}
+        {editing ? (
+          <input
+            autoFocus
+            value={queueEdit.message}
+            disabled={queueEdit.saving}
+            aria-label="修改队列消息"
+            className="min-w-0 flex-1 bg-transparent text-ink outline-none"
+            onChange={(event) => setQueueEdit({ ...queueEdit, message: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setQueueEdit(null);
+              }
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void saveQueueEdit();
+              }
+            }}
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-ink" title={text}>
+            {text}
+          </span>
+        )}
+        <span className={`shrink-0 ${kind === "steering" ? "text-accent" : "text-mute"}`}>{label}</span>
+        {onEditQueued ? (
+          editing ? (
+            <>
+              <button
+                type="button"
+                className="pressable inline-flex h-5 w-5 items-center justify-center text-accent"
+                aria-label="保存队列消息"
+                disabled={queueEdit.saving || !queueEdit.message.trim()}
+                onClick={() => void saveQueueEdit()}
+              >
+                <Check size={12} />
+              </button>
+              <button
+                type="button"
+                className="pressable inline-flex h-5 w-5 items-center justify-center text-mute"
+                aria-label="取消修改队列消息"
+                disabled={queueEdit.saving}
+                onClick={() => setQueueEdit(null)}
+              >
+                <X size={12} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="pressable inline-flex h-5 w-5 items-center justify-center text-mute"
+              aria-label={`编辑队列消息 ${index + 1}`}
+              onClick={() => setQueueEdit({ kind, index, previousMessage: text, message: text, saving: false })}
+            >
+              <Pencil size={11} />
+            </button>
+          )
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-1">
       <div
@@ -238,30 +345,8 @@ export function PromptComposer({
             aria-label="排队中的指令"
             className={`flex max-h-28 flex-col gap-1 overflow-auto px-3.5 ${images.length > 0 ? "pt-2" : "pt-3"}`}
           >
-            {queuedSteering.map((text, index) => (
-              <div
-                key={`steer-${index}`}
-                className="flex min-h-6 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 py-0.5 text-[11.5px] leading-5"
-              >
-                <CornerUpRight size={11} className="shrink-0 text-accent" />
-                <span className="min-w-0 flex-1 truncate text-ink" title={text}>
-                  {text}
-                </span>
-                <span className="shrink-0 text-accent">补充中</span>
-              </div>
-            ))}
-            {queuedFollowUp.map((text, index) => (
-              <div
-                key={`queue-${index}`}
-                className="flex min-h-6 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 py-0.5 text-[11.5px] leading-5"
-              >
-                <Clock3 size={11} className="shrink-0 text-accent" />
-                <span className="min-w-0 flex-1 truncate text-ink" title={text}>
-                  {text}
-                </span>
-                <span className="shrink-0 text-mute">回复后发送</span>
-              </div>
-            ))}
+            {queuedSteering.map((text, index) => queueRow("steering", text, index))}
+            {queuedFollowUp.map((text, index) => queueRow("followUp", text, index))}
           </div>
         ) : null}
         <textarea

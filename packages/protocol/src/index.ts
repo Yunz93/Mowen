@@ -116,6 +116,7 @@ export {
 } from "./work-items.js";
 export {
   authEntrySchema,
+  authEntrySourceSchema,
   interactionRequestSchema,
   piResourceFileSchema,
   piExtensionSchema,
@@ -127,6 +128,7 @@ export {
   sessionTreeNodeSchema,
   emptyRuntime,
   type AuthEntry,
+  type AuthEntrySource,
   type InteractionRequest,
   type PiResources,
   type PiSessionRef,

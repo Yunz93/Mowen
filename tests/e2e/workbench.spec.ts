@@ -438,6 +438,12 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
     .fill(`please stream this slowly ${"word ".repeat(40)}`);
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByRole("button", { name: "停止" })).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel("输入消息").fill("streaming draft");
+  await expect(page.getByLabel("输入消息")).toBeFocused();
+  await page.waitForTimeout(300);
+  await expect(page.getByLabel("输入消息")).toHaveValue("streaming draft");
+  await expect(page.getByLabel("输入消息")).toBeFocused();
+  await page.getByLabel("输入消息").fill("");
   await expect(page.locator("header.titlebar")).not.toContainText("回车补充");
   await expect(page.getByLabel("输入消息")).toHaveAttribute(
     "placeholder",
@@ -452,7 +458,11 @@ test("queue follow-up while running and retry after abort", async ({ page }) => 
   await expect(page.getByLabel("输入消息")).toHaveAttribute("placeholder", "回车排队，Shift+Enter 补充");
   await page.getByLabel("输入消息").fill("queued next");
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByText("Follow-up: queued next").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTitle("queued next")).toBeVisible();
+  await page.getByRole("button", { name: "编辑队列消息 1" }).click();
+  await page.getByRole("textbox", { name: "修改队列消息", exact: true }).fill("queued corrected");
+  await page.getByRole("button", { name: "保存队列消息" }).click();
+  await expect(page.getByText("Follow-up: queued corrected").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0);
 
   await page

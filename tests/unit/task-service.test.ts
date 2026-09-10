@@ -31,6 +31,58 @@ function task(id: string, cwd: string): TaskRecord {
 }
 
 describe("task service process reservations", () => {
+  it("edits one queued prompt and replays the queues in order", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mypi-queue-edit-"));
+    const store = new TaskStore(root);
+    await store.load();
+    const taskId = "55555555-5555-4555-8555-555555555555";
+    await store.upsert({ ...task(taskId, root), status: "running" });
+    const config: AppConfig = {
+      host: "127.0.0.1",
+      port: 0,
+      piBin: "pi",
+      piCommand: "pi",
+      piPrefixArgs: [],
+      piExtraEnv: {},
+      dataDir: root,
+      allowedRoots: [root],
+      maxProcesses: 1,
+      mutations: "approval",
+      nodeEnv: "test",
+      approvalTimeoutMs: 1000,
+      allowedOrigins: [],
+      webDistDir: root,
+      approvalExtensionPath: path.join(root, "approval.ts"),
+      homeDir: root,
+      piBundled: false,
+      piAgentDir: path.join(root, ".pi", "agent"),
+      trustProject: false,
+    };
+    const service = new TaskService(config, store, "test", null);
+    vi.spyOn(service.supervisor, "has").mockReturnValue(true);
+    const rpc = vi.spyOn(service.supervisor, "rpcData").mockImplementation(async (_id, command) => {
+      if (command.type === "clear_queue") {
+        return { steering: ["first"], followUp: ["old text", "last"] };
+      }
+      return {};
+    });
+
+    await service.handleCommand({
+      id: "queue-edit",
+      type: "prompt.queue.edit",
+      taskId,
+      payload: { kind: "followUp", index: 0, previousMessage: "old text", message: "corrected" },
+    });
+
+    expect(rpc.mock.calls.map(([, command]) => command)).toEqual([
+      { type: "clear_queue" },
+      { type: "steer", message: "first" },
+      { type: "follow_up", message: "corrected" },
+      { type: "follow_up", message: "last" },
+    ]);
+    service.dispose();
+  });
+
   it("boots a task once and reserves the process slot before awaiting", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "mypi-service-"));
     const store = new TaskStore(root);
