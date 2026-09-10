@@ -299,6 +299,7 @@ type AgentState = {
   echoTerm: (taskId: string, command: string) => void;
   clearTerm: (taskId: string) => void;
   clearRequestError: () => void;
+  dismissErrors: () => void;
   setSetupState: (payload: {
     needsSetup: boolean;
     authConfigured: boolean;
@@ -441,7 +442,8 @@ export const useAgentStore = create<AgentState>((set, get) => {
     set((state) => ({
         termByTask: { ...state.termByTask, [taskId]: { ...emptyTerm } },
     })),
-  clearRequestError: () => set({ requestError: null, serverError: null }),
+  clearRequestError: () => set({ requestError: null }),
+  dismissErrors: () => set({ requestError: null, serverError: null }),
   setSetupState: (payload) =>
     set({
       needsSetup: payload.needsSetup,
@@ -617,7 +619,12 @@ export const useAgentStore = create<AgentState>((set, get) => {
           commandsByTask,
           git: event.payload.git ?? current.git,
           checkpoints: event.payload.checkpoints ?? current.checkpoints,
-          resources: event.payload.resources ?? current.resources,
+          resources:
+            event.payload.resources !== undefined
+              ? event.payload.resources
+              : nextActive === current.activeTaskId
+                ? current.resources
+                : null,
           sessionTree: event.payload.sessionTree ?? current.sessionTree,
           sessionLeafId:
             event.payload.sessionLeafId !== undefined ? event.payload.sessionLeafId : current.sessionLeafId,
@@ -965,11 +972,21 @@ export const useAgentStore = create<AgentState>((set, get) => {
 
 if (typeof sessionStorage !== "undefined") {
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
-  useAgentStore.subscribe((state) => {
+  useAgentStore.subscribe((state, prev) => {
+    if (
+      state.tasks === prev.tasks &&
+      state.activeTaskId === prev.activeTaskId &&
+      state.messages === prev.messages &&
+      state.tools === prev.tools &&
+      state.messagesByTask === prev.messagesByTask &&
+      state.toolsByTask === prev.toolsByTask
+    ) {
+      return;
+    }
     if (persistTimer) return;
     persistTimer = setTimeout(() => {
       persistTimer = null;
-      persistWorkbenchCache(state);
+      persistWorkbenchCache(useAgentStore.getState());
     }, 200);
   });
 }

@@ -8,7 +8,7 @@ type Props = {
   defaultCwd: string;
   sessions?: PiSessionRef[];
   onCancel: () => void;
-  onCreate: (cwd: string, title?: string) => void | Promise<void>;
+  onCreate: (cwd?: string, title?: string) => void | Promise<void>;
   onResume?: (session: PiSessionRef) => void | Promise<void>;
 };
 
@@ -22,14 +22,10 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
 
   async function submitCreate(): Promise<void> {
     if (busy) return;
-    if (!cwd.trim()) {
-      setError("请先选择一个文件夹。");
-      return;
-    }
     setBusy(true);
     setError("");
     try {
-      await onCreate(cwd.trim(), title.trim() || undefined);
+      await onCreate(cwd.trim() || undefined, title.trim() || undefined);
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "创建对话失败");
       setBusy(false);
@@ -66,7 +62,7 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
             <h2 id="new-task-title" className="dialog-title">
               新对话
             </h2>
-            <p className="dialog-copy">工作文件夹</p>
+            <p className="dialog-copy">可以不选文件夹，直接随便聊聊。</p>
           </div>
           <button type="button" className="pressable icon-btn -mr-1 -mt-1" aria-label="关闭" onClick={onCancel}>
             <X size={16} />
@@ -108,7 +104,6 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
                   setError("");
                 }}
                 className="field mt-1 w-full font-mono text-sm"
-                required
                 autoFocus
               />
             </div>

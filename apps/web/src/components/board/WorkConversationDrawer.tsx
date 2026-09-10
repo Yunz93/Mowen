@@ -39,6 +39,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
     item.taskId ? (state.runtimeByTask[item.taskId] ?? state.runtime) : state.runtime,
   );
   const requestError = useAgentStore((state) => state.requestError);
+  const serverError = useAgentStore((state) => state.serverError);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ComposerImage[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -149,9 +150,9 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
             {uploadError}
           </p>
         ) : null}
-        {requestError ? (
+        {requestError || serverError || task.errorMessage ? (
           <p className="px-4 pb-1 text-[12px] text-danger" role="alert">
-            {requestError}
+            {requestError ?? serverError ?? task.errorMessage}
           </p>
         ) : null}
         {itemClosed ? (

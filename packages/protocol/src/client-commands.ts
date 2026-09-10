@@ -24,7 +24,7 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
     ...commandBase,
     type: z.literal("task.create"),
     payload: z.object({
-      cwd: z.string().min(1),
+      cwd: z.string().min(1).optional(),
       title: z.string().min(1).optional(),
     }),
   }),

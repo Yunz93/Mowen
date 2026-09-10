@@ -211,7 +211,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "AGENTS.md" }).first()).toBeVisible();
   await page.getByRole("button", { name: "技能" }).click();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("没有可更新的系统技能。")).toBeVisible({
     timeout: 15_000,
   });
@@ -227,7 +227,8 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("demo-ext")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "详情" }).getByText("pi-web-access")).toBeVisible();
   await expect(page.getByRole("button", { name: /安装推荐/ })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装")).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐安装")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装", { exact: true })).toHaveCount(0);
   const presetSources = [
     "npm:pi-web-access",
     "npm:pi-memory",
@@ -249,7 +250,9 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
   await page.getByRole("button", { name: "安装 pi-web-access" }).click();
   await expect.poll(readPiPackages).toContain("npm:pi-web-access");
   await page.getByRole("button", { name: /安装推荐/ }).click();
-  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装")).toHaveCount(6);
+  await expect(page.getByRole("button", { name: /安装推荐/ })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("推荐安装")).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "详情" }).getByText("已安装", { exact: true })).toHaveCount(7);
   await expect(page.getByRole("button", { name: "正在安装…" })).toHaveCount(0);
   await expect.poll(readPiPackages).toEqual(expect.arrayContaining(presetSources));
   await expect
@@ -265,9 +268,6 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
     })
     .toHaveProperty("context-mode");
   await page.getByRole("button", { name: "技能" }).click();
-  await page.getByRole("button", { name: "导出 HTML" }).click();
-  await expect(page.getByText(/已导出到/)).toBeVisible();
-  await page.getByRole("button", { name: "关闭", exact: true }).click();
 
   await page.getByRole("button", { name: "上下文用量" }).click();
   await expect(page.getByRole("dialog", { name: "上下文用量" }).getByText(/20 \/ .+ tokens/)).toBeVisible();
@@ -420,12 +420,7 @@ test("copy reply, rename session, find in conversation, and open export", async 
   await page.getByRole("button", { name: "详情" }).click();
   await page.getByRole("button", { name: "资源" }).click();
   await page.getByRole("button", { name: "技能" }).click();
-  await page.getByRole("button", { name: "导出 HTML" }).click();
-  await expect(page.getByText(/已导出到/)).toBeVisible();
-  const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "打开" }).click();
-  const popup = await popupPromise;
-  await expect(popup.locator("body")).toContainText("messages");
+  await expect(page.getByRole("complementary", { name: "详情" }).getByRole("button", { name: "检查更新" })).toBeVisible();
 });
 
 test("scrolling up during stream is not yanked back down", async ({ page }) => {
@@ -622,16 +617,13 @@ test("sidebars can pin into the layout and the terminal tab embeds zsh", async (
   await expect(page.getByLabel("终端")).toBeVisible();
 });
 
-test("work project picker is a borderless titlebar select", async ({ page }) => {
+test("work project picker is a centered titlebar button", async ({ page }) => {
   await page.goto("/board");
-  const select = page.getByLabel("项目");
-  await expect(select).toBeVisible();
-  const styles = await select.evaluate((el) => {
-    const computed = getComputedStyle(el);
-    return { background: computed.backgroundColor, borderWidth: computed.borderTopWidth };
-  });
-  expect(styles.borderWidth).toBe("0px");
-  expect(styles.background === "rgba(0, 0, 0, 0)" || styles.background === "transparent").toBe(true);
+  const button = page.getByRole("button", { name: "项目" });
+  await expect(button).toBeVisible();
+  await expect(page.locator("header.titlebar select")).toHaveCount(0);
+  const fontSize = await button.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
+  expect(fontSize).toBeGreaterThanOrEqual(15);
 });
 
 test("work mode creates an objective and starts an agent run", async ({ page }) => {

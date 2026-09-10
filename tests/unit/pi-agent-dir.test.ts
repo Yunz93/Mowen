@@ -75,6 +75,9 @@ describe("Pi agent dir and auth errors", () => {
     expect(isProviderRequestError("HTTP 429 Too Many Requests")).toBe(true);
     expect(isProviderRequestError("insufficient_quota")).toBe(true);
     expect(shouldSurfacePiStderr("HTTP 429 Too Many Requests: rate_limit_error")).toBe(true);
+    expect(shouldSurfacePiStderr("额度不足")).toBe(true);
+    expect(humanizeUserFacingError(new Error("insufficient_quota"))).toMatch(/额度不足/);
+    expect(humanizeUserFacingError(new Error("额度不足，请充值"))).toMatch(/额度不足/);
     expect(humanizeUserFacingError({ type: "rate_limit_error", message: "Request would exceed rate limit" })).toMatch(
       /API 请求失败：[\s\S]*rate_limit_error[\s\S]*Request would exceed rate limit/,
     );

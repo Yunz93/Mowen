@@ -6,9 +6,6 @@ type Props = {
   skills: Skill[];
   trustProject: boolean;
   onToggle: (path: string, enabled: boolean) => void;
-  lastExportPath?: string | null;
-  onExport?: () => void;
-  onOpenExport?: (path: string) => void;
   busy?: string | null;
   error?: string;
   updates?: SkillUpdateItem[] | null;
@@ -28,9 +25,6 @@ export function InspectorSkills({
   skills,
   trustProject,
   onToggle,
-  lastExportPath = null,
-  onExport,
-  onOpenExport,
   busy = null,
   error = "",
   updates = null,
@@ -119,26 +113,6 @@ export function InspectorSkills({
           })}
         </ul>
       )}
-      {onExport ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
-            onClick={() => onExport()}
-          >
-            导出 HTML
-          </button>
-          {lastExportPath && onOpenExport ? (
-            <button
-              type="button"
-              className="pressable h-7 rounded-md bg-fill-strong px-3 text-[12px] text-ink"
-              onClick={() => onOpenExport(lastExportPath)}
-            >
-              打开
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

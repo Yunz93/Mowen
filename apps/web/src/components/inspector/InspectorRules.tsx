@@ -7,6 +7,7 @@ type Preview = { path: string; content: string; truncated: boolean };
 type Props = {
   files: AgentFile[];
   cwd?: string | null;
+  loading?: boolean;
   onRead: (path: string) => Promise<Preview>;
   onWrite: (path: string, content: string) => Promise<void>;
   onCreate?: () => void;
@@ -17,7 +18,7 @@ function fileLabel(file: AgentFile): string {
   return name;
 }
 
-export function InspectorRules({ files, cwd, onRead, onWrite, onCreate }: Props) {
+export function InspectorRules({ files, cwd, loading = false, onRead, onWrite, onCreate }: Props) {
   const ordered = useMemo(() => {
     const root = cwd ? cwd.replace(/\/$/, "") : "";
     return [...files].sort((a, b) => {
@@ -88,6 +89,14 @@ export function InspectorRules({ files, cwd, onRead, onWrite, onCreate }: Props)
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-3 p-3">
+        <p className="text-sm leading-6 text-mute">正在读取约定…</p>
+      </div>
+    );
+  }
+
   if (ordered.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-3 p-3">
@@ -130,6 +139,7 @@ export function InspectorRules({ files, cwd, onRead, onWrite, onCreate }: Props)
       {truncated ? (
         <p className="shrink-0 px-3 py-1.5 text-[12px] text-mute">文件太大，这里只能看前一段，不能改。</p>
       ) : null}
+      {busy && !draft ? <p className="shrink-0 px-3 py-1.5 text-[12px] text-mute">正在读取约定…</p> : null}
       <textarea
         aria-label="约定内容"
         className="min-h-0 flex-1 resize-none border-0 bg-transparent px-3 py-2 font-mono text-[12px] leading-5 text-ink outline-none"

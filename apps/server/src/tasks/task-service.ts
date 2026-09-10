@@ -35,6 +35,7 @@ import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "
 import { assertAllowedCwd, isInsideRoot, isProtectedWriteTarget, resolveAllowedPath } from "../security/path-policy.js";
 import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-agent-dir.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
+import { ensureCasualChatCwd } from "./casual-chat.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
 import { assertGitRelativePath, commitGit, initGit, pushGit, readGitDiff, readGitStatus, restoreGit } from "./git-status.js";
@@ -413,13 +414,16 @@ export class TaskService {
     };
   }
 
-  private async createTask(cwd: string, title?: string, sessionPath?: string): Promise<{ task: TaskRecord }> {
-    const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+  private async createTask(cwd?: string, title?: string, sessionPath?: string): Promise<{ task: TaskRecord }> {
+    const casual = !cwd?.trim();
+    const resolved = casual
+      ? await ensureCasualChatCwd(this.config.homeDir, this.config.allowedRoots)
+      : await assertAllowedCwd(cwd!.trim(), this.config.allowedRoots);
     const now = new Date().toISOString();
     const task: TaskRecord = {
       schemaVersion: 1,
       id: randomUUID(),
-      title: title?.trim() || path.basename(resolved) || "新对话",
+      title: title?.trim() || (casual ? "随便聊聊" : path.basename(resolved) || "新对话"),
       cwd: resolved,
       sessionPath: sessionPath ?? null,
       status: "stopped",

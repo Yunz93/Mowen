@@ -9,6 +9,7 @@ import {
   MessageSquareText,
   Pause,
   Play,
+  Plus,
   ShieldAlert,
   UserRound,
 } from "lucide-react";
@@ -29,6 +30,7 @@ type Props = {
   filter: WorkFilter;
   query: string;
   onQuery: (value: string) => void;
+  onCreate?: () => void;
   onFilter: (filter: WorkFilter) => void;
   onSelect: (item: WorkItemSummary) => void;
   onStart: (id: string) => void;
@@ -87,6 +89,7 @@ export function WorkDashboard({
   filter,
   query,
   onQuery,
+  onCreate,
   onFilter,
   onSelect,
   onStart,
@@ -146,16 +149,24 @@ export function WorkDashboard({
 
   return (
     <div className="work-dashboard">
-      <label className="search-field work-search">
-        <span className="sr-only">搜索任务</span>
-        <input
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          placeholder="搜索任务"
-          aria-label="搜索任务"
-          className="h-7 w-full bg-transparent text-[13px] text-ink placeholder:text-mute"
-        />
-      </label>
+      <div className="work-toolbar">
+        <label className="search-field work-search">
+          <span className="sr-only">搜索任务</span>
+          <input
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            placeholder="搜索任务"
+            aria-label="搜索任务"
+            className="h-7 w-full bg-transparent text-[13px] text-ink placeholder:text-mute"
+          />
+        </label>
+        {onCreate ? (
+          <button type="button" className="pressable btn btn-primary h-7 shrink-0" onClick={onCreate}>
+            <Plus size={14} />
+            新建任务
+          </button>
+        ) : null}
+      </div>
       <div className="work-filter-strip" aria-label="工作筛选">
         {FILTERS.map((entry) => (
           <button

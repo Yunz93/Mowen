@@ -100,6 +100,31 @@ describe("agent store transcripts", () => {
     expect(useAgentStore.getState().requestError).toBeNull();
   });
 
+  it("keeps provider errors when clearing a send error", () => {
+    const store = useAgentStore.getState();
+    store.applyEvent(
+      event({
+        taskId: "task-a",
+        sequence: 200,
+        type: "server.error",
+        payload: { code: "pi.stderr", message: "额度不足，暂时无法调用模型。请检查账户余额或更换密钥。" },
+      }),
+    );
+    store.applyEvent(
+      event({
+        taskId: "task-a",
+        sequence: 201,
+        type: "request.failed",
+        payload: { requestId: "quota-send", error: "发送失败" },
+      }),
+    );
+    store.clearRequestError();
+    expect(useAgentStore.getState().requestError).toBeNull();
+    expect(useAgentStore.getState().serverError).toMatch(/额度不足/);
+    store.dismissErrors();
+    expect(useAgentStore.getState().serverError).toBeNull();
+  });
+
   it("does not replace the visible transcript with a snapshot for another task", () => {
     const store = useAgentStore.getState();
     store.setActiveTask("task-visible");

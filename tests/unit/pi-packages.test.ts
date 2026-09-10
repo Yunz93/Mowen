@@ -78,8 +78,8 @@ describe("preset pi package install", () => {
       prefixArgs: [],
       runCli: false,
     });
-    expect(again.installed).toEqual(["pi-web-access", "context-mode"]);
-    expect(again.already).toEqual([]);
+    expect(again.installed).toEqual([]);
+    expect(again.already).toEqual(["pi-web-access", "context-mode"]);
     const loaded = await installPresetPiPackages({
       agentDir,
       ids: ["pi-web-access", "context-mode"],
@@ -123,7 +123,7 @@ describe("preset pi package install", () => {
     expect(message.length).toBeLessThan(600);
   });
 
-  it("retries when settings list a package that never loaded, and rolls back a failed CLI", async () => {
+  it("treats settings packages as already installed and only rolls back newly added sources", async () => {
     const agentDir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-preset-fail-"));
     await addPackageSources(agentDir, ["npm:pi-web-access"]);
     await ensureMcpServer(agentDir, {
@@ -143,8 +143,8 @@ describe("preset pi package install", () => {
       ],
       runCli: true,
     });
-    expect(result.already).toEqual([]);
-    expect(result.installed).toEqual(["pi-web-access", "context-mode"]);
+    expect(result.already).toEqual(["pi-web-access"]);
+    expect(result.installed).toEqual(["context-mode"]);
     expect(result.piInstallError).toMatch(/插件下载失败/);
     expect(result.piInstallError).toMatch(/npm 缓存/);
     const settings = JSON.parse(await readFile(path.join(agentDir, "settings.json"), "utf8")) as {
@@ -153,8 +153,8 @@ describe("preset pi package install", () => {
     const mcp = JSON.parse(await readFile(path.join(agentDir, "mcp.json"), "utf8")) as {
       mcpServers?: Record<string, unknown>;
     };
-    expect(settings.packages ?? []).toEqual([]);
-    expect(mcp.mcpServers ?? {}).not.toHaveProperty("context-mode");
+    expect(settings.packages ?? []).toEqual(["npm:pi-web-access"]);
+    expect(mcp.mcpServers ?? {}).toHaveProperty("context-mode");
   });
 
   it("runs pi install once per source because the CLI only accepts one", async () => {

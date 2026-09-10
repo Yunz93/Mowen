@@ -29,11 +29,12 @@ describe("event dispatcher", () => {
     };
 
     dispatcher.dispatch(delta);
+    dispatcher.emit("task", "term.chunk", { text: "out" });
     dispatcher.emit("task", "server.error", { code: "test", message: "after" });
 
     const frames = client.frames.map((frame) => serverFrameSchema.parse(JSON.parse(frame)));
-    expect("__batch" in frames[0] && frames[0].events[0]?.sequence).toBe(1);
-    expect("type" in frames[1] && frames[1].sequence).toBe(2);
+    expect("__batch" in frames[0] && frames[0].events.map((item) => item.type)).toEqual(["message.delta", "term.chunk"]);
+    expect("type" in frames[1] && frames[1].sequence).toBe(3);
   });
 
   it("does not replay pending deltas to a newly connected socket", () => {

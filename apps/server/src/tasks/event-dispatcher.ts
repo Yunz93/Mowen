@@ -39,7 +39,7 @@ export class EventDispatcher {
   }
 
   dispatch(event: ServerEvent): void {
-    if (event.type === "message.delta") {
+    if (event.type === "message.delta" || event.type === "term.chunk") {
       this.deltaBuffer.push(event);
       if (this.deltaFlushTimer === null) {
         this.deltaFlushTimer = setTimeout(() => this.flushDeltas(), this.deltaFlushMs);
