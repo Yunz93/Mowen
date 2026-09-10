@@ -139,7 +139,7 @@ export function WorkbenchLayout() {
   composerImagesRef.current = composerImages;
   const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
   const [pendingDraft, setPendingDraft] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -397,7 +397,7 @@ export function WorkbenchLayout() {
   }
 
   const submitPrompt = async (type: "prompt.send" | "prompt.steer" | "prompt.followUp") => {
-    if (sending || !task || (!draft.trim() && composerImages.length === 0)) return;
+    if (sendingRef.current || !task || (!draft.trim() && composerImages.length === 0)) return;
     if (type === "prompt.send" && linkedWorkItem && workItemIsClosed(linkedWorkItem.state)) {
       useAgentStore.setState({ requestError: "这个目标已经结束，请先重新打开。" });
       return;
@@ -406,7 +406,7 @@ export function WorkbenchLayout() {
     const text = draft;
     const images = composerImages;
     writeComposerDraft(taskId, text);
-    setSending(true);
+    sendingRef.current = true;
     setRetryPrompt(null);
     useAgentStore.getState().clearRequestError();
     try {
@@ -418,21 +418,32 @@ export function WorkbenchLayout() {
         }
         await socketClient.send(type, { message: text, imageIds: images.map((item) => item.id) }, task.id);
       }
-      writeComposerDraft(taskId, "");
-      if (useAgentStore.getState().activeTaskId === taskId) {
-        setDraft("");
-        setComposerImages([]);
+      const stillThisTask = useAgentStore.getState().activeTaskId === taskId;
+      if (stillThisTask) {
+        setDraft((current) => {
+          if (current === text) writeComposerDraft(taskId, "");
+          return current === text ? "" : current;
+        });
+        setComposerImages((current) => {
+          const unchanged =
+            current.length === images.length && current.every((item, index) => item.id === images[index]?.id);
+          if (!unchanged) return current;
+          for (const item of images) URL.revokeObjectURL(item.previewUrl);
+          return [];
+        });
+      } else {
+        writeComposerDraft(taskId, "");
+        for (const item of images) URL.revokeObjectURL(item.previewUrl);
       }
-      for (const item of images) URL.revokeObjectURL(item.previewUrl);
     } catch (error) {
       writeComposerDraft(taskId, text);
       if (useAgentStore.getState().activeTaskId === taskId) {
-        setDraft(text);
-        setComposerImages(images);
+        setDraft((current) => current || text);
+        setComposerImages((current) => (current.length > 0 ? current : images));
       }
       reportRequestError(error);
     } finally {
-      setSending(false);
+      sendingRef.current = false;
     }
   };
 
@@ -440,9 +451,9 @@ export function WorkbenchLayout() {
   const sendFollowUp = () => submitPrompt("prompt.followUp");
 
   async function retryLastPrompt() {
-    if (sending || !task || !retryPrompt) return;
+    if (sendingRef.current || !task || !retryPrompt) return;
     const text = retryPrompt;
-    setSending(true);
+    sendingRef.current = true;
     try {
       if (task.status === "stopped" || task.status === "error") {
         await socketClient.send("task.activate", {}, task.id);
@@ -453,7 +464,7 @@ export function WorkbenchLayout() {
       setRetryPrompt(text);
       reportRequestError(error);
     } finally {
-      setSending(false);
+      sendingRef.current = false;
     }
   }
 
@@ -981,7 +992,6 @@ export function WorkbenchLayout() {
           <PromptComposer
             status={status}
             disabled={
-              sending ||
               connection !== "open" ||
               Boolean(interaction) ||
               Boolean(linkedWorkItem && workItemIsClosed(linkedWorkItem.state))
