@@ -47,6 +47,7 @@ type Props = {
   onCreateAgents?: () => void;
   onGitDiff?: () => void;
   onGitCommit?: (message: string, push?: boolean) => void;
+  onGitRestore?: (path?: string) => void;
   onGitInit?: () => void;
   onExport?: () => void;
   lastExportPath?: string | null;
@@ -84,6 +85,7 @@ export function InspectorPanel({
   onCreateAgents,
   onGitDiff,
   onGitCommit,
+  onGitRestore,
   onGitInit,
   onExport,
   lastExportPath = null,
@@ -104,6 +106,7 @@ export function InspectorPanel({
   const [resourceTab, setResourceTab] = useState<ResourceTab>("rules");
   const [awaitingTree, setAwaitingTree] = useState(files.length === 0);
   const [commitOpen, setCommitOpen] = useState(false);
+  const [restoreAllOpen, setRestoreAllOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [commitMode, setCommitMode] = useState<"commit" | "push">("commit");
   const commitInputRef = useRef<HTMLTextAreaElement>(null);
@@ -397,16 +400,28 @@ export function InspectorPanel({
                       <span className="ml-2 text-mute">{git.dirty ? "有未提交改动" : "工作区干净"}</span>
                     )}
                   </p>
-                  {onGitCommit ? (
-                    <button
-                      type="button"
-                      className="pressable btn btn-primary h-7 shrink-0"
-                      disabled={!canCommit}
-                      onClick={() => setCommitOpen(true)}
-                    >
-                      提交
-                    </button>
-                  ) : null}
+                  <div className="flex shrink-0 items-center gap-1">
+                    {onGitRestore ? (
+                      <button
+                        type="button"
+                        className="pressable btn btn-ghost h-7"
+                        disabled={!git.dirty}
+                        onClick={() => setRestoreAllOpen(true)}
+                      >
+                        全部撤销
+                      </button>
+                    ) : null}
+                    {onGitCommit ? (
+                      <button
+                        type="button"
+                        className="pressable btn btn-primary h-7"
+                        disabled={!canCommit}
+                        onClick={() => setCommitOpen(true)}
+                      >
+                        提交
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-[11px] text-mute">remote</p>
@@ -425,23 +440,35 @@ export function InspectorPanel({
                     const isNew = isNewGitEntry(entry.status);
                     return (
                       <li key={entry.path} className="bg-surface">
-                        <button
-                          type="button"
-                          aria-expanded={open}
-                          className={`pressable flex min-h-8 w-full items-center gap-2 px-2 py-1.5 text-left ${
-                            open ? "bg-fill" : "hover-fill"
-                          }`}
-                          onClick={() => setExpandedGitPath(open ? null : entry.path)}
-                        >
-                          <span className="min-w-0 flex-1 break-all text-[12px] leading-4 text-ink">{entry.path}</span>
-                          {isNew ? <span className="shrink-0 text-[11px] text-success">新</span> : null}
-                          {counts.added > 0 ? (
-                            <span className="shrink-0 font-mono text-[11px] text-success tabular">+{counts.added}</span>
+                        <div className={`flex min-h-8 items-center gap-1 px-1 ${open ? "bg-fill" : ""}`}>
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            className={`pressable flex min-h-8 min-w-0 flex-1 items-center gap-2 px-1 py-1.5 text-left ${
+                              open ? "" : "hover-fill"
+                            }`}
+                            onClick={() => setExpandedGitPath(open ? null : entry.path)}
+                          >
+                            <span className="min-w-0 flex-1 break-all text-[12px] leading-4 text-ink">{entry.path}</span>
+                            {isNew ? <span className="shrink-0 text-[11px] text-success">新</span> : null}
+                            {counts.added > 0 ? (
+                              <span className="shrink-0 font-mono text-[11px] text-success tabular">+{counts.added}</span>
+                            ) : null}
+                            {counts.removed > 0 ? (
+                              <span className="shrink-0 font-mono text-[11px] text-danger tabular">-{counts.removed}</span>
+                            ) : null}
+                          </button>
+                          {onGitRestore ? (
+                            <button
+                              type="button"
+                              className="pressable mr-1 shrink-0 rounded-md px-1.5 py-1 text-[11px] text-mute hover:text-ink"
+                              aria-label={`撤销 ${entry.path}`}
+                              onClick={() => onGitRestore(entry.path)}
+                            >
+                              撤销
+                            </button>
                           ) : null}
-                          {counts.removed > 0 ? (
-                            <span className="shrink-0 font-mono text-[11px] text-danger tabular">-{counts.removed}</span>
-                          ) : null}
-                        </button>
+                        </div>
                         {open ? (
                           <div className="border-t border-line p-1.5">
                             {patch?.binary ? (
@@ -537,6 +564,36 @@ export function InspectorPanel({
         ) : null}
       </div>
     </aside>
+    {restoreAllOpen ? (
+      <div className="dialog-scrim z-[60]">
+        <button type="button" className="absolute inset-0" aria-label="关闭" onClick={() => setRestoreAllOpen(false)} />
+        <div className="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="git-restore-title">
+          <div className="dialog-head">
+            <div className="dialog-head-text">
+              <h2 id="git-restore-title" className="dialog-title">
+                撤销全部改动
+              </h2>
+              <p className="dialog-copy">未提交的修改和未跟踪文件都会丢掉，无法恢复。</p>
+            </div>
+          </div>
+          <div className="dialog-actions">
+            <button type="button" className="pressable btn btn-ghost" onClick={() => setRestoreAllOpen(false)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="pressable btn btn-primary"
+              onClick={() => {
+                setRestoreAllOpen(false);
+                onGitRestore?.();
+              }}
+            >
+              全部撤销
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     {commitOpen ? (
       <div className="dialog-scrim z-[60]">
         <button type="button" className="absolute inset-0" aria-label="关闭" onClick={closeCommit} />

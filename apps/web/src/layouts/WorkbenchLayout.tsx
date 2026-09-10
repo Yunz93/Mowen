@@ -542,6 +542,15 @@ export function WorkbenchLayout() {
               setNotice(error instanceof Error ? error.message : "提交失败");
             })
         }
+        onGitRestore={(filePath) => {
+          if (!task) return;
+          void socketClient
+            .send("git.restore", filePath ? { path: filePath } : {}, task.id)
+            .then(() => setNotice(filePath ? `已撤销 ${filePath}` : "已撤销全部改动"))
+            .catch((error: unknown) => {
+              setNotice(error instanceof Error ? error.message : "撤销失败");
+            });
+        }}
         onGitInit={() => {
           if (!task) return;
           void socketClient

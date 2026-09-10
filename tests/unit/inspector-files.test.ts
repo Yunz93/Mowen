@@ -89,6 +89,11 @@ describe("InspectorPanel tabs", () => {
     expect(src).toMatch(/skillBusy/);
     expect(src).toMatch(/pluginBusy/);
     expect(src).toMatch(/setSkillUpdates/);
+    expect(src).toMatch(/全部撤销/);
+    expect(src).toMatch(/onGitRestore/);
+    expect(src).toMatch(/撤销 \$\{entry\.path\}/);
+    const layout = readFileSync(path.resolve("apps/web/src/layouts/WorkbenchLayout.tsx"), "utf8");
+    expect(layout).toMatch(/git\.restore/);
     const skills = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorSkills.tsx"), "utf8");
     const plugins = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorExtensions.tsx"), "utf8");
     const preview = readFileSync(path.resolve("apps/web/src/components/inspector/FilePreview.tsx"), "utf8");

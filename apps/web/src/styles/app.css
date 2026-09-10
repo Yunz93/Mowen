@@ -978,32 +978,32 @@ html.dark {
     outline-offset: 3px;
   }
 
-  /* Inspector terminal: an always-dark terminal window, light or dark theme. */
+  /* Inspector terminal chrome follows the app theme; xterm colors are set in JS. */
   .term-shell {
-    background: oklch(0.19 0.01 264);
-    color: oklch(0.93 0.006 264);
-    --term-dim: oklch(0.7 0.012 264);
-    --term-line: oklch(1 0 0 / 0.09);
-    --term-green: oklch(0.74 0.16 155);
-    --term-amber: oklch(0.82 0.12 80);
-    --term-red: oklch(0.75 0.19 25);
-    --term-accent: oklch(0.68 0.16 250);
-    scrollbar-color: oklch(1 0 0 / 0.25) transparent;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    --term-dim: var(--color-mute);
+    --term-line: var(--color-line);
+    --term-green: var(--color-success);
+    --term-amber: var(--color-warn);
+    --term-red: var(--color-danger);
+    --term-accent: var(--color-accent);
+    scrollbar-color: color-mix(in oklch, var(--color-ink) 25%, transparent) transparent;
   }
 
   .term-shell ::selection {
-    background: oklch(0.68 0.16 250 / 0.45);
+    background: color-mix(in oklch, var(--color-accent) 45%, transparent);
   }
 
   .term-shell ::-webkit-scrollbar-thumb {
-    background: oklch(1 0 0 / 0.25);
+    background: color-mix(in oklch, var(--color-ink) 25%, transparent);
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: 99px;
   }
 
   .term-shell ::-webkit-scrollbar-thumb:hover {
-    background: oklch(1 0 0 / 0.35);
+    background: color-mix(in oklch, var(--color-ink) 35%, transparent);
   }
 
   .term-head {
@@ -1012,7 +1012,7 @@ html.dark {
     align-items: center;
     gap: 8px;
     border-bottom: 0.5px solid var(--term-line);
-    background: oklch(0.23 0.012 264);
+    background: var(--color-sidebar);
     padding: 0 10px;
   }
 
@@ -1030,8 +1030,8 @@ html.dark {
   }
 
   .term-head-btn:hover {
-    background: oklch(1 0 0 / 0.08);
-    color: oklch(0.95 0.005 264);
+    background: var(--color-fill-strong);
+    color: var(--color-ink);
   }
 
   .term-status {
@@ -1074,6 +1074,7 @@ html.dark {
   }
 
   .term-error {
+    border-bottom: 0.5px solid var(--term-line);
     color: var(--term-red);
   }
 

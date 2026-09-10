@@ -78,6 +78,22 @@ describe("protocol", () => {
     ).toBe("git.commit");
     expect(
       clientCommandSchema.parse({
+        id: "4b",
+        type: "git.restore",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: { path: "src/app.ts" },
+      }).payload,
+    ).toEqual({ path: "src/app.ts" });
+    expect(
+      clientCommandSchema.parse({
+        id: "4c",
+        type: "git.restore",
+        taskId: "11111111-1111-4111-8111-111111111111",
+        payload: {},
+      }).payload,
+    ).toEqual({});
+    expect(
+      clientCommandSchema.parse({
         id: "5",
         type: "interaction.respond",
         taskId: "11111111-1111-4111-8111-111111111111",

@@ -4,7 +4,16 @@ import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "../../apps/server/src/tasks/git-status.ts";
+import {
+  assertGitRelativePath,
+  commitGit,
+  gitStatusPaths,
+  initGit,
+  pushGit,
+  readGitDiff,
+  readGitStatus,
+  restoreGit,
+} from "../../apps/server/src/tasks/git-status.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,6 +50,34 @@ describe("git helpers", () => {
     await execFileAsync("git", ["remote", "add", "origin", "https://example.com/demo.git"], { cwd: root });
     const withRemote = await readGitStatus(root);
     expect(withRemote.remoteUrl).toBe("https://example.com/demo.git");
+  });
+
+  it("restores one file or every dirty path", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-git-restore-"));
+    await execFileAsync("git", ["init"], { cwd: root });
+    await execFileAsync("git", ["-c", "user.name=T", "-c", "user.email=t@t", "commit", "--allow-empty", "-m", "init"], {
+      cwd: root,
+    });
+    await writeFile(path.join(root, "keep.txt"), "keep");
+    await writeFile(path.join(root, "gone.txt"), "gone");
+    await commitGit(root, "add files");
+    await writeFile(path.join(root, "keep.txt"), "changed");
+    await writeFile(path.join(root, "scratch.txt"), "temp");
+    await restoreGit(root, "keep.txt");
+    const afterOne = await readGitStatus(root);
+    expect(afterOne.entries.some((entry) => entry.path.includes("keep.txt"))).toBe(false);
+    expect(afterOne.entries.some((entry) => entry.path.includes("scratch.txt"))).toBe(true);
+    await restoreGit(root);
+    const afterAll = await readGitStatus(root);
+    expect(afterAll.dirty).toBe(false);
+  });
+
+  it("parses git status paths and rejects escapes", () => {
+    expect(gitStatusPaths("note.txt")).toEqual(["note.txt"]);
+    expect(gitStatusPaths("old.ts -> new.ts")).toEqual(["old.ts", "new.ts"]);
+    expect(assertGitRelativePath("src/app.ts")).toBe("src/app.ts");
+    expect(() => assertGitRelativePath("../secret")).toThrow(/无效/);
+    expect(() => assertGitRelativePath("/etc/passwd")).toThrow(/无效/);
   });
 
   it("push without a remote fails clearly", async () => {

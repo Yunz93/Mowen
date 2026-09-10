@@ -6,34 +6,14 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { useAgentStore } from "../../stores/agent-store";
 import { socketClient } from "../../transport/socket-client";
+import { useTheme } from "../../hooks/useTheme";
+import { readTheme } from "../../lib/theme";
+import { termTheme } from "../../lib/term-theme";
 
 type Props = { taskId: string | null; cwd: string | null };
 
-const TERM_THEME = {
-  background: "#2c2c31",
-  foreground: "#ececf1",
-  cursor: "#8bb4ff",
-  cursorAccent: "#2c2c31",
-  selectionBackground: "#4c6cb3",
-  black: "#1c1c1e",
-  red: "#ff6b6b",
-  green: "#63d48e",
-  yellow: "#e6c36a",
-  blue: "#7eb6ff",
-  magenta: "#c792ea",
-  cyan: "#7ad4d4",
-  white: "#ececf1",
-  brightBlack: "#8e8e93",
-  brightRed: "#ff8a80",
-  brightGreen: "#80e0a7",
-  brightYellow: "#f0d48a",
-  brightBlue: "#9ec6ff",
-  brightMagenta: "#d7a8f0",
-  brightCyan: "#95e0e0",
-  brightWhite: "#ffffff",
-};
-
 export function InspectorTerminal({ taskId, cwd }: Props) {
+  const [theme] = useTheme();
   const session = useAgentStore((state) => (taskId ? state.termByTask[taskId] : undefined));
   const clearTerm = useAgentStore((state) => state.clearTerm);
   const [error, setError] = useState("");
@@ -80,7 +60,7 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
       fontSize: 12,
       lineHeight: 1.35,
       scrollback: 5000,
-      theme: TERM_THEME,
+      theme: termTheme(readTheme()),
       macOptionIsMeta: true,
       allowTransparency: false,
     });
@@ -141,6 +121,12 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
+    term.options.theme = termTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
     if (text.length < writtenRef.current) {
       term.reset();
       writtenRef.current = 0;
@@ -183,7 +169,7 @@ export function InspectorTerminal({ taskId, cwd }: Props) {
           <Trash2 size={11} />
         </button>
       </div>
-      {error ? <p className="term-error border-b border-white/10 px-3 py-1.5 text-[12px]">{error}</p> : null}
+      {error ? <p className="term-error px-3 py-1.5 text-[12px]">{error}</p> : null}
       <div
         ref={hostRef}
         className="term-xterm"

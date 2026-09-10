@@ -5,6 +5,26 @@ const execFileAsync = promisify(execFile);
 
 const GIT_TIMEOUT_MS = 8000;
 
+export function gitStatusPaths(raw: string): string[] {
+  const stripped = raw.trim().replace(/^"(.*)"$/s, "$1").replace(/\\"/g, '"');
+  if (stripped.includes(" -> ")) {
+    return stripped.split(" -> ").map((part) => part.trim().replace(/^"(.*)"$/s, "$1")).filter(Boolean);
+  }
+  return stripped ? [stripped] : [];
+}
+
+export function assertGitRelativePath(input: string): string {
+  const normalized = input.trim().replaceAll("\\", "/");
+  if (!normalized || normalized.startsWith("/") || normalized.includes("\0")) {
+    throw new Error("无效的文件路径。");
+  }
+  const parts = normalized.split("/");
+  if (parts.some((part) => part === "" || part === "." || part === "..")) {
+    throw new Error("无效的文件路径。");
+  }
+  return normalized;
+}
+
 const gitIdentity = ["-c", "user.name=Qingzhou", "-c", "user.email=qingzhou@local"];
 
 export type GitEntry = { path: string; status: string };
@@ -124,6 +144,48 @@ export async function commitGit(cwd: string, message: string): Promise<void> {
       throw new Error("没有可提交的改动");
     }
     throw new Error("提交失败。确认这是一个 Git 仓库，并且有可提交的改动。");
+  }
+}
+
+export async function restoreGit(cwd: string, target?: string): Promise<void> {
+  const status = await readGitStatus(cwd);
+  if (!status.isRepo) throw new Error("不是 Git 仓库。");
+  if (!status.dirty) throw new Error("没有可撤销的改动。");
+
+  if (!target) {
+    try {
+      await execFileAsync("git", ["restore", "--source=HEAD", "--staged", "--worktree", "--", "."], {
+        cwd,
+        timeout: GIT_TIMEOUT_MS,
+      });
+    } catch {
+      // Empty repo / only untracked files: HEAD restore can fail.
+    }
+    await execFileAsync("git", ["clean", "-fd"], { cwd, timeout: GIT_TIMEOUT_MS });
+    return;
+  }
+
+  const wanted = assertGitRelativePath(target);
+  const entry = status.entries.find((item) => item.path === target || gitStatusPaths(item.path).includes(wanted));
+  if (!entry) throw new Error("找不到这个文件的改动。");
+  const paths = gitStatusPaths(entry.path);
+  const untracked = entry.status.includes("?");
+
+  if (untracked) {
+    await execFileAsync("git", ["clean", "-fd", "--", ...paths], { cwd, timeout: GIT_TIMEOUT_MS });
+    return;
+  }
+
+  try {
+    await execFileAsync("git", ["restore", "--source=HEAD", "--staged", "--worktree", "--", ...paths], {
+      cwd,
+      timeout: GIT_TIMEOUT_MS,
+    });
+  } catch {
+    await execFileAsync("git", ["restore", "--staged", "--", ...paths], { cwd, timeout: GIT_TIMEOUT_MS }).catch(
+      () => undefined,
+    );
+    await execFileAsync("git", ["clean", "-fd", "--", ...paths], { cwd, timeout: GIT_TIMEOUT_MS });
   }
 }
 

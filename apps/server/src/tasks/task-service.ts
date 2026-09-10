@@ -35,7 +35,7 @@ import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-a
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { CheckpointStore } from "./checkpoints.js";
 import { previewProjectFile, listProjectFiles } from "./file-browser.js";
-import { commitGit, initGit, pushGit, readGitDiff, readGitStatus } from "./git-status.js";
+import { assertGitRelativePath, commitGit, initGit, pushGit, readGitDiff, readGitStatus, restoreGit } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskShells } from "./task-shell.js";
 import { openNativeTerminal } from "./open-native-terminal.js";
@@ -303,6 +303,8 @@ export class TaskService {
         return this.commitTaskGit(command.taskId, command.payload.message, command.payload.push);
       case "git.init":
         return this.initTaskGit(command.taskId);
+      case "git.restore":
+        return this.restoreTaskGit(command.taskId, command.payload.path);
       case "resources.reload":
         return this.reloadResources(command.taskId);
       case "resources.createAgents":
@@ -921,6 +923,20 @@ export class TaskService {
     const task = this.requireTask(taskId);
     await commitGit(task.cwd, message);
     if (push) await pushGit(task.cwd);
+    await this.emitGitStatus(taskId);
+    await this.emitGitDiff(taskId);
+    return { ok: true };
+  }
+
+  private async restoreTaskGit(taskId: string, filePath?: string): Promise<{ ok: true }> {
+    const task = this.requireTask(taskId);
+    if (filePath) {
+      const relative = assertGitRelativePath(filePath);
+      await resolveAllowedPath(relative, task.cwd, this.config.allowedRoots);
+      await restoreGit(task.cwd, relative);
+    } else {
+      await restoreGit(task.cwd);
+    }
     await this.emitGitStatus(taskId);
     await this.emitGitDiff(taskId);
     return { ok: true };

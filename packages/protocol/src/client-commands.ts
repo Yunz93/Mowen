@@ -171,6 +171,14 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("git.restore"),
+    taskId: z.string().min(1),
+    payload: z.object({
+      path: z.string().min(1).optional(),
+    }),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("resources.reload"),
     taskId: z.string().min(1),
     payload: z.object({}).optional(),
