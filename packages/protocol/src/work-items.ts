@@ -146,6 +146,29 @@ export function taskStatusIsBusy(status?: TaskStatus | null): boolean {
   return Boolean(status && BUSY_TASK_STATUSES.has(status));
 }
 
+export const WORK_PROMPT_NEEDS_BOARD = "请在工作台补充要求后再继续，这一轮需要记入执行记录。";
+export const WORK_PROMPT_ITEM_CLOSED = "这个目标已经结束，请先重新打开。";
+export const WORK_SESSION_NO_FORK = "任务对话不能从中间分叉。请在工作台补充要求后开启新一轮。";
+
+export function workLinkedPromptError(
+  items: Array<{ state: WorkItemState }>,
+  activeRun: { status: WorkRunStatus } | undefined,
+  mode: "prompt" | "steer" | "follow_up",
+  options?: { recordedRun?: boolean },
+): string | null {
+  if (items.length === 0) return null;
+  if (!items.some((item) => workItemCanContinue(item.state))) return WORK_PROMPT_ITEM_CLOSED;
+  if (options?.recordedRun && mode === "prompt") return null;
+  if (mode === "prompt") return WORK_PROMPT_NEEDS_BOARD;
+  if (!activeRun || !workRunIsActive(activeRun.status)) return WORK_PROMPT_NEEDS_BOARD;
+  return null;
+}
+
+export function workLinkedSessionRewriteError(items: Array<{ state: WorkItemState }>): string | null {
+  if (items.length === 0) return null;
+  return WORK_SESSION_NO_FORK;
+}
+
 export function deriveWorkItemViewState(input: {
   item: Pick<WorkItemSummary, "state" | "latestRun">;
   taskStatus?: TaskStatus | null;

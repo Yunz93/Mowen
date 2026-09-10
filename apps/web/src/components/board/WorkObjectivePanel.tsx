@@ -6,7 +6,7 @@ type Props = {
   details: WorkItemDetails;
   onClose: () => void;
   onSave: (input: { title: string; description: string; acceptanceCriteria: string }) => void;
-  onFeedback: (text: string) => void;
+  onFeedback: (text: string) => void | Promise<void>;
   onAccept: () => void;
   onReopen: () => void;
   onOpenConversation: () => void;
@@ -43,6 +43,7 @@ export function WorkObjectivePanel({
   const [description, setDescription] = useState(item.description);
   const [acceptanceCriteria, setAcceptanceCriteria] = useState(item.acceptanceCriteria);
   const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
 
   useEffect(() => {
     setTitle(item.title);
@@ -145,12 +146,14 @@ export function WorkObjectivePanel({
                 <button
                   type="button"
                   className="pressable btn btn-primary"
-                  disabled={!feedbackText.trim()}
+                  disabled={!feedbackText.trim() || feedbackBusy}
                   onClick={() => {
                     const text = feedbackText.trim();
-                    if (!text) return;
-                    setFeedbackText("");
-                    onFeedback(text);
+                    if (!text || feedbackBusy) return;
+                    setFeedbackBusy(true);
+                    void Promise.resolve(onFeedback(text))
+                      .then(() => setFeedbackText(""))
+                      .finally(() => setFeedbackBusy(false));
                   }}
                 >
                   <Send size={13} />

@@ -78,6 +78,9 @@ export {
 } from "./timeline-message.js";
 export {
   WORK_ITEM_SCHEMA_VERSION,
+  WORK_PROMPT_ITEM_CLOSED,
+  WORK_PROMPT_NEEDS_BOARD,
+  WORK_SESSION_NO_FORK,
   workItemAppendPrompt,
   workItemCanContinue,
   workItemDetailsSchema,
@@ -89,6 +92,8 @@ export {
   workItemStateSchema,
   workItemSummarySchema,
   workItemViewStateSchema,
+  workLinkedPromptError,
+  workLinkedSessionRewriteError,
   workProjectSchema,
   workRunKindSchema,
   workRunSchema,

@@ -246,9 +246,9 @@ export function BoardPage() {
         <NewWorkProjectDialog
           defaultCwd={defaultCwd}
           onCancel={() => setCreatingProject(false)}
-          onCreate={(input) => {
+          onCreate={async (input) => {
+            await socketClient.send("workProject.create", input);
             setCreatingProject(false);
-            void socketClient.send("workProject.create", input).catch((error: unknown) => showError(error, "启动项目失败"));
           }}
         />
       ) : null}
@@ -256,11 +256,9 @@ export function BoardPage() {
         <NewWorkItemDialog
           projectName={project.name}
           onCancel={() => setCreating(false)}
-          onCreate={(input) => {
+          onCreate={async (input) => {
+            await socketClient.send("workItem.create", { ...input, projectId: project.id });
             setCreating(false);
-            void socketClient
-              .send("workItem.create", { ...input, projectId: project.id })
-              .catch((error: unknown) => showError(error, "创建任务失败"));
           }}
         />
       ) : null}
@@ -280,11 +278,14 @@ export function BoardPage() {
               .send("workItem.update", { id: focusItemId, ...input })
               .catch((error: unknown) => showError(error, "更新任务失败"));
           }}
-          onFeedback={(text) => {
-            void socketClient
-              .send("workItem.feedback", { id: focusItemId, text })
-              .then(() => closeDetails())
-              .catch((error: unknown) => showError(error, "继续执行失败"));
+          onFeedback={async (text) => {
+            try {
+              await socketClient.send("workItem.feedback", { id: focusItemId, text });
+              closeDetails();
+            } catch (error: unknown) {
+              showError(error, "继续执行失败");
+              throw error;
+            }
           }}
           onAccept={() => acceptItem(focusItemId)}
           onReopen={() => reopenItem(focusItemId)}

@@ -18,7 +18,7 @@ import { UpdateBanner } from "../components/app/UpdateBanner";
 import { CommandPalette } from "../components/command-palette/CommandPalette";
 import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@qingzhou/protocol";
-import { stripModePrefix } from "@qingzhou/protocol";
+import { stripModePrefix, workItemIsClosed } from "@qingzhou/protocol";
 import { headerSubtitle, STARTER_PROMPTS } from "../copy";
 import { tasksInSidebarOrder } from "../lib/task-list";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
@@ -394,6 +394,10 @@ export function WorkbenchLayout() {
 
   const submitPrompt = async (type: "prompt.send" | "prompt.steer" | "prompt.followUp") => {
     if (!task || (!draft.trim() && composerImages.length === 0)) return;
+    if (type === "prompt.send" && linkedWorkItem && workItemIsClosed(linkedWorkItem.state)) {
+      useAgentStore.setState({ requestError: "这个目标已经结束，请先重新打开。" });
+      return;
+    }
     const text = draft;
     const images = composerImages;
     setDraft("");
@@ -402,6 +406,11 @@ export function WorkbenchLayout() {
     setRetryPrompt(null);
     useAgentStore.getState().clearRequestError();
     try {
+      if (type === "prompt.send" && linkedWorkItem) {
+        await socketClient.send("workItem.feedback", { id: linkedWorkItem.id, text });
+        for (const item of images) URL.revokeObjectURL(item.previewUrl);
+        return;
+      }
       if (type === "prompt.send" && (task.status === "stopped" || task.status === "error")) {
         await socketClient.send("task.activate", {}, task.id);
       }
@@ -533,15 +542,11 @@ export function WorkbenchLayout() {
           void socketClient.send("git.status", {}, task.id);
         }}
         onGitDiff={() => task && void socketClient.send("git.diff", {}, task.id)}
-        onGitCommit={(message, push) =>
-          task &&
-          void socketClient
-            .send("git.commit", { message, push }, task.id)
-            .then(() => setNotice(push ? "已提交并推送" : "已提交"))
-            .catch((error: unknown) => {
-              setNotice(error instanceof Error ? error.message : "提交失败");
-            })
-        }
+        onGitCommit={async (message, push) => {
+          if (!task) throw new Error("先打开一个对话。");
+          await socketClient.send("git.commit", { message, push }, task.id);
+          setNotice(push ? "已提交并推送" : "已提交");
+        }}
         onGitRestore={(filePath) => {
           if (!task) return;
           void socketClient
@@ -867,16 +872,23 @@ export function WorkbenchLayout() {
         >
           {task ? (
             <WorkbenchConversation
-              canRewrite={status === "idle" || status === "stopped" || status === "error"}
+              canRewrite={!linkedWorkItem && (status === "idle" || status === "stopped" || status === "error")}
               error={null}
               onRetry={(messageId, text) =>
-                void socketClient.send("session.fork", { messageId, message: text }, task.id)
+                void socketClient
+                  .send("session.fork", { messageId, message: text }, task.id)
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "无法从这里重来");
+                  })
               }
               onClone={() =>
                 void socketClient
                   .send<{ task?: { id: string } }>("session.clone", {}, task.id)
                   .then((result) => {
                     if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
+                  })
+                  .catch((error: unknown) => {
+                    setNotice(error instanceof Error ? error.message : "无法复制对话");
                   })
               }
               onOpenFile={(filePath) => void openProjectFile(filePath)}
@@ -947,7 +959,11 @@ export function WorkbenchLayout() {
         {task ? (
           <PromptComposer
             status={status}
-            disabled={connection !== "open" || Boolean(interaction)}
+            disabled={
+              connection !== "open" ||
+              Boolean(interaction) ||
+              Boolean(linkedWorkItem && workItemIsClosed(linkedWorkItem.state))
+            }
             models={models}
             thinkingLevels={thinkingLevels}
             modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
@@ -1066,26 +1082,20 @@ export function WorkbenchLayout() {
           defaultCwd={cwd || workspaceRoot || allowedRoots[0] || ""}
           sessions={piSessions}
           onCancel={() => setCreating(false)}
-          onCreate={(directory, title) => {
+          onCreate={async (directory, title) => {
             setCwd(directory);
+            const result = await socketClient.send<{ task?: { id: string } }>("task.create", { cwd: directory, title });
             setCreating(false);
-            void socketClient
-              .send<{ task?: { id: string } }>("task.create", { cwd: directory, title })
-              .then((result) => {
-                if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
-              });
+            if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
           }}
-          onResume={(session) => {
+          onResume={async (session) => {
+            const result = await socketClient.send<{ task?: { id: string } }>("session.resume", {
+              sessionPath: session.path,
+              cwd: session.cwd ?? (cwd || workspaceRoot || allowedRoots[0]),
+              title: session.name || session.preview,
+            });
             setCreating(false);
-            void socketClient
-              .send<{ task?: { id: string } }>("session.resume", {
-                sessionPath: session.path,
-                cwd: session.cwd ?? (cwd || workspaceRoot || allowedRoots[0]),
-                title: session.name || session.preview,
-              })
-              .then((result) => {
-                if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
-              });
+            if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
           }}
         />
       ) : null}

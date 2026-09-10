@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel, WorkItemSummary } from "@qingzhou/protocol";
+import { workItemIsClosed } from "@qingzhou/protocol";
 import { ConversationTimeline } from "../timeline/ConversationTimeline";
 import { PromptComposer, type ComposerImage } from "../composer/PromptComposer";
 import { useAgentStore } from "../../stores/agent-store";
@@ -43,6 +44,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
   const status = task?.status ?? "stopped";
   const hasTurns = messages.some((message) => message.role === "user");
   const blockingInteraction = pendingInteractions.some((entry) => entry.taskId === task?.id);
+  const itemClosed = workItemIsClosed(item.state);
 
   async function uploadImages(filesToUpload: FileList | File[]) {
     const next: ComposerImage[] = [];
@@ -64,11 +66,16 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
 
   function send(type: "prompt.send" | "prompt.steer" | "prompt.followUp") {
     if (!task) return;
+    if (type === "prompt.send" && itemClosed) return;
     const text = draft;
     const attached = images;
     setDraft("");
     setImages([]);
-    void socketClient.send(type, { message: text, imageIds: attached.map((image) => image.id) }, task.id).catch(() => {
+    const request =
+      type === "prompt.send"
+        ? socketClient.send("workItem.feedback", { id: item.id, text }, task.id)
+        : socketClient.send(type, { message: text, imageIds: attached.map((image) => image.id) }, task.id);
+    void request.catch(() => {
       setDraft(text);
       setImages(attached);
     });
@@ -118,9 +125,12 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
             {uploadError}
           </p>
         ) : null}
+        {itemClosed ? (
+          <p className="px-4 pb-2 text-[12px] text-mute">这个目标已经结束，请先重新打开。</p>
+        ) : null}
         <PromptComposer
           status={status}
-          disabled={connection !== "open" || blockingInteraction}
+          disabled={connection !== "open" || blockingInteraction || itemClosed}
           models={models}
           thinkingLevels={thinkingLevels}
           modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}

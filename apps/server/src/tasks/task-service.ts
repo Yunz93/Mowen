@@ -19,6 +19,8 @@ import {
   workItemFeedbackPrompt,
   workItemIsClosed,
   workItemPrompt,
+  workLinkedPromptError,
+  workLinkedSessionRewriteError,
   type WorkItem,
   type WorkItemColumn,
   type WorkRunKind,
@@ -573,8 +575,10 @@ export class TaskService {
     message: string,
     imageIds: string[] | undefined,
     mode: "prompt" | "steer" | "follow_up",
+    options?: { recordedRun?: boolean },
   ): Promise<{ ok: true }> {
     const task = this.requireTask(taskId);
+    this.assertWorkLinkedPrompt(taskId, mode, options);
     if (task.status === "queued") {
       throw new Error("正在排队，请稍等。");
     }
@@ -1160,6 +1164,7 @@ export class TaskService {
     messageId: string,
     message?: string,
   ): Promise<{ ok: true; text?: string }> {
+    this.assertWorkSessionNotRewritten(taskId);
     const task = this.requireTask(taskId);
     const runtime = this.supervisor.snapshot(taskId);
     const selected = runtime?.messages.find((item) => item.id === messageId);
@@ -1201,6 +1206,7 @@ export class TaskService {
   }
 
   private async branchSession(taskId: string, entryId: string, message?: string): Promise<{ ok: true; text?: string }> {
+    this.assertWorkSessionNotRewritten(taskId);
     const task = this.requireTask(taskId);
     if (isBusyStatus(task.status)) {
       throw new Error("正在回复，先停止再从这里分叉。");
@@ -1323,6 +1329,7 @@ export class TaskService {
   }
 
   private async cloneSession(taskId: string): Promise<{ task: TaskRecord }> {
+    this.assertWorkSessionNotRewritten(taskId);
     const task = this.requireTask(taskId);
     const now = new Date().toISOString();
     const nextId = randomUUID();
@@ -1454,6 +1461,25 @@ export class TaskService {
       throw new Error("找不到这个对话");
     }
     return task;
+  }
+
+  private assertWorkLinkedPrompt(
+    taskId: string,
+    mode: "prompt" | "steer" | "follow_up",
+    options?: { recordedRun?: boolean },
+  ): void {
+    const message = workLinkedPromptError(
+      this.workItems.findByTaskId(taskId),
+      this.workItems.activeRunForTask(taskId),
+      mode,
+      options,
+    );
+    if (message) throw new Error(message);
+  }
+
+  private assertWorkSessionNotRewritten(taskId: string): void {
+    const message = workLinkedSessionRewriteError(this.workItems.findByTaskId(taskId));
+    if (message) throw new Error(message);
   }
 
   private emitWorkItems(): {
@@ -1652,7 +1678,7 @@ export class TaskService {
     const run = this.workItems.activeRunForTask(taskId);
     if (!run || run.status !== "queued") return;
     try {
-      await this.prompt(taskId, run.instruction, undefined, "prompt");
+      await this.prompt(taskId, run.instruction, undefined, "prompt", { recordedRun: true });
       await this.workItems.updateRun(run.id, { status: "running" });
       const feedbackIds = this.workItems
         .listFeedback(run.objectiveId)

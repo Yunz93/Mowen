@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../../apps/server/src/config.ts";
 import { TaskService } from "../../apps/server/src/tasks/task-service.ts";
 import { TaskStore } from "../../apps/server/src/tasks/task-store.ts";
+import { WorkItemStore } from "../../apps/server/src/tasks/work-item-store.ts";
 import type { TaskRecord } from "@qingzhou/protocol";
 
 function task(id: string, cwd: string): TaskRecord {
@@ -159,6 +160,68 @@ describe("task service process reservations", () => {
     });
     expect(store.listVisible().map((item) => item.id)).toEqual([firstId, secondId]);
     expect(emit).toHaveBeenCalledWith("", "tasks.reordered", { cwd: root, taskIds: [firstId, secondId] });
+    service.dispose();
+  });
+
+  it("rejects conversation prompts that skip a work item execution record", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mypi-work-prompt-"));
+    const store = new TaskStore(root);
+    await store.load();
+    const taskId = "44444444-4444-4444-8444-444444444444";
+    await store.upsert({ ...task(taskId, root), status: "idle" });
+    const workItems = new WorkItemStore(root);
+    await workItems.load();
+    const item = await workItems.create({ title: "board job", cwd: root });
+    await workItems.createRun({
+      objectiveId: item.id,
+      taskId,
+      kind: "initial",
+      instruction: "do the recorded turn",
+    });
+    const succeeded = workItems.activeRunForTask(taskId);
+    expect(succeeded).toBeTruthy();
+    await workItems.updateRun(succeeded!.id, { status: "succeeded" });
+    const config: AppConfig = {
+      host: "127.0.0.1",
+      port: 0,
+      piBin: "pi",
+      piCommand: "pi",
+      piPrefixArgs: [],
+      piExtraEnv: {},
+      dataDir: root,
+      allowedRoots: [root],
+      maxProcesses: 1,
+      mutations: "approval",
+      nodeEnv: "test",
+      approvalTimeoutMs: 1000,
+      allowedOrigins: [],
+      webDistDir: root,
+      approvalExtensionPath: path.join(root, "approval.ts"),
+      homeDir: root,
+      piBundled: false,
+      piAgentDir: path.join(root, ".pi", "agent"),
+      trustProject: false,
+    };
+    const service = new TaskService(config, store, "test", null, workItems);
+    vi.spyOn(service.supervisor, "has").mockReturnValue(true);
+    const rpc = vi.spyOn(service.supervisor, "rpcData").mockResolvedValue({});
+    await expect(
+      service.handleCommand({
+        id: "p1",
+        type: "prompt.send",
+        taskId,
+        payload: { message: "chat anyway" },
+      }),
+    ).rejects.toThrow(/执行记录/);
+    expect(rpc).not.toHaveBeenCalled();
+    await expect(
+      service.handleCommand({
+        id: "c1",
+        type: "session.clone",
+        taskId,
+        payload: {},
+      }),
+    ).rejects.toThrow(/分叉/);
     service.dispose();
   });
 });

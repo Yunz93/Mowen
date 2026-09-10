@@ -5,6 +5,11 @@ import {
   workItemFeedbackPrompt,
   workItemIsClosed,
   workItemPrompt,
+  workLinkedPromptError,
+  workLinkedSessionRewriteError,
+  WORK_PROMPT_ITEM_CLOSED,
+  WORK_PROMPT_NEEDS_BOARD,
+  WORK_SESSION_NO_FORK,
   type WorkItemSummary,
   type WorkRun,
 } from "../../packages/protocol/src/work-items.ts";
@@ -81,5 +86,18 @@ describe("agent-native work item contracts", () => {
     expect(deriveWorkItemViewState({ item: item("running"), taskStatus: "stopped" })).toBe("paused");
     expect(deriveWorkItemViewState({ item: item("queued"), taskStatus: "idle" })).toBe("paused");
     expect(deriveWorkItemViewState({ item: item("running"), taskStatus: "running" })).toBe("working");
+  });
+
+  it("blocks free-form prompts on work-linked sessions unless a recorded run is starting", () => {
+    const open = [{ state: "open" as const }];
+    expect(workLinkedPromptError([], undefined, "prompt")).toBeNull();
+    expect(workLinkedPromptError(open, undefined, "prompt")).toBe(WORK_PROMPT_NEEDS_BOARD);
+    expect(workLinkedPromptError(open, latestRun("queued"), "prompt")).toBe(WORK_PROMPT_NEEDS_BOARD);
+    expect(workLinkedPromptError(open, latestRun("queued"), "prompt", { recordedRun: true })).toBeNull();
+    expect(workLinkedPromptError(open, latestRun("running"), "steer")).toBeNull();
+    expect(workLinkedPromptError(open, undefined, "steer")).toBe(WORK_PROMPT_NEEDS_BOARD);
+    expect(workLinkedPromptError([{ state: "completed" }], undefined, "prompt")).toBe(WORK_PROMPT_ITEM_CLOSED);
+    expect(workLinkedSessionRewriteError(open)).toBe(WORK_SESSION_NO_FORK);
+    expect(workLinkedSessionRewriteError([])).toBeNull();
   });
 });

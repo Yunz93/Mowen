@@ -8,8 +8,8 @@ type Props = {
   defaultCwd: string;
   sessions?: PiSessionRef[];
   onCancel: () => void;
-  onCreate: (cwd: string, title?: string) => void;
-  onResume?: (session: PiSessionRef) => void;
+  onCreate: (cwd: string, title?: string) => void | Promise<void>;
+  onResume?: (session: PiSessionRef) => void | Promise<void>;
 };
 
 export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, onResume }: Props) {
@@ -17,7 +17,36 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
   const [cwd, setCwd] = useState(defaultCwd);
   const [title, setTitle] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"browse" | "type">("browse");
+
+  async function submitCreate(): Promise<void> {
+    if (busy) return;
+    if (!cwd.trim()) {
+      setError("请先选择一个文件夹。");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate(cwd.trim(), title.trim() || undefined);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "创建对话失败");
+      setBusy(false);
+    }
+  }
+
+  async function submitResume(session: PiSessionRef): Promise<void> {
+    if (busy || !onResume) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onResume(session);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "恢复会话失败");
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="dialog-scrim z-40">
@@ -29,11 +58,7 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
         aria-labelledby="new-task-title"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!cwd.trim()) {
-            setError("请先选择一个文件夹。");
-            return;
-          }
-          onCreate(cwd.trim(), title.trim() || undefined);
+          void submitCreate();
         }}
       >
         <div className="dialog-head">
@@ -113,7 +138,7 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
                     <button
                       type="button"
                       className="pressable hover-fill block w-full rounded-md px-2 py-2 text-left"
-                      onClick={() => onResume?.(session)}
+                      onClick={() => void submitResume(session)}
                     >
                       <span className="block truncate text-sm text-ink">
                         {session.name || session.preview || "未命名会话"}
@@ -130,10 +155,10 @@ export function NewTaskDialog({ defaultCwd, sessions = [], onCancel, onCreate, o
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="pressable btn btn-ghost" onClick={onCancel}>
+          <button type="button" className="pressable btn btn-ghost" onClick={onCancel} disabled={busy}>
             取消
           </button>
-          <button type="submit" className="pressable btn btn-primary">
+          <button type="submit" className="pressable btn btn-primary" disabled={busy}>
             创建对话
           </button>
         </div>

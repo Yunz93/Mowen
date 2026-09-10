@@ -7,7 +7,7 @@ type Props = {
   defaultCwd: string;
   defaultName?: string;
   onCancel: () => void;
-  onCreate: (input: { cwd: string; name: string }) => void;
+  onCreate: (input: { cwd: string; name: string }) => void | Promise<void>;
 };
 
 export function NewWorkProjectDialog({ defaultCwd, defaultName = "", onCancel, onCreate }: Props) {
@@ -15,6 +15,7 @@ export function NewWorkProjectDialog({ defaultCwd, defaultName = "", onCancel, o
   const [cwd, setCwd] = useState(defaultCwd);
   const [name, setName] = useState(defaultName);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"browse" | "type">("browse");
 
   return (
@@ -27,6 +28,7 @@ export function NewWorkProjectDialog({ defaultCwd, defaultName = "", onCancel, o
         aria-labelledby="new-work-project-title"
         onSubmit={(event) => {
           event.preventDefault();
+          if (busy) return;
           if (!cwd.trim()) {
             setError("请先选择项目文件夹。");
             return;
@@ -35,7 +37,12 @@ export function NewWorkProjectDialog({ defaultCwd, defaultName = "", onCancel, o
             setError("请填写项目名称。");
             return;
           }
-          onCreate({ cwd: cwd.trim(), name: name.trim() });
+          setBusy(true);
+          setError("");
+          void Promise.resolve(onCreate({ cwd: cwd.trim(), name: name.trim() })).catch((cause: unknown) => {
+            setError(cause instanceof Error ? cause.message : "启动项目失败");
+            setBusy(false);
+          });
         }}
       >
         <div className="dialog-head">
@@ -106,10 +113,10 @@ export function NewWorkProjectDialog({ defaultCwd, defaultName = "", onCancel, o
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </div>
         <div className="dialog-actions">
-          <button type="button" className="pressable btn btn-ghost" onClick={onCancel}>
+          <button type="button" className="pressable btn btn-ghost" onClick={onCancel} disabled={busy}>
             取消
           </button>
-          <button type="submit" className="pressable btn btn-primary">
+          <button type="submit" className="pressable btn btn-primary" disabled={busy}>
             启动项目
           </button>
         </div>

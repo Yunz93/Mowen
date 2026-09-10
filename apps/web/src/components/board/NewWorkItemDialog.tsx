@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 type Props = {
   projectName: string;
   onCancel: () => void;
-  onCreate: (input: { title: string; description: string; acceptanceCriteria: string; start: boolean }) => void;
+  onCreate: (input: { title: string; description: string; acceptanceCriteria: string; start: boolean }) => void | Promise<void>;
 };
 
 export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
@@ -12,18 +12,27 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
   const [description, setDescription] = useState("");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function submit(start: boolean) {
+  async function submit(start: boolean) {
+    if (busy) return;
     if (!title.trim()) {
       setError("请填写任务标题。");
       return;
     }
-    onCreate({
-      title: title.trim(),
-      description: description.trim(),
-      acceptanceCriteria: acceptanceCriteria.trim(),
-      start,
-    });
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate({
+        title: title.trim(),
+        description: description.trim(),
+        acceptanceCriteria: acceptanceCriteria.trim(),
+        start,
+      });
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "创建任务失败");
+      setBusy(false);
+    }
   }
 
   return (
@@ -36,7 +45,7 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
         aria-labelledby="new-work-item-title"
         onSubmit={(event) => {
           event.preventDefault();
-          submit(true);
+          void submit(true);
         }}
       >
         <div className="dialog-head">
@@ -100,13 +109,13 @@ export function NewWorkItemDialog({ projectName, onCancel, onCreate }: Props) {
           ) : null}
         </div>
         <div className="dialog-actions">
-          <button type="button" className="pressable btn btn-ghost" onClick={onCancel}>
+          <button type="button" className="pressable btn btn-ghost" onClick={onCancel} disabled={busy}>
             取消
           </button>
-          <button type="button" className="pressable btn btn-secondary" onClick={() => submit(false)}>
+          <button type="button" className="pressable btn btn-secondary" onClick={() => void submit(false)} disabled={busy}>
             保存到计划
           </button>
-          <button type="submit" className="pressable btn btn-primary">
+          <button type="submit" className="pressable btn btn-primary" disabled={busy}>
             创建并开始
           </button>
         </div>

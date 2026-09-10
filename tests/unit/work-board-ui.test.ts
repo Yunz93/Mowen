@@ -60,4 +60,28 @@ describe("agent-native work mode", () => {
     expect(board).not.toMatch(/text-\[22px\] font-semibold tracking-tight">\{project\.name\}/);
     expect(board).not.toMatch(/folderName\(project\.cwd\)/);
   });
+
+  it("keeps form text until create/feedback/commit requests succeed", () => {
+    const board = readFileSync(path.resolve("apps/web/src/pages/BoardPage.tsx"), "utf8");
+    const layout = readFileSync(path.resolve("apps/web/src/layouts/WorkbenchLayout.tsx"), "utf8");
+    const itemDialog = readFileSync(path.resolve("apps/web/src/components/board/NewWorkItemDialog.tsx"), "utf8");
+    const projectDialog = readFileSync(path.resolve("apps/web/src/components/board/NewWorkProjectDialog.tsx"), "utf8");
+    const taskDialog = readFileSync(path.resolve("apps/web/src/components/tasks/NewTaskDialog.tsx"), "utf8");
+    const panel = readFileSync(path.resolve("apps/web/src/components/board/WorkObjectivePanel.tsx"), "utf8");
+    const inspector = readFileSync(path.resolve("apps/web/src/components/inspector/InspectorPanel.tsx"), "utf8");
+    const drawer = readFileSync(path.resolve("apps/web/src/components/board/WorkConversationDrawer.tsx"), "utf8");
+
+    expect(board).toMatch(/await socketClient\.send\("workProject\.create"/);
+    expect(board).toMatch(/await socketClient\.send\("workItem\.create"/);
+    expect(board).not.toMatch(/setCreating\(false\);\s*void socketClient/);
+    expect(itemDialog).toMatch(/setBusy\(true\)/);
+    expect(projectDialog).toMatch(/setBusy\(true\)/);
+    expect(taskDialog).toMatch(/await onCreate\(/);
+    expect(panel).toMatch(/Promise\.resolve\(onFeedback\(text\)\)/);
+    expect(panel).not.toMatch(/setFeedbackText\(""\);\s*onFeedback/);
+    expect(inspector).toMatch(/Promise\.resolve\(onGitCommit/);
+    expect(inspector).not.toMatch(/onGitCommit\([^;]+;\s*closeCommit\(\)/);
+    expect(layout).toMatch(/workItem\.feedback/);
+    expect(drawer).toMatch(/workItem\.feedback/);
+  });
 });

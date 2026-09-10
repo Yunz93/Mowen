@@ -46,7 +46,7 @@ type Props = {
   onReloadResources?: () => void;
   onCreateAgents?: () => void;
   onGitDiff?: () => void;
-  onGitCommit?: (message: string, push?: boolean) => void;
+  onGitCommit?: (message: string, push?: boolean) => void | Promise<void>;
   onGitRestore?: (path?: string) => void;
   onGitInit?: () => void;
   onExport?: () => void;
@@ -109,6 +109,8 @@ export function InspectorPanel({
   const [restoreAllOpen, setRestoreAllOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [commitMode, setCommitMode] = useState<"commit" | "push">("commit");
+  const [commitBusy, setCommitBusy] = useState(false);
+  const [commitError, setCommitError] = useState("");
   const commitInputRef = useRef<HTMLTextAreaElement>(null);
   const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
@@ -188,15 +190,29 @@ export function InspectorPanel({
   const canCommit = Boolean(onGitCommit && git && git.isRepo !== false && git.dirty);
   const canPush = Boolean(git?.remoteUrl);
   const closeCommit = () => {
+    if (commitBusy) return;
     setCommitOpen(false);
     setCommitMessage("");
     setCommitMode("commit");
+    setCommitError("");
   };
   const submitCommit = () => {
     const message = commitMessage.trim();
-    if (!message || !onGitCommit) return;
-    onGitCommit(message, commitMode === "push" && canPush);
-    closeCommit();
+    if (!message || !onGitCommit || commitBusy) return;
+    setCommitBusy(true);
+    setCommitError("");
+    void Promise.resolve(onGitCommit(message, commitMode === "push" && canPush))
+      .then(() => {
+        setCommitOpen(false);
+        setCommitMessage("");
+        setCommitMode("commit");
+      })
+      .catch((cause: unknown) => {
+        setCommitError(cause instanceof Error ? cause.message : "提交失败");
+      })
+      .finally(() => {
+        setCommitBusy(false);
+      });
   };
 
   async function checkSkillUpdates() {
@@ -657,6 +673,7 @@ export function InspectorPanel({
               rows={4}
               value={commitMessage}
               placeholder="简述这次改动"
+              disabled={commitBusy}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
@@ -665,12 +682,17 @@ export function InspectorPanel({
               }}
               onChange={(event) => setCommitMessage(event.target.value)}
             />
+            {commitError ? (
+              <p className="mt-2 text-[12px] text-danger" role="alert">
+                {commitError}
+              </p>
+            ) : null}
           </div>
           <div className="dialog-actions">
-            <button type="button" className="pressable btn btn-ghost" onClick={closeCommit}>
+            <button type="button" className="pressable btn btn-ghost" onClick={closeCommit} disabled={commitBusy}>
               取消
             </button>
-            <button type="submit" className="pressable btn btn-primary" disabled={!commitMessage.trim()}>
+            <button type="submit" className="pressable btn btn-primary" disabled={!commitMessage.trim() || commitBusy}>
               {commitMode === "push" ? "提交并推送" : "提交"}
             </button>
           </div>
