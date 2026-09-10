@@ -1552,19 +1552,43 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   gap: 8px;
 }
 
+.work-head-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
 .work-project-row {
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex: none;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
 }
 
 .work-project-select {
+  appearance: auto;
+  -webkit-appearance: menulist;
   width: auto;
-  min-width: 0;
+  min-width: 4.5rem;
   max-width: 12rem;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  background-color: Field;
+  color: FieldText;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 400;
   field-sizing: content;
+}
+
+.work-project-select:focus,
+.work-project-select:focus-visible {
+  outline: revert;
+  outline-offset: revert;
 }
 
 .work-dashboard {
@@ -2021,10 +2045,15 @@ html.desktop[data-platform="darwin"] .traffic-inline {
     padding-bottom: 6px;
   }
 
+  .work-head-spacer {
+    display: none;
+  }
+
   .work-project-row {
     order: 3;
     width: 100%;
     flex-basis: 100%;
+    margin-left: 0;
   }
 
   .work-objective {
