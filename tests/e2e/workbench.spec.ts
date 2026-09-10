@@ -384,7 +384,7 @@ test("reload during a run keeps the agent going", async ({ page }) => {
   await expect(page.getByText("please stream this slowly").first()).toBeVisible();
 });
 
-test("copy reply, rename session, find in conversation, and open export", async ({ page, context }) => {
+test("copy reply, rename session, and find in conversation", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await createTask(page, "Copy rename search");
   await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
