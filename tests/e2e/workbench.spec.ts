@@ -254,7 +254,7 @@ test("pi mvp settings, skills, resume, and runtime controls", async ({ page }) =
       }
     })
     .toHaveProperty("context-mode");
-  await page.getByRole("button", { name: "技能" }).click();
+  await page.getByRole("button", { name: "关闭详情" }).click();
 
   await page.getByRole("button", { name: "上下文用量" }).click();
   await expect(page.getByRole("dialog", { name: "上下文用量" }).getByText(/20 \/ .+ tokens/)).toBeVisible();
