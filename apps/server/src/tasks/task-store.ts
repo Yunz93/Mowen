@@ -8,11 +8,18 @@ export type PersistedState = {
   tasks: TaskRecord[];
 };
 
+/**
+ * v2: the tasks array order is user-visible ordering (newest created first,
+ * manual drag-reorder persisted as-is). v1 files are migrated once by
+ * sorting on createdAt desc.
+ */
+export const PERSISTED_STATE_VERSION = 2;
+
 /** Shown when a busy run is demoted after the server process restarts. */
 export const SERVER_RESTART_INTERRUPT_MESSAGE = "服务已重启，上次运行被中断。请重新发送。";
 
 const emptyState = (): PersistedState => ({
-  schemaVersion: TASK_SCHEMA_VERSION,
+  schemaVersion: PERSISTED_STATE_VERSION,
   tasks: [],
 });
 
@@ -52,7 +59,8 @@ export class TaskStore {
     try {
       const raw = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(raw) as PersistedState;
-      if (parsed.schemaVersion !== TASK_SCHEMA_VERSION) {
+      const legacy = parsed.schemaVersion !== PERSISTED_STATE_VERSION;
+      if (legacy) {
         await copyFile(this.filePath, `${this.filePath}.bak`);
       }
       const tasks = Array.isArray(parsed.tasks)
@@ -72,7 +80,13 @@ export class TaskStore {
             return { ...restored, status: "stopped" as const };
           })
         : [];
-      this.state = { schemaVersion: TASK_SCHEMA_VERSION, tasks };
+      if (legacy) {
+        // v1 files never carried ordering semantics; the UI used to sort by
+        // recency on every read. Normalize once so array order becomes the
+        // persisted user order (newest created first) from here on.
+        tasks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      }
+      this.state = { schemaVersion: PERSISTED_STATE_VERSION, tasks };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         this.state = emptyState();
@@ -88,10 +102,34 @@ export class TaskStore {
     if (index >= 0) {
       this.state.tasks[index] = next;
     } else {
-      this.state.tasks.push(next);
+      // New tasks appear at the top; array order is the persisted UI order.
+      this.state.tasks.unshift(next);
     }
     await this.flush();
     return { ...next };
+  }
+
+  /**
+   * Reorders all visible tasks of one cwd group to `orderedIds` while
+   * keeping their array slots (other groups stay in place relative to them).
+   */
+  reorder(cwd: string, orderedIds: string[]): void {
+    const members = this.state.tasks.filter((task) => task.cwd === cwd && !task.archivedAt);
+    const wanted = new Set(orderedIds);
+    if (members.length !== wanted.size || members.some((task) => !wanted.has(task.id))) {
+      throw new Error("会话列表已变化，请刷新后重试。");
+    }
+    const byId = new Map(members.map((task) => [task.id, task]));
+    const ordered = orderedIds.map((id) => byId.get(id) as TaskRecord);
+    let cursor = 0;
+    this.state.tasks = this.state.tasks.map((task) =>
+      task.cwd === cwd && !task.archivedAt ? ordered[cursor++]! : task,
+    );
+  }
+
+  async persistReorder(cwd: string, orderedIds: string[]): Promise<void> {
+    this.reorder(cwd, orderedIds);
+    await this.flush();
   }
 
   async remove(id: string): Promise<void> {

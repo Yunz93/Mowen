@@ -1409,9 +1409,13 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   margin: 0;
 }
 
-.markdown li:has(> input[type="checkbox"]) {
+.markdown li:has(input[type="checkbox"]) {
   list-style: none;
   margin-left: -1.3em;
+}
+
+.markdown li:has(input[type="checkbox"]:checked) > p {
+  color: var(--color-mute);
 }
 
 .markdown input[type="checkbox"] {

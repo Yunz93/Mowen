@@ -17,7 +17,6 @@ const ICONS = {
 
 const FILE_TOOLS = new Set(["write", "edit", "read"]);
 const UNDO_TOOLS = new Set(["write", "edit"]);
-const BASH_PREVIEW_LINES = 5;
 
 type Props = {
   tool: ToolExecution;
@@ -35,12 +34,7 @@ function toolTone(status: ToolExecution["status"]): "idle" | "busy" | "wait" | "
 }
 
 export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
-  const isBash = tool.toolName === "bash";
   const displayResult = tool.resultText ? sanitizeToolResultText(tool.resultText) : "";
-  const resultLines = displayResult ? displayResult.split("\n") : [];
-  const preview = isBash && resultLines.length > BASH_PREVIEW_LINES
-    ? resultLines.slice(-BASH_PREVIEW_LINES).join("\n")
-    : displayResult;
   const [open, setOpen] = useState(Boolean(tool.isError) || tool.status === "failed");
   const Icon = ICONS[tool.status];
   const duration =
@@ -49,8 +43,6 @@ export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
   const target = tool.target?.trim() ?? "";
   const canOpen = Boolean(onOpen && target && FILE_TOOLS.has(tool.toolName));
   const canUndo = Boolean(onUndo && target && UNDO_TOOLS.has(tool.toolName) && tool.status === "succeeded");
-  const shown = open ? displayResult : preview;
-  const truncated = !open && isBash && resultLines.length > BASH_PREVIEW_LINES;
   const tone = useMemo(() => toolTone(tool.status), [tool.status]);
 
   return (
@@ -97,9 +89,9 @@ export function ToolExecutionRow({ tool, onOpen, onUndo, compact }: Props) {
           </span>
         ) : null}
       </div>
-      {shown ? (
+      {open && displayResult ? (
         <pre className="max-h-64 overflow-auto border-t border-line bg-canvas px-3 py-2 font-mono text-xs leading-5 text-mute fade-in">
-          {truncated ? `…\n${shown}` : shown}
+          {displayResult}
         </pre>
       ) : null}
     </div>

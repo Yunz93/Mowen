@@ -48,6 +48,14 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...commandBase,
+    type: z.literal("task.reorder"),
+    payload: z.object({
+      cwd: z.string().min(1),
+      taskIds: z.array(z.string().uuid()).min(1),
+    }),
+  }),
+  z.object({
+    ...commandBase,
     type: z.literal("prompt.send"),
     taskId: z.string().min(1),
     payload: promptPayloadSchema,

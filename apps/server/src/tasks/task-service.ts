@@ -162,8 +162,10 @@ export class TaskService {
     this.events.removeSocket(socket);
   }
 
+  /** Array order in the store is the persisted user order (newest first,
+   *  manual drag-reorder as-is). Clicking/activating a task never moves it. */
   listTasks(): TaskRecord[] {
-    return this.store.listVisible().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
+    return this.store.listVisible();
   }
 
   storeUpload(id: string, mimeType: string, data: Buffer): boolean {
@@ -251,6 +253,8 @@ export class TaskService {
         return this.rename(command.taskId, command.payload.title);
       case "task.archive":
         return this.archive(command.taskId);
+      case "task.reorder":
+        return this.reorderTasks(command.payload.cwd, command.payload.taskIds);
       case "prompt.send":
         return this.prompt(command.taskId, command.payload.message, command.payload.imageIds, "prompt");
       case "prompt.steer":
@@ -466,6 +470,20 @@ export class TaskService {
     }
     this.emit(taskId, "task.archived", { taskId: next.id });
     await this.drainQueue();
+    return { ok: true };
+  }
+
+  private async reorderTasks(cwd: string, taskIds: string[]): Promise<{ ok: true }> {
+    const members = this.store
+      .listVisible()
+      .filter((task) => task.cwd === cwd)
+      .map((task) => task.id);
+    const wanted = new Set(taskIds);
+    if (members.length !== wanted.size || members.some((id) => !wanted.has(id))) {
+      throw new Error("会话列表已变化，请刷新后重试。");
+    }
+    await this.store.persistReorder(cwd, taskIds);
+    this.broadcast({ type: "tasks.reordered", taskId: "", sequence: this.events.nextSequence(), payload: { cwd, taskIds } });
     return { ok: true };
   }
 
