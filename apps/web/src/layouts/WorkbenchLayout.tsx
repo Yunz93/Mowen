@@ -20,6 +20,7 @@ import { NewTaskDialog } from "../components/tasks/NewTaskDialog";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@qingzhou/protocol";
 import { stripModePrefix } from "@qingzhou/protocol";
 import { headerSubtitle, STARTER_PROMPTS } from "../copy";
+import { tasksInSidebarOrder } from "../lib/task-list";
 import { OPEN_CONVERSATION_SEARCH_EVENT } from "../lib/conversation-search";
 import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
@@ -185,7 +186,8 @@ export function WorkbenchLayout() {
   );
   const status = task?.status ?? "stopped";
   const otherApproval = pendingApprovals.find((item) => item.taskId !== activeTaskId);
-  const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? pendingInteractions[0] ?? null;
+  const interaction = pendingInteractions.find((item) => item.taskId === activeTaskId) ?? null;
+  const sidebarTasks = useMemo(() => tasksInSidebarOrder(tasks), [tasks]);
 
   const abortRun = useCallback(() => {
     if (!task) return;
@@ -347,22 +349,22 @@ export function WorkbenchLayout() {
       }
       if ((event.metaKey || event.ctrlKey) && !isEditableTarget(event.target) && /^[1-9]$/.test(event.key)) {
         event.preventDefault();
-        const next = tasks[Number(event.key) - 1];
+        const next = sidebarTasks[Number(event.key) - 1];
         if (next) void selectTask(next.id);
       }
       if ((event.metaKey || event.ctrlKey) && (event.key === "[" || event.key === "]") && !isEditableTarget(event.target)) {
         event.preventDefault();
-        const index = tasks.findIndex((entry) => entry.id === activeTaskId);
+        const index = sidebarTasks.findIndex((entry) => entry.id === activeTaskId);
         const next =
           event.key === "["
-            ? tasks[index <= 0 ? tasks.length - 1 : index - 1]
-            : tasks[index >= tasks.length - 1 ? 0 : index + 1];
+            ? sidebarTasks[index <= 0 ? sidebarTasks.length - 1 : index - 1]
+            : sidebarTasks[index >= sidebarTasks.length - 1 ? 0 : index + 1];
         if (next) void selectTask(next.id);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [abortRun, activeTaskId, approval, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, status, task, taskOpen, tasks]);
+  }, [abortRun, activeTaskId, approval, creating, editingTitle, inspectorOpen, interaction, navigate, paletteOpen, rightPinned, sidebarTasks, status, task, taskOpen, tasks]);
 
   async function renameTask(taskId: string, title: string) {
     const next = title.trim().slice(0, 200);
@@ -461,7 +463,10 @@ export function WorkbenchLayout() {
       const body = new FormData();
       body.append("file", file);
       const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
-      if (!response.ok) continue;
+      if (!response.ok) {
+        setNotice(response.status === 413 ? "图片太大，换一张再试。" : "图片上传失败，请再试一次。");
+        continue;
+      }
       const json = (await response.json()) as { id: string };
       next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
     }
@@ -497,6 +502,7 @@ export function WorkbenchLayout() {
         onPinToggle={toggleLeftPinned}
         workTaskIds={workTaskIds}
         onOpenBoard={() => navigate("/board")}
+        onReorder={(cwd, taskIds) => void socketClient.send("task.reorder", { cwd, taskIds })}
         onNew={() => {
           setTaskOpen(false);
           setCreating(true);
@@ -853,11 +859,17 @@ export function WorkbenchLayout() {
           {task ? (
             <WorkbenchConversation
               canRewrite={status === "idle" || status === "stopped" || status === "error"}
-              error={serverError ?? requestError ?? task.errorMessage ?? null}
+              error={null}
               onRetry={(messageId, text) =>
                 void socketClient.send("session.fork", { messageId, message: text }, task.id)
               }
-              onClone={() => void socketClient.send("session.clone", {}, task.id)}
+              onClone={() =>
+                void socketClient
+                  .send<{ task?: { id: string } }>("session.clone", {}, task.id)
+                  .then((result) => {
+                    if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
+                  })
+              }
               onOpenFile={(filePath) => void openProjectFile(filePath)}
               onUndoFile={(filePath) => void undoProjectFile(filePath)}
               onStarter={(prompt) => setDraft(prompt)}
@@ -896,7 +908,7 @@ export function WorkbenchLayout() {
           )}
         </main>
         {approval ? (
-          <div className="dialog-scrim z-[60]" role="presentation">
+          <div className="mx-auto w-full max-w-[720px] px-4 pb-2">
             <ApprovalSheet
               approval={approval}
               onRespond={(allow, remember) =>
@@ -926,7 +938,7 @@ export function WorkbenchLayout() {
         {task ? (
           <PromptComposer
             status={status}
-            disabled={connection !== "open" || Boolean(approval) || Boolean(interaction)}
+            disabled={connection !== "open" || Boolean(interaction)}
             models={models}
             thinkingLevels={thinkingLevels}
             modelId={task.model ? `${task.model.provider}/${task.model.id}` : null}
@@ -1048,15 +1060,23 @@ export function WorkbenchLayout() {
           onCreate={(directory, title) => {
             setCwd(directory);
             setCreating(false);
-            void socketClient.send("task.create", { cwd: directory, title });
+            void socketClient
+              .send<{ task?: { id: string } }>("task.create", { cwd: directory, title })
+              .then((result) => {
+                if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
+              });
           }}
           onResume={(session) => {
             setCreating(false);
-            void socketClient.send("session.resume", {
-              sessionPath: session.path,
-              cwd: session.cwd ?? (cwd || workspaceRoot || allowedRoots[0]),
-              title: session.name || session.preview,
-            });
+            void socketClient
+              .send<{ task?: { id: string } }>("session.resume", {
+                sessionPath: session.path,
+                cwd: session.cwd ?? (cwd || workspaceRoot || allowedRoots[0]),
+                title: session.name || session.preview,
+              })
+              .then((result) => {
+                if (result.task?.id) useAgentStore.getState().setActiveTask(result.task.id);
+              });
           }}
         />
       ) : null}

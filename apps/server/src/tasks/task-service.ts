@@ -490,11 +490,12 @@ export class TaskService {
   async activate(taskId: string): Promise<void> {
     const task = this.requireTask(taskId);
     this.activeTaskId = taskId;
-    await this.store.upsert({
+    const next = await this.store.upsert({
       ...task,
       lastOpenedAt: new Date().toISOString(),
       unreadCount: 0,
     });
+    this.emit(taskId, "task.updated", { task: next });
     if (this.supervisor.has(taskId)) {
       await this.refreshAvailableModels(taskId);
       void this.refreshStats(taskId);
@@ -721,6 +722,12 @@ export class TaskService {
       updatedAt: new Date().toISOString(),
     });
     this.emit(taskId, "task.updated", { task: next });
+    const fastPatch: { fastModeEnabled?: boolean; fastModeActive?: boolean } = {};
+    if (typeof state.fastModeEnabled === "boolean") fastPatch.fastModeEnabled = state.fastModeEnabled;
+    if (typeof state.fastModeActive === "boolean") fastPatch.fastModeActive = state.fastModeActive;
+    if (Object.keys(fastPatch).length > 0) {
+      this.supervisor.patchRuntime(taskId, fastPatch);
+    }
     await this.refreshAvailableModels(taskId);
   }
 

@@ -23,7 +23,10 @@ describe("agent-native work mode", () => {
     const styles = readFileSync(path.resolve("apps/web/src/styles/app.css"), "utf8");
     expect(styles).toMatch(/\.work-project-select[\s\S]*min-width:\s*0/);
     expect(styles).toMatch(/\.work-project-select[\s\S]*field-sizing:\s*content/);
-    expect(styles).toMatch(/\.work-project-select[\s\S]*max-width:\s*9rem/);
+    expect(styles).toMatch(/\.work-project-select[\s\S]*max-width:\s*12rem/);
+    expect(board).toMatch(/__new__/);
+    expect(board).toMatch(/新项目…/);
+    expect(board).not.toMatch(/btn btn-ghost h-7[\s\S]*新项目/);
     expect(styles).not.toMatch(/\.work-project-row select \{\s*max-width:\s*none/);
     expect(dashboard).toMatch(/需要你处理/);
     expect(dashboard).toMatch(/开始执行/);
@@ -47,6 +50,7 @@ describe("agent-native work mode", () => {
     expect(sidebar).toMatch(/打开工作台/);
     expect(sidebar).not.toMatch(/任务中的会话/);
     expect(board).toMatch(/setActiveTask\(taskId\)/);
+    expect(board).toMatch(/requestId: interaction.requestId/);
     expect(board).toMatch(/snapshot\.request/);
     expect(board).toMatch(/sr-only/);
     expect(board).not.toMatch(/text-\[22px\] font-semibold tracking-tight">\{project\.name\}/);

@@ -129,6 +129,8 @@ export function InspectorPanel({
     const timer = window.setTimeout(() => setAwaitingTree(false), 600);
     skillAutoChecked.current = false;
     setSkillUpdates(null);
+    setClaimedPresetIds([]);
+    setPluginError("");
     return () => window.clearTimeout(timer);
   }, [taskId]);
 
@@ -514,7 +516,7 @@ export function InspectorPanel({
                   busy={skillBusy}
                   error={skillError}
                   updates={skillUpdates}
-                  onCheckUpdates={onCheckSkillUpdates ? () => void checkSkillUpdates() : undefined}
+                  onCheckUpdates={undefined}
                   onUpdateSkills={onUpdateSkills ? (paths) => void updateSkills(paths) : undefined}
                 />
               ) : null}

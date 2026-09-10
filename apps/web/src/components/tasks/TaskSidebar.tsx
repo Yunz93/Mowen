@@ -3,6 +3,7 @@ import { Archive, Pin, PinOff, Plus, Search, X } from "lucide-react";
 import type { TaskRecord } from "@qingzhou/protocol";
 import { PiStatusRing } from "../status/PiStatusRing";
 import { folderName, taskStatusLabel } from "../../copy";
+import { groupTasksByProject, moveTaskInGroup } from "../../lib/task-list";
 
 type Props = {
   tasks: TaskRecord[];
@@ -18,20 +19,10 @@ type Props = {
   onPinToggle?: () => void;
   workTaskIds?: Set<string>;
   onOpenBoard?: () => void;
+  onReorder?: (cwd: string, taskIds: string[]) => void;
 };
 
 const EMPTY_WORK_TASK_IDS = new Set<string>();
-
-function groupByProject(tasks: TaskRecord[]): Array<[string, TaskRecord[]]> {
-  const groups = new Map<string, TaskRecord[]>();
-  for (const task of tasks) {
-    const key = task.cwd;
-    const list = groups.get(key) ?? [];
-    list.push(task);
-    groups.set(key, list);
-  }
-  return [...groups.entries()];
-}
 
 export function TaskSidebar({
   tasks,
@@ -47,9 +38,11 @@ export function TaskSidebar({
   onPinToggle,
   workTaskIds = EMPTY_WORK_TASK_IDS,
   onOpenBoard,
+  onReorder,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
   const skipCommitRef = useRef(false);
 
   function startRename(task: TaskRecord) {
@@ -76,7 +69,7 @@ export function TaskSidebar({
     if (!q) return true;
     return task.title.toLowerCase().includes(q) || task.cwd.toLowerCase().includes(q);
   });
-  const groups = groupByProject(filtered);
+  const groups = groupTasksByProject(filtered);
 
   return (
     <aside className="material-sidebar flex h-full w-[min(228px,90vw)] shrink-0 flex-col border-r border-line" aria-label="会话">
@@ -140,9 +133,29 @@ export function TaskSidebar({
                 {items.map((task) => {
                   const active = task.id === activeTaskId;
                   return (
-                    <li key={task.id}>
+                    <li
+                      key={task.id}
+                      draggable={Boolean(onReorder) && items.length > 1 && editingId !== task.id}
+                      onDragStart={() => setDragId(task.id)}
+                      onDragEnd={() => setDragId(null)}
+                      onDragOver={(event) => {
+                        if (!onReorder || !dragId || dragId === task.id) return;
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (!onReorder || !dragId) return;
+                        const next = moveTaskInGroup(
+                          items.map((item) => item.id),
+                          dragId,
+                          task.id,
+                        );
+                        setDragId(null);
+                        if (next) onReorder(cwd, next);
+                      }}
+                    >
                       <div
-                        className={`source-item group flex items-start gap-1 px-1 ${active ? "source-item-active" : "hover-fill"}`}
+                        className={`source-item group flex items-start gap-1 px-1 ${active ? "source-item-active" : "hover-fill"} ${dragId === task.id ? "opacity-50" : ""}`}
                       >
                         {editingId === task.id ? (
                           <form

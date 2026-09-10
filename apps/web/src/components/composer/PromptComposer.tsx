@@ -97,8 +97,10 @@ export function PromptComposer({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [busySendMode, setBusySendMode] = useState<BusySendMode>(() => readBusySendMode());
+  const starting = status === "booting" || status === "queued";
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
+  const canSubmit = !starting && composerCanSubmit(value, images.length);
   const mention = mentionQuery(value, caret);
   const slash = !mention ? slashQuery(value, caret) : null;
 
@@ -143,6 +145,7 @@ export function PromptComposer({
   }, [commands, slash]);
 
   const submit = (shiftKey = false) => {
+    if (starting || !canSubmit) return;
     if (running) {
       const kind = busySubmitKind(busySendMode, shiftKey);
       if (kind === "followUp") onFollowUp();
@@ -288,7 +291,7 @@ export function PromptComposer({
               syncHeight(node);
             }, 0);
           }}
-          placeholder={composerPlaceholder(running, busySendMode)}
+          placeholder={starting ? "正在启动…" : composerPlaceholder(running, busySendMode)}
           aria-label="输入消息"
           disabled={disabled}
           className="max-h-[168px] min-h-[40px] w-full resize-none bg-transparent px-3.5 pb-1 pt-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-mute"
@@ -390,7 +393,7 @@ export function PromptComposer({
               type="button"
               className="pressable send-btn"
               onClick={() => submit()}
-              disabled={disabled || !composerCanSubmit(value, images.length)}
+              disabled={disabled || !canSubmit}
               aria-label="发送"
               title={running ? (busySendMode === "followUp" ? "排队下一条" : "补充这条回复") : "发送"}
             >

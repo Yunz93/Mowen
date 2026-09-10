@@ -151,7 +151,10 @@ export function ComposerCapsules({
                   type="button"
                   role="menuitem"
                   className={`pressable composer-popover-item ${id === modelId ? "composer-popover-active" : ""}`}
-                  onClick={() => onModel(model.provider, model.id)}
+                  onClick={() => {
+                    onModel(model.provider, model.id);
+                    setOpen(false);
+                  }}
                 >
                   {model.name ?? model.id}
                 </button>

@@ -113,6 +113,105 @@ describe("agent store transcripts", () => {
     expect(useAgentStore.getState().activeTaskId).toBe("task-visible");
     expect(useAgentStore.getState().messages.map((item) => item.text)).toEqual(["visible"]);
   });
+
+  it("keeps per-task runtime when switching sessions", () => {
+    const store = useAgentStore.getState();
+    store.setActiveTask("runtime-a");
+    store.applyEvent(
+      event({
+        taskId: "runtime-a",
+        sequence: 100,
+        type: "runtime.status",
+        payload: {
+          compacting: false,
+          retrying: false,
+          steering: ["补一句"],
+          followUp: [],
+        },
+      }),
+    );
+    store.setActiveTask("runtime-b");
+    store.applyEvent(
+      event({
+        taskId: "runtime-b",
+        sequence: 100,
+        type: "runtime.status",
+        payload: {
+          compacting: false,
+          retrying: false,
+          steering: [],
+          followUp: ["下一句"],
+        },
+      }),
+    );
+    expect(useAgentStore.getState().runtime.followUp).toEqual(["下一句"]);
+    store.setActiveTask("runtime-a");
+    expect(useAgentStore.getState().runtime.steering).toEqual(["补一句"]);
+    expect(useAgentStore.getState().runtime.followUp).toEqual([]);
+  });
+
+  it("does not steal focus on task.created and picks the next session after archive", () => {
+    const now = new Date().toISOString();
+    const task = (id: string, title: string) => ({
+      schemaVersion: 1 as const,
+      id,
+      title,
+      cwd: "/tmp/a",
+      sessionPath: null,
+      status: "stopped" as const,
+      model: null,
+      thinkingLevel: "off" as const,
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+      archivedAt: null,
+      unreadCount: 0,
+      mode: "agent" as const,
+      approvalPolicy: "ask" as const,
+    });
+    const keep = task("keep-task", "keep");
+    const gone = task("gone-task", "gone");
+    const extra = task("extra-task", "extra");
+    const store = useAgentStore.getState();
+    store.setActiveTask(null);
+    store.applyEvent(
+      event({
+        taskId: keep.id,
+        sequence: 1,
+        type: "task.created",
+        payload: { task: keep },
+      }),
+    );
+    expect(useAgentStore.getState().activeTaskId).toBe(keep.id);
+    store.applyEvent(
+      event({
+        taskId: extra.id,
+        sequence: 1,
+        type: "task.created",
+        payload: { task: extra },
+      }),
+    );
+    expect(useAgentStore.getState().activeTaskId).toBe(keep.id);
+    store.applyEvent(
+      event({
+        taskId: gone.id,
+        sequence: 1,
+        type: "task.created",
+        payload: { task: gone },
+      }),
+    );
+    store.setActiveTask(gone.id);
+    store.applyEvent(
+      event({
+        taskId: gone.id,
+        sequence: 2,
+        type: "task.archived",
+        payload: { taskId: gone.id },
+      }),
+    );
+    expect(useAgentStore.getState().activeTaskId).toBe(extra.id);
+    expect(useAgentStore.getState().tasks.map((item) => item.id)).toEqual([extra.id, keep.id]);
+  });
 });
 
 describe("approval tool matching", () => {

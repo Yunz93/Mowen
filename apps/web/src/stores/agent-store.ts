@@ -190,6 +190,51 @@ function withTranscript(
   };
 }
 
+type FileEntry = { path: string; name: string; kind: "file" | "dir" };
+
+function resolveActiveTaskId(
+  tasks: TaskRecord[],
+  currentId: string | null,
+  payloadActive?: string | null,
+): string | null {
+  if (currentId && (tasks.length === 0 || tasks.some((task) => task.id === currentId))) return currentId;
+  if (payloadActive && (tasks.length === 0 || tasks.some((task) => task.id === payloadActive))) return payloadActive;
+  return tasks[0]?.id ?? null;
+}
+
+function visibleSessionFields(
+  state: {
+    messages: TimelineMessage[];
+    tools: ToolExecution[];
+    messagesByTask: Record<string, TimelineMessage[]>;
+    toolsByTask: Record<string, ToolExecution[]>;
+    runtimeByTask: Record<string, RuntimeState>;
+    fileEntriesByTask: Record<string, FileEntry[]>;
+    commandsByTask: Record<string, AgentCommand[]>;
+    pendingApprovals: ApprovalRequest[];
+  },
+  taskId: string | null,
+) {
+  if (!taskId) {
+    return {
+      messages: [] as TimelineMessage[],
+      tools: [] as ToolExecution[],
+      runtime: emptyRuntime(),
+      fileEntries: [] as FileEntry[],
+      commands: [] as AgentCommand[],
+      approval: null as ApprovalRequest | null,
+    };
+  }
+  return {
+    messages: transcriptFor(state, taskId),
+    tools: toolsFor(state, taskId),
+    runtime: state.runtimeByTask[taskId] ?? emptyRuntime(),
+    fileEntries: state.fileEntriesByTask[taskId] ?? [],
+    commands: state.commandsByTask[taskId] ?? [],
+    approval: state.pendingApprovals.find((item) => item.taskId === taskId) ?? null,
+  };
+}
+
 type AgentState = {
   connection: ConnectionStatus;
   tasks: TaskRecord[];
@@ -198,6 +243,9 @@ type AgentState = {
   tools: ToolExecution[];
   messagesByTask: Record<string, TimelineMessage[]>;
   toolsByTask: Record<string, ToolExecution[]>;
+  runtimeByTask: Record<string, RuntimeState>;
+  fileEntriesByTask: Record<string, FileEntry[]>;
+  commandsByTask: Record<string, AgentCommand[]>;
   approval: ApprovalRequest | null;
   models: ModelRef[];
   thinkingLevels: ThinkingLevel[];
@@ -324,6 +372,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
     ...(cached.toolsByTask ?? {}),
     ...(cached.activeTaskId && cached.tools ? { [cached.activeTaskId]: cached.tools } : {}),
   },
+  runtimeByTask: {},
+  fileEntriesByTask: {},
+  commandsByTask: {},
   approval: null,
   models: [],
   thinkingLevels: ["off"],
@@ -371,9 +422,7 @@ export const useAgentStore = create<AgentState>((set, get) => {
     const current = get();
     set({
       activeTaskId,
-      messages: transcriptFor(current, activeTaskId),
-      tools: toolsFor(current, activeTaskId),
-      approval: current.pendingApprovals.find((item) => item.taskId === activeTaskId) ?? null,
+      ...visibleSessionFields(current, activeTaskId),
     });
   },
   echoTerm: (taskId, command) =>
@@ -412,13 +461,23 @@ export const useAgentStore = create<AgentState>((set, get) => {
   applySnapshot: (payload, taskId) => {
     const current = get();
     const snapshotTaskId = taskId ?? payload.activeTaskId ?? current.activeTaskId;
-    const nextActive = current.activeTaskId ?? payload.activeTaskId;
+    const nextActive = resolveActiveTaskId(payload.tasks, current.activeTaskId, payload.activeTaskId);
     const transcript = snapshotTaskId
-      ? withTranscript(current, snapshotTaskId, payload.messages, payload.tools)
+      ? withTranscript({ ...current, activeTaskId: nextActive }, snapshotTaskId, payload.messages, payload.tools)
       : { messagesByTask: current.messagesByTask, toolsByTask: current.toolsByTask };
+    const runtimeByTask = snapshotTaskId && payload.runtime
+      ? { ...current.runtimeByTask, [snapshotTaskId]: payload.runtime }
+      : current.runtimeByTask;
+    const fileEntriesByTask = current.fileEntriesByTask;
+    const commandsByTask =
+      snapshotTaskId && payload.commands
+        ? { ...current.commandsByTask, [snapshotTaskId]: payload.commands }
+        : current.commandsByTask;
+    const merged = { ...current, ...transcript, runtimeByTask, fileEntriesByTask, commandsByTask };
     set({
       tasks: payload.tasks,
       activeTaskId: nextActive,
+      ...visibleSessionFields(merged, nextActive),
       messages:
         snapshotTaskId && snapshotTaskId === nextActive
           ? payload.messages
@@ -449,10 +508,11 @@ export const useAgentStore = create<AgentState>((set, get) => {
       workspaceRoot: payload.workspaceRoot ?? get().workspaceRoot,
       authHint: payload.authConfigured === false ? true : get().authHint,
       pendingApprovals: payload.pendingApprovals ?? [],
-      commands: payload.commands ?? [],
+      runtimeByTask,
+      fileEntriesByTask,
+      commandsByTask,
       git: payload.git ?? null,
       checkpoints: payload.checkpoints ?? [],
-      runtime: payload.runtime ?? emptyRuntime(),
       resources: payload.resources ?? null,
       sessionTree: payload.sessionTree ?? [],
       sessionLeafId: payload.sessionLeafId ?? null,
@@ -496,14 +556,29 @@ export const useAgentStore = create<AgentState>((set, get) => {
     switch (event.type) {
       case "snapshot": {
         const snapshotTaskId = event.payload.activeTaskId || event.taskId || current.activeTaskId;
-        const nextActive = current.activeTaskId ?? event.payload.activeTaskId;
+        const nextActive = resolveActiveTaskId(
+          event.payload.tasks,
+          current.activeTaskId,
+          event.payload.activeTaskId,
+        );
         const transcript = snapshotTaskId
-          ? withTranscript(current, snapshotTaskId, event.payload.messages, event.payload.tools)
+          ? withTranscript({ ...current, activeTaskId: nextActive }, snapshotTaskId, event.payload.messages, event.payload.tools)
           : { messagesByTask: current.messagesByTask, toolsByTask: current.toolsByTask };
+        const runtimeByTask =
+          snapshotTaskId && event.payload.runtime
+            ? { ...current.runtimeByTask, [snapshotTaskId]: event.payload.runtime }
+            : current.runtimeByTask;
+        const commandsByTask =
+          snapshotTaskId && event.payload.commands
+            ? { ...current.commandsByTask, [snapshotTaskId]: event.payload.commands }
+            : current.commandsByTask;
+        const merged = { ...current, ...transcript, runtimeByTask, commandsByTask };
+        const session = visibleSessionFields(merged, nextActive);
         set({
           lastSeen,
           tasks: event.payload.tasks,
           activeTaskId: nextActive,
+          ...session,
           messages:
             snapshotTaskId && snapshotTaskId === nextActive
               ? event.payload.messages
@@ -538,10 +613,10 @@ export const useAgentStore = create<AgentState>((set, get) => {
           authHint:
             event.payload.authConfigured === false ? true : current.authHint && event.payload.authConfigured !== true,
           pendingApprovals: event.payload.pendingApprovals ?? current.pendingApprovals,
-          commands: event.payload.commands ?? current.commands,
+          runtimeByTask,
+          commandsByTask,
           git: event.payload.git ?? current.git,
           checkpoints: event.payload.checkpoints ?? current.checkpoints,
-          runtime: event.payload.runtime ?? current.runtime,
           resources: event.payload.resources ?? current.resources,
           sessionTree: event.payload.sessionTree ?? current.sessionTree,
           sessionLeafId:
@@ -566,14 +641,22 @@ export const useAgentStore = create<AgentState>((set, get) => {
       }
       case "task.created": {
         const createdId = event.payload.task.id;
+        const stealFocus = !current.activeTaskId || current.activeTaskId === createdId;
+        const messagesByTask = { ...current.messagesByTask, [createdId]: current.messagesByTask[createdId] ?? [] };
+        const toolsByTask = { ...current.toolsByTask, [createdId]: current.toolsByTask[createdId] ?? [] };
+        const next = {
+          ...current,
+          messagesByTask,
+          toolsByTask,
+        };
         set({
           lastSeen,
           tasks: upsertTask(current.tasks, event.payload.task),
-          activeTaskId: createdId,
-          messages: current.messagesByTask[createdId] ?? [],
-          tools: current.toolsByTask[createdId] ?? [],
-          messagesByTask: { ...current.messagesByTask, [createdId]: current.messagesByTask[createdId] ?? [] },
-          toolsByTask: { ...current.toolsByTask, [createdId]: current.toolsByTask[createdId] ?? [] },
+          messagesByTask,
+          toolsByTask,
+          ...(stealFocus
+            ? { activeTaskId: createdId, ...visibleSessionFields(next, createdId) }
+            : {}),
         });
         break;
       }
@@ -588,17 +671,37 @@ export const useAgentStore = create<AgentState>((set, get) => {
         delete termByTask[event.payload.taskId];
         const messagesByTask = { ...current.messagesByTask };
         const toolsByTask = { ...current.toolsByTask };
+        const runtimeByTask = { ...current.runtimeByTask };
+        const fileEntriesByTask = { ...current.fileEntriesByTask };
+        const commandsByTask = { ...current.commandsByTask };
         delete messagesByTask[event.payload.taskId];
         delete toolsByTask[event.payload.taskId];
-        const nextActive = current.activeTaskId === event.payload.taskId ? null : current.activeTaskId;
-        set({
-          lastSeen,
-          tasks: current.tasks.filter((task) => task.id !== event.payload.taskId),
-          activeTaskId: nextActive,
-          messages: nextActive ? (messagesByTask[nextActive] ?? []) : [],
-          tools: nextActive ? (toolsByTask[nextActive] ?? []) : [],
+        delete runtimeByTask[event.payload.taskId];
+        delete fileEntriesByTask[event.payload.taskId];
+        delete commandsByTask[event.payload.taskId];
+        const remaining = current.tasks.filter((task) => task.id !== event.payload.taskId);
+        const nextActive =
+          current.activeTaskId === event.payload.taskId
+            ? (remaining[0]?.id ?? null)
+            : current.activeTaskId;
+        const next = {
+          ...current,
           messagesByTask,
           toolsByTask,
+          runtimeByTask,
+          fileEntriesByTask,
+          commandsByTask,
+        };
+        set({
+          lastSeen,
+          tasks: remaining,
+          activeTaskId: nextActive,
+          ...visibleSessionFields(next, nextActive),
+          messagesByTask,
+          toolsByTask,
+          runtimeByTask,
+          fileEntriesByTask,
+          commandsByTask,
           termByTask,
         });
         break;
@@ -721,9 +824,19 @@ export const useAgentStore = create<AgentState>((set, get) => {
           authHint: Boolean(event.payload.authHint),
         });
         break;
-      case "files.tree":
-        set({ lastSeen, fileEntries: event.payload.entries });
+      case "files.tree": {
+        const fileEntriesByTask = event.taskId
+          ? { ...current.fileEntriesByTask, [event.taskId]: event.payload.entries }
+          : current.fileEntriesByTask;
+        set({
+          lastSeen,
+          fileEntriesByTask,
+          ...(!event.taskId || event.taskId === current.activeTaskId
+            ? { fileEntries: event.payload.entries }
+            : {}),
+        });
         break;
+      }
       case "files.preview":
         set({ lastSeen, filePreview: event.payload });
         break;
@@ -734,9 +847,19 @@ export const useAgentStore = create<AgentState>((set, get) => {
           thinkingLevels: event.payload.thinkingLevels,
         });
         break;
-      case "commands.updated":
-        set({ lastSeen, commands: event.payload.commands });
+      case "commands.updated": {
+        const commandsByTask = event.taskId
+          ? { ...current.commandsByTask, [event.taskId]: event.payload.commands }
+          : current.commandsByTask;
+        set({
+          lastSeen,
+          commandsByTask,
+          ...(!event.taskId || event.taskId === current.activeTaskId
+            ? { commands: event.payload.commands }
+            : {}),
+        });
         break;
+      }
       case "git.status":
         if (event.taskId === current.activeTaskId) {
           set({ lastSeen, git: event.payload });
@@ -747,11 +870,17 @@ export const useAgentStore = create<AgentState>((set, get) => {
           set({ lastSeen, checkpoints: event.payload.checkpoints });
         } else set({ lastSeen });
         break;
-      case "runtime.status":
-        if (!event.taskId || event.taskId === current.activeTaskId) {
-          set({ lastSeen, runtime: event.payload });
-        } else set({ lastSeen });
+      case "runtime.status": {
+        const runtimeByTask = event.taskId
+          ? { ...current.runtimeByTask, [event.taskId]: event.payload }
+          : current.runtimeByTask;
+        set({
+          lastSeen,
+          runtimeByTask,
+          ...(!event.taskId || event.taskId === current.activeTaskId ? { runtime: event.payload } : {}),
+        });
         break;
+      }
       case "session.tree":
         if (!event.taskId || event.taskId === current.activeTaskId) {
           set({ lastSeen, sessionTree: event.payload.nodes, sessionLeafId: event.payload.leafId });

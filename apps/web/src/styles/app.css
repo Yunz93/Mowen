@@ -1555,7 +1555,7 @@ html.desktop[data-platform="darwin"] .traffic-inline {
 .work-project-select {
   width: auto;
   min-width: 0;
-  max-width: 9rem;
+  max-width: 12rem;
   field-sizing: content;
 }
 

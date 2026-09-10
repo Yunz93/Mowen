@@ -70,6 +70,8 @@ describe("conversation interaction chrome", () => {
     expect(composer).toContain("追加");
     expect(composer).toContain("排队");
     expect(composer).toContain("busySubmitKind");
+    expect(composer).toContain("composerCanSubmit");
+    expect(composer).toContain("正在启动");
     expect(composer).toContain("aria-label=\"发送\"");
     expect(capsules).toContain("Fast 模式");
   });

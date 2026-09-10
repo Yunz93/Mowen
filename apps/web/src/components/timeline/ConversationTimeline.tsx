@@ -374,7 +374,7 @@ export function ConversationTimeline({
         if (tool && !renderedTools.has(tool.toolCallId)) pendingTools.push(tool);
         continue;
       }
-      if (message.role === "assistant" && !message.text && !message.thinking) continue;
+      if (message.role === "assistant" && !message.text && !message.thinking && !message.streaming) continue;
       flushTools();
       rows.push(<AssistantMessage key={message.id} message={message} highlighted={highlighted} />);
     }

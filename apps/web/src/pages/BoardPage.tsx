@@ -95,6 +95,7 @@ export function BoardPage() {
     closeDetails();
     const taskId = item.taskId;
     if (taskId) {
+      useAgentStore.getState().setActiveTask(taskId);
       void socketClient
         .send("task.activate", {}, taskId)
         .then(() => socketClient.send("snapshot.request", { taskId }, taskId))
@@ -149,37 +150,34 @@ export function BoardPage() {
       <header className="titlebar app-drag traffic-inline work-page-head border-b border-line px-3">
         <ModeSwitcher />
         <div className="work-project-row">
-          {projects.length > 0 ? (
-            <label className="app-no-drag shrink-0">
-              <span className="sr-only">当前项目</span>
-              <select
-                className="field work-project-select h-7 px-1.5 text-[13px] font-semibold"
-                value={project?.id ?? ""}
-                title={project?.cwd}
-                onChange={(event) => {
-                  closeDetails();
-                  void socketClient
-                    .send("workProject.select", { id: event.target.value })
-                    .catch((error: unknown) => showError(error, "切换项目失败"));
-                }}
-              >
-                {projects.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <h1 className="min-w-0 truncate text-[13px] font-semibold tracking-tight">工作</h1>
-          )}
-          <button
-            type="button"
-            className="pressable app-no-drag btn btn-ghost h-7"
-            onClick={() => setCreatingProject(true)}
-          >
-            新项目
-          </button>
+          <label className="app-no-drag min-w-0">
+            <span className="sr-only">项目</span>
+            <select
+              className="field work-project-select h-7 px-1.5 text-[13px] font-semibold"
+              value={project?.id ?? ""}
+              title={project?.cwd}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === "__new__") {
+                  setCreatingProject(true);
+                  return;
+                }
+                if (!next) return;
+                closeDetails();
+                void socketClient
+                  .send("workProject.select", { id: next })
+                  .catch((error: unknown) => showError(error, "切换项目失败"));
+              }}
+            >
+              {projects.length === 0 ? <option value="">选择项目</option> : null}
+              {projects.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+              <option value="__new__">新项目…</option>
+            </select>
+          </label>
           {project ? (
             <button
               type="button"
@@ -313,7 +311,11 @@ export function BoardPage() {
           <InteractionSheet
             interaction={interaction}
             onRespond={(payload) =>
-              void socketClient.send("interaction.respond", payload, interaction.taskId)
+              void socketClient.send(
+                "interaction.respond",
+                { requestId: interaction.requestId, ...payload },
+                interaction.taskId,
+              )
             }
           />
         </div>
