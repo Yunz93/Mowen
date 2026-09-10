@@ -677,7 +677,9 @@ export function WorkbenchLayout() {
       </a>
       {dockLeft ? <div className="flex h-full">{renderSidebar()}</div> : null}
       <div className="flex min-w-0 flex-1 flex-col bg-surface">
-        <header className="titlebar app-drag flex items-center gap-2 border-b border-line px-3">
+        <header
+          className={`titlebar app-drag flex items-center gap-2 border-b border-line px-3 ${dockLeft ? "" : "traffic-inline"}`}
+        >
           <button
             type="button"
             className={`pressable app-no-drag hover-fill inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-ink ${dockLeft ? "md:hidden" : ""}`}

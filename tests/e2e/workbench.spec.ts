@@ -138,6 +138,25 @@ test("macOS traffic lights leave room for the sidebar title", async ({ page }) =
   expect(titleLeft).toBeGreaterThanOrEqual(80);
 });
 
+test("macOS traffic lights leave room when the session list is unpinned", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.documentElement.classList.add("desktop");
+    document.documentElement.dataset.platform = "darwin";
+  });
+  const sidebar = page.getByRole("complementary", { name: "会话" });
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("button", { name: "取消固定会话列表" }).click();
+  const sessionsBtn = page.getByRole("button", { name: "会话", exact: true });
+  await expect(sessionsBtn).toBeVisible();
+  const titlebar = page.locator("header.titlebar");
+  const paddingLeft = await titlebar.evaluate((el) => getComputedStyle(el).paddingLeft);
+  expect(Number.parseFloat(paddingLeft)).toBeGreaterThanOrEqual(80);
+  const btnLeft = await sessionsBtn.evaluate((el) => el.getBoundingClientRect().left);
+  expect(btnLeft).toBeGreaterThanOrEqual(80);
+});
+
 test("reduced motion disables the status ring spin", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
@@ -601,6 +620,18 @@ test("sidebars can pin into the layout and the terminal tab embeds zsh", async (
 
   await page.getByRole("button", { name: "终端" }).click();
   await expect(page.getByLabel("终端")).toBeVisible();
+});
+
+test("work project picker is a borderless titlebar select", async ({ page }) => {
+  await page.goto("/board");
+  const select = page.getByLabel("项目");
+  await expect(select).toBeVisible();
+  const styles = await select.evaluate((el) => {
+    const computed = getComputedStyle(el);
+    return { background: computed.backgroundColor, borderWidth: computed.borderTopWidth };
+  });
+  expect(styles.borderWidth).toBe("0px");
+  expect(styles.background === "rgba(0, 0, 0, 0)" || styles.background === "transparent").toBe(true);
 });
 
 test("work mode creates an objective and starts an agent run", async ({ page }) => {
