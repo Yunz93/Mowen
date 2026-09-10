@@ -1566,29 +1566,28 @@ html.desktop[data-platform="darwin"] .traffic-inline {
   margin-left: auto;
 }
 
+/* Titlebar control: native <select> menu, no Field/chip chrome. */
 .work-project-select {
-  appearance: auto;
-  -webkit-appearance: menulist;
+  appearance: none;
+  -webkit-appearance: none;
   width: auto;
   min-width: 4.5rem;
   max-width: 12rem;
-  height: 24px;
-  min-height: 24px;
+  height: 28px;
+  min-height: 28px;
   margin: 0;
-  border: 1px solid var(--color-line);
-  border-radius: 4px;
-  background-color: Field;
-  color: FieldText;
-  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  color: inherit;
+  padding: 0 22px 0 8px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 510;
   field-sizing: content;
 }
 
-.work-project-select:focus,
-.work-project-select:focus-visible {
-  outline: revert;
-  outline-offset: revert;
+.work-project-select:hover {
+  background-color: var(--color-fill);
 }
 
 .work-dashboard {

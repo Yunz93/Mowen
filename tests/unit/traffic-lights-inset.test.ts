@@ -37,4 +37,10 @@ describe("macOS traffic-light inset", () => {
     );
     expect(rest).toMatch(/--traffic-lights-inset:\s*80px/);
   });
+
+  it("insets the conversation titlebar when the session list is not docked", () => {
+    const layout = readFileSync(path.resolve("apps/web/src/layouts/WorkbenchLayout.tsx"), "utf8");
+    expect(layout).toMatch(/dockLeft \? "" : "traffic-inline"/);
+    expect(layout).toMatch(/MessageSquare[\s\S]*会话/);
+  });
 });
