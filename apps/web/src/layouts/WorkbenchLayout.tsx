@@ -26,6 +26,7 @@ import { openExportedFile } from "../lib/open-export";
 import { showOsNotification } from "../lib/notify";
 import { isEditableTarget } from "../lib/hotkeys";
 import { readComposerDraft, writeComposerDraft } from "../lib/composer-drafts";
+import { clientErrorMessage, reportRequestError } from "../lib/client-error";
 import { getDesktop } from "../desktop-bridge";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
@@ -138,6 +139,7 @@ export function WorkbenchLayout() {
   composerImagesRef.current = composerImages;
   const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
   const [pendingDraft, setPendingDraft] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -194,7 +196,9 @@ export function WorkbenchLayout() {
     const lastUser = [...useAgentStore.getState().messages].reverse().find((item) => item.role === "user");
     const text = lastUser ? stripModePrefix(lastUser.text).trim() : draft.trim();
     if (text) setRetryPrompt(text);
-    void socketClient.send("agent.abort", {}, task.id);
+    void socketClient.send("agent.abort", {}, task.id).catch((error: unknown) => {
+      reportRequestError(error, "停止失败");
+    });
   }, [draft, task]);
 
   useEffect(() => {
@@ -393,38 +397,42 @@ export function WorkbenchLayout() {
   }
 
   const submitPrompt = async (type: "prompt.send" | "prompt.steer" | "prompt.followUp") => {
-    if (!task || (!draft.trim() && composerImages.length === 0)) return;
+    if (sending || !task || (!draft.trim() && composerImages.length === 0)) return;
     if (type === "prompt.send" && linkedWorkItem && workItemIsClosed(linkedWorkItem.state)) {
       useAgentStore.setState({ requestError: "这个目标已经结束，请先重新打开。" });
       return;
     }
+    const taskId = task.id;
     const text = draft;
     const images = composerImages;
-    setDraft("");
-    writeComposerDraft(task.id, "");
-    setComposerImages([]);
+    writeComposerDraft(taskId, text);
+    setSending(true);
     setRetryPrompt(null);
     useAgentStore.getState().clearRequestError();
     try {
       if (type === "prompt.send" && linkedWorkItem) {
         await socketClient.send("workItem.feedback", { id: linkedWorkItem.id, text });
-        for (const item of images) URL.revokeObjectURL(item.previewUrl);
-        return;
+      } else {
+        if (type === "prompt.send" && (task.status === "stopped" || task.status === "error")) {
+          await socketClient.send("task.activate", {}, task.id);
+        }
+        await socketClient.send(type, { message: text, imageIds: images.map((item) => item.id) }, task.id);
       }
-      if (type === "prompt.send" && (task.status === "stopped" || task.status === "error")) {
-        await socketClient.send("task.activate", {}, task.id);
+      writeComposerDraft(taskId, "");
+      if (useAgentStore.getState().activeTaskId === taskId) {
+        setDraft("");
+        setComposerImages([]);
       }
-      await socketClient.send(type, { message: text, imageIds: images.map((item) => item.id) }, task.id);
       for (const item of images) URL.revokeObjectURL(item.previewUrl);
     } catch (error) {
-      setDraft(text);
-      writeComposerDraft(task.id, text);
-      setComposerImages(images);
-      if (!useAgentStore.getState().requestError) {
-        useAgentStore.setState({
-          requestError: error instanceof Error ? error.message : String(error),
-        });
+      writeComposerDraft(taskId, text);
+      if (useAgentStore.getState().activeTaskId === taskId) {
+        setDraft(text);
+        setComposerImages(images);
       }
+      reportRequestError(error);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -432,13 +440,21 @@ export function WorkbenchLayout() {
   const sendFollowUp = () => submitPrompt("prompt.followUp");
 
   async function retryLastPrompt() {
-    if (!task || !retryPrompt) return;
+    if (sending || !task || !retryPrompt) return;
     const text = retryPrompt;
-    setRetryPrompt(null);
-    if (task.status === "stopped" || task.status === "error") {
-      await socketClient.send("task.activate", {}, task.id);
+    setSending(true);
+    try {
+      if (task.status === "stopped" || task.status === "error") {
+        await socketClient.send("task.activate", {}, task.id);
+      }
+      await socketClient.send("prompt.send", { message: text }, task.id);
+      setRetryPrompt(null);
+    } catch (error) {
+      setRetryPrompt(text);
+      reportRequestError(error);
+    } finally {
+      setSending(false);
     }
-    await socketClient.send("prompt.send", { message: text }, task.id);
   }
 
   async function openProjectFile(filePath: string) {
@@ -468,16 +484,21 @@ export function WorkbenchLayout() {
 
   async function uploadImages(files: FileList | File[]) {
     const next: ComposerImage[] = [];
-    for (const file of [...files]) {
-      const body = new FormData();
-      body.append("file", file);
-      const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
-      if (!response.ok) {
-        setNotice(response.status === 413 ? "图片太大，换一张再试。" : "图片上传失败，请再试一次。");
-        continue;
+    try {
+      for (const file of [...files]) {
+        const body = new FormData();
+        body.append("file", file);
+        const response = await fetch("/uploads", { method: "POST", credentials: "same-origin", body });
+        if (!response.ok) {
+          setNotice(response.status === 413 ? "图片太大，换一张再试。" : "图片上传失败，请再试一次。");
+          continue;
+        }
+        const json = (await response.json()) as { id: string };
+        next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
       }
-      const json = (await response.json()) as { id: string };
-      next.push({ id: json.id, previewUrl: URL.createObjectURL(file), name: file.name || "图片" });
+    } catch (error) {
+      setNotice(clientErrorMessage(error, "图片上传失败，请再试一次。"));
+      return;
     }
     if (next.length === 0) return;
     setComposerImages((current) => [...current, ...next]);
@@ -960,6 +981,7 @@ export function WorkbenchLayout() {
           <PromptComposer
             status={status}
             disabled={
+              sending ||
               connection !== "open" ||
               Boolean(interaction) ||
               Boolean(linkedWorkItem && workItemIsClosed(linkedWorkItem.state))

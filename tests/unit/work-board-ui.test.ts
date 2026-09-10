@@ -83,5 +83,8 @@ describe("agent-native work mode", () => {
     expect(inspector).not.toMatch(/onGitCommit\([^;]+;\s*closeCommit\(\)/);
     expect(layout).toMatch(/workItem\.feedback/);
     expect(drawer).toMatch(/workItem\.feedback/);
+    expect(drawer).toMatch(/reportRequestError/);
+    expect(drawer).not.toMatch(/request\.catch\(\(\) => \{/);
+    expect(drawer).toMatch(/role="alert"/);
   });
 });
