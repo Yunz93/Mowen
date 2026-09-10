@@ -24,6 +24,7 @@ export const serverEventTypeSchema = z.enum([
   "task.created",
   "task.updated",
   "task.archived",
+  "tasks.reordered",
   "agent.status",
   "message.started",
   "message.delta",
@@ -159,6 +160,14 @@ export const serverEventSchema = z.discriminatedUnion("type", [
     ...eventBase,
     type: z.literal("task.archived"),
     payload: z.object({ taskId: z.string() }),
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal("tasks.reordered"),
+    payload: z.object({
+      cwd: z.string().min(1),
+      taskIds: z.array(z.string().min(1)).min(1),
+    }),
   }),
   z.object({
     ...eventBase,

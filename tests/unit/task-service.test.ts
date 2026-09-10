@@ -120,4 +120,45 @@ describe("task service process reservations", () => {
     expect(store.get(taskId)?.status).toBe("aborting");
     service.dispose();
   });
+
+  it("emits tasks.reordered after persisting a cwd group", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mypi-reorder-"));
+    const store = new TaskStore(root);
+    await store.load();
+    const firstId = "11111111-1111-4111-8111-111111111111";
+    const secondId = "22222222-2222-4222-8222-222222222222";
+    await store.upsert(task(firstId, root));
+    await store.upsert(task(secondId, root));
+    const config: AppConfig = {
+      host: "127.0.0.1",
+      port: 0,
+      piBin: "pi",
+      piCommand: "pi",
+      piPrefixArgs: [],
+      piExtraEnv: {},
+      dataDir: root,
+      allowedRoots: [root],
+      maxProcesses: 1,
+      mutations: "approval",
+      nodeEnv: "test",
+      approvalTimeoutMs: 1000,
+      allowedOrigins: [],
+      webDistDir: root,
+      approvalExtensionPath: path.join(root, "approval.ts"),
+      homeDir: root,
+      piBundled: false,
+      piAgentDir: path.join(root, ".pi", "agent"),
+      trustProject: false,
+    };
+    const service = new TaskService(config, store, "test", null);
+    const emit = vi.spyOn(service, "emit");
+    await service.handleCommand({
+      id: "reorder-1",
+      type: "task.reorder",
+      payload: { cwd: root, taskIds: [firstId, secondId] },
+    });
+    expect(store.listVisible().map((item) => item.id)).toEqual([firstId, secondId]);
+    expect(emit).toHaveBeenCalledWith("", "tasks.reordered", { cwd: root, taskIds: [firstId, secondId] });
+    service.dispose();
+  });
 });

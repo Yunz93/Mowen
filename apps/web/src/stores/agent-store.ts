@@ -288,6 +288,16 @@ function upsertTask(tasks: TaskRecord[], task: TaskRecord): TaskRecord[] {
   return next;
 }
 
+/** Keep other cwd groups in their slots; replace this cwd's members in order. */
+function applyCwdReorder(tasks: TaskRecord[], cwd: string, taskIds: string[]): TaskRecord[] {
+  const members = tasks.filter((task) => task.cwd === cwd);
+  if (members.length !== taskIds.length) return tasks;
+  const byId = new Map(members.map((task) => [task.id, task]));
+  if (taskIds.some((id) => !byId.has(id))) return tasks;
+  let cursor = 0;
+  return tasks.map((task) => (task.cwd === cwd ? byId.get(taskIds[cursor++])! : task));
+}
+
 export const useAgentStore = create<AgentState>((set, get) => {
   const cached = readWorkbenchCache();
   return {
@@ -559,6 +569,9 @@ export const useAgentStore = create<AgentState>((set, get) => {
       }
       case "task.updated":
         set({ lastSeen, tasks: upsertTask(current.tasks, event.payload.task) });
+        break;
+      case "tasks.reordered":
+        set({ lastSeen, tasks: applyCwdReorder(current.tasks, event.payload.cwd, event.payload.taskIds) });
         break;
       case "task.archived": {
         const termByTask = { ...current.termByTask };

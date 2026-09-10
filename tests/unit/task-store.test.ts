@@ -72,4 +72,26 @@ describe("task store", () => {
     expect(restored.get("44444444-4444-4444-8444-444444444444")?.status).toBe("error");
     expect(restored.get("44444444-4444-4444-8444-444444444444")?.errorMessage).toBe("Pi 进程退出");
   });
+
+  it("reorders one cwd group without moving other projects", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "qingzhou-store-reorder-"));
+    const store = new TaskStore(dir);
+    await store.load();
+    const alpha = "/tmp/alpha";
+    const beta = "/tmp/beta";
+    const a1 = { ...sample("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), title: "a1", cwd: alpha };
+    const a2 = { ...sample("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), title: "a2", cwd: alpha };
+    const b1 = { ...sample("cccccccc-cccc-4ccc-8ccc-cccccccccccc"), title: "b1", cwd: beta };
+    await store.upsert(a1);
+    await store.upsert(b1);
+    await store.upsert(a2);
+    expect(store.listVisible().map((task) => task.id)).toEqual([a2.id, b1.id, a1.id]);
+
+    await store.persistReorder(alpha, [a1.id, a2.id]);
+    expect(store.listVisible().map((task) => task.id)).toEqual([a1.id, b1.id, a2.id]);
+
+    const again = new TaskStore(dir);
+    await again.load();
+    expect(again.listVisible().map((task) => task.id)).toEqual([a1.id, b1.id, a2.id]);
+  });
 });

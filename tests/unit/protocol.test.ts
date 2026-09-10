@@ -5,8 +5,10 @@ import {
   formatClientCommandError,
   normalizeSessionStats,
   piResourcesSchema,
+  serverEventSchema,
   serverFrameSchema,
   type ServerEvent,
+  type TaskRecord,
 } from "../../packages/protocol/src/index.ts";
 import { useAgentStore } from "../../apps/web/src/stores/agent-store.ts";
 
@@ -98,6 +100,19 @@ describe("protocol", () => {
         payload: { command: "echo hi" },
       }).payload,
     ).toEqual({ command: "echo hi" });
+    expect(
+      clientCommandSchema.parse({
+        id: "7b",
+        type: "task.reorder",
+        payload: {
+          cwd: "/tmp/project",
+          taskIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
+        },
+      }).payload,
+    ).toEqual({
+      cwd: "/tmp/project",
+      taskIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
+    });
     expect(
       clientCommandSchema.parse({
         id: "8",
@@ -320,5 +335,41 @@ describe("event sequence dedup", () => {
       },
     });
     expect(useAgentStore.getState().serverError).toBeNull();
+  });
+
+  it("applies tasks.reordered without moving other projects", () => {
+    const now = new Date().toISOString();
+    const task = (id: string, cwd: string, title: string): TaskRecord => ({
+      schemaVersion: 1,
+      id,
+      title,
+      cwd,
+      sessionPath: null,
+      status: "stopped",
+      model: null,
+      thinkingLevel: "off",
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+      archivedAt: null,
+      unreadCount: 0,
+      mode: "agent",
+      approvalPolicy: "ask",
+    });
+    const a1 = task("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "/tmp/alpha", "a1");
+    const a2 = task("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "/tmp/alpha", "a2");
+    const b1 = task("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "/tmp/beta", "b1");
+    useAgentStore.setState({ tasks: [a2, b1, a1] });
+    const event = serverEventSchema.parse({
+      eventId: "reorder-1",
+      serverInstanceId: "server-reorder",
+      taskId: "",
+      timestamp: now,
+      sequence: 1,
+      type: "tasks.reordered",
+      payload: { cwd: "/tmp/alpha", taskIds: [a1.id, a2.id] },
+    });
+    useAgentStore.getState().applyEvent(event);
+    expect(useAgentStore.getState().tasks.map((item) => item.id)).toEqual([a1.id, b1.id, a2.id]);
   });
 });

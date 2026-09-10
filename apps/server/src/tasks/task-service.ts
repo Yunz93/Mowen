@@ -483,7 +483,7 @@ export class TaskService {
       throw new Error("会话列表已变化，请刷新后重试。");
     }
     await this.store.persistReorder(cwd, taskIds);
-    this.broadcast({ type: "tasks.reordered", taskId: "", sequence: this.events.nextSequence(), payload: { cwd, taskIds } });
+    this.emit("", "tasks.reordered", { cwd, taskIds });
     return { ok: true };
   }
 
