@@ -81,3 +81,12 @@ export function filesFromClipboard(data: ClipboardLike | null | undefined): File
 export function composerCanSubmit(text: string, imageCount: number): boolean {
   return Boolean(text.trim()) || imageCount > 0;
 }
+
+export function nextComposerDomValue(
+  domValue: string,
+  nextValue: string,
+  composing: boolean,
+): string | null {
+  if (composing || domValue === nextValue) return null;
+  return nextValue;
+}

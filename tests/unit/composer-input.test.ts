@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filesFromClipboard, isImeKey, shouldSubmitOnEnter, composerCanSubmit } from "../../apps/web/src/lib/composer-input.ts";
+import { filesFromClipboard, isImeKey, shouldSubmitOnEnter, composerCanSubmit, nextComposerDomValue } from "../../apps/web/src/lib/composer-input.ts";
 
 describe("composer input", () => {
   it("does not submit while IME is composing", () => {
@@ -55,5 +55,12 @@ describe("composer input", () => {
     expect(composerCanSubmit("", 1)).toBe(true);
     expect(composerCanSubmit("   ", 0)).toBe(false);
     expect(composerCanSubmit("hello", 0)).toBe(true);
+  });
+
+  it("does not overwrite the composer DOM while IME is composing or the value matches", () => {
+    expect(nextComposerDomValue("你好", "你", true)).toBeNull();
+    expect(nextComposerDomValue("hello", "hello", false)).toBeNull();
+    expect(nextComposerDomValue("hello", "", false)).toBe("");
+    expect(nextComposerDomValue("old draft", "starter", false)).toBe("starter");
   });
 });

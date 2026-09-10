@@ -138,6 +138,11 @@ describe("conversation UI contracts", () => {
     expect(menu).toContain("stopPropagation");
     expect(menu).toContain("onDismiss");
     expect(composer).toContain("menuDismissed");
+    expect(composer).toContain("defaultValue={value}");
+    expect(composer).toContain("nextComposerDomValue");
+    expect(composer).not.toMatch(/<textarea[\s\S]*\n\s*value=\{value\}/);
+    expect(layout).toContain("function WorkbenchConversation");
+    expect(layout).toContain("const hasTurns = useAgentStore");
     expect(layout).toContain("isEditableTarget(event.target)");
     expect(layout).toContain("setComposerImages(images)");
     expect(layout).toContain("readComposerDraft");

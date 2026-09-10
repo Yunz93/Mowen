@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { ApprovalPolicy, InteractionMode, TaskStatus, ThinkingLevel } from "@qingzhou/protocol";
 import { extractAtMentions } from "@qingzhou/protocol";
-import { ArrowUp, Plus, Square, X } from "lucide-react";
-import { composerCanSubmit, filesFromClipboard, shouldSubmitOnEnter } from "../../lib/composer-input";
+import { ArrowUp, Clock3, CornerUpRight, Plus, Square, X } from "lucide-react";
+import { composerCanSubmit, filesFromClipboard, nextComposerDomValue, shouldSubmitOnEnter } from "../../lib/composer-input";
 import { composerPlaceholder } from "../../copy";
 import { busySubmitKind, readBusySendMode, writeBusySendMode, type BusySendMode } from "../../lib/ui-prefs";
 import { ComposerCapsules } from "./ComposerCapsules";
@@ -40,6 +40,8 @@ type Props = {
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
   onFastMode?: (enabled: boolean) => void;
+  queuedSteering?: string[];
+  queuedFollowUp?: string[];
 };
 
 function mentionQuery(value: string, caret: number): { start: number; query: string } | null {
@@ -84,9 +86,13 @@ export function PromptComposer({
   fastModeEnabled,
   fastModeActive,
   onFastMode,
+  queuedSteering = [],
+  queuedFollowUp = [],
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const [caret, setCaret] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDismissed, setMenuDismissed] = useState(false);
@@ -101,11 +107,17 @@ export function PromptComposer({
   }, [mention?.start, mention?.query, slash?.start, slash?.query]);
   const attachedCount = extractAtMentions(value).length;
 
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
+  const syncHeight = (node: HTMLTextAreaElement) => {
     node.style.height = "auto";
     node.style.height = `${Math.min(node.scrollHeight, 180)}px`;
+  };
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const next = nextComposerDomValue(node.value, value, composingRef.current);
+    if (next !== null) node.value = next;
+    if (!composingRef.current) syncHeight(node);
   }, [value]);
 
   useEffect(() => {
@@ -217,11 +229,45 @@ export function PromptComposer({
             ))}
           </ul>
         ) : null}
+        {queuedSteering.length > 0 || queuedFollowUp.length > 0 ? (
+          <div
+            role="status"
+            aria-label="排队中的指令"
+            className={`flex max-h-28 flex-col gap-1 overflow-auto px-3.5 ${images.length > 0 ? "pt-2" : "pt-3"}`}
+          >
+            {queuedSteering.map((text, index) => (
+              <div
+                key={`steer-${index}`}
+                className="flex min-h-6 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 py-0.5 text-[11.5px] leading-5"
+              >
+                <CornerUpRight size={11} className="shrink-0 text-accent" />
+                <span className="min-w-0 flex-1 truncate text-ink" title={text}>
+                  {text}
+                </span>
+                <span className="shrink-0 text-accent">补充中</span>
+              </div>
+            ))}
+            {queuedFollowUp.map((text, index) => (
+              <div
+                key={`queue-${index}`}
+                className="flex min-h-6 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 py-0.5 text-[11.5px] leading-5"
+              >
+                <Clock3 size={11} className="shrink-0 text-accent" />
+                <span className="min-w-0 flex-1 truncate text-ink" title={text}>
+                  {text}
+                </span>
+                <span className="shrink-0 text-mute">回复后发送</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <textarea
           ref={ref}
-          value={value}
+          defaultValue={value}
           onChange={(event) => {
-            onChange(event.target.value);
+            const next = event.target.value;
+            if (!composingRef.current) syncHeight(event.currentTarget);
+            onChange(next);
             setCaret(event.target.selectionStart);
           }}
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
@@ -230,9 +276,16 @@ export function PromptComposer({
           onCompositionStart={() => {
             composingRef.current = true;
           }}
-          onCompositionEnd={() => {
+          onCompositionEnd={(event) => {
+            const next = event.currentTarget.value;
+            onChange(next);
             window.setTimeout(() => {
               composingRef.current = false;
+              const node = ref.current;
+              if (!node) return;
+              const synced = nextComposerDomValue(node.value, valueRef.current, composingRef.current);
+              if (synced !== null) node.value = synced;
+              syncHeight(node);
             }, 0);
           }}
           placeholder={composerPlaceholder(running, busySendMode)}

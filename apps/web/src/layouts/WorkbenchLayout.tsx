@@ -40,10 +40,45 @@ import {
   writeUiNumber,
 } from "../lib/ui-prefs";
 
+function WorkbenchConversation({
+  canRewrite,
+  error,
+  onRetry,
+  onClone,
+  onOpenFile,
+  onUndoFile,
+  onStarter,
+}: {
+  canRewrite: boolean;
+  error: string | null;
+  onRetry: (messageId: string, text: string) => void;
+  onClone: () => void;
+  onOpenFile: (filePath: string) => void;
+  onUndoFile: (filePath: string) => void;
+  onStarter: (prompt: string) => void;
+}) {
+  const messages = useAgentStore((state) => state.messages);
+  const tools = useAgentStore((state) => state.tools);
+  return (
+    <ConversationTimeline
+      messages={messages}
+      tools={tools}
+      canRewrite={canRewrite}
+      error={error}
+      onRetry={onRetry}
+      onClone={onClone}
+      onOpenFile={onOpenFile}
+      onUndoFile={onUndoFile}
+      onStarter={onStarter}
+    />
+  );
+}
+
 export function WorkbenchLayout() {
   const tasks = useAgentStore((state) => state.tasks);
   const activeTaskId = useAgentStore((state) => state.activeTaskId);
-  const messages = useAgentStore((state) => state.messages);
+  const hasTurns = useAgentStore((state) => state.messages.some((item) => item.role === "user"));
+  const messageCount = useAgentStore((state) => state.messages.length);
   const tools = useAgentStore((state) => state.tools);
   const approval = useAgentStore((state) => state.approval);
   const pendingApprovals = useAgentStore((state) => state.pendingApprovals);
@@ -154,11 +189,11 @@ export function WorkbenchLayout() {
 
   const abortRun = useCallback(() => {
     if (!task) return;
-    const lastUser = [...messages].reverse().find((item) => item.role === "user");
+    const lastUser = [...useAgentStore.getState().messages].reverse().find((item) => item.role === "user");
     const text = lastUser ? stripModePrefix(lastUser.text).trim() : draft.trim();
     if (text) setRetryPrompt(text);
     void socketClient.send("agent.abort", {}, task.id);
-  }, [draft, messages, task]);
+  }, [draft, task]);
 
   useEffect(() => {
     if (!toast?.message) return;
@@ -703,7 +738,7 @@ export function WorkbenchLayout() {
                 stats={stats}
                 runtime={runtime}
                 compact
-                messageCount={messages.length}
+                messageCount={messageCount}
                 toolCount={tools.length}
                 onRefresh={() => void socketClient.send("session.stats", {}, task.id)}
                 onCompact={(customInstructions) =>
@@ -816,9 +851,7 @@ export function WorkbenchLayout() {
           className="relative min-h-0 min-w-[0] flex-1 overflow-y-auto overscroll-y-contain"
         >
           {task ? (
-            <ConversationTimeline
-              messages={messages}
-              tools={tools}
+            <WorkbenchConversation
               canRewrite={status === "idle" || status === "stopped" || status === "error"}
               error={serverError ?? requestError ?? task.errorMessage ?? null}
               onRetry={(messageId, text) =>
@@ -902,7 +935,7 @@ export function WorkbenchLayout() {
             approvalPolicy={task.approvalPolicy ?? "auto"}
             files={files}
             commands={commands}
-            hasTurns={messages.some((item) => item.role === "user")}
+            hasTurns={hasTurns}
             value={draft}
             onChange={setDraft}
             onSend={() => void sendPrompt()}
@@ -924,6 +957,8 @@ export function WorkbenchLayout() {
             images={composerImages}
             fastModeEnabled={runtime.fastModeEnabled}
             fastModeActive={runtime.fastModeActive}
+            queuedSteering={runtime.steering}
+            queuedFollowUp={runtime.followUp}
             onFastMode={
               typeof runtime.fastModeEnabled === "boolean"
                 ? (enabled) => void socketClient.send("runtime.set", { fastMode: enabled }, task.id)

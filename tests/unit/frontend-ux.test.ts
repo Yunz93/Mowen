@@ -61,6 +61,7 @@ describe("conversation interaction chrome", () => {
     expect(timeline).toContain("回到最新");
     expect(timeline).toContain("克隆会话");
     expect(timeline).toContain("附 ");
+    expect(timeline).toContain('aria-live="off"');
   });
 
   it("lets the composer switch 追加 and 排队, and Fast when the engine reports it", () => {

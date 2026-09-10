@@ -12,10 +12,15 @@ type Props = {
   onOpenFull: () => void;
 };
 
-export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
-  const tasks = useAgentStore((state) => state.tasks);
+function DrawerConversation() {
   const messages = useAgentStore((state) => state.messages);
   const tools = useAgentStore((state) => state.tools);
+  return <ConversationTimeline messages={messages} tools={tools} />;
+}
+
+export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
+  const tasks = useAgentStore((state) => state.tasks);
+  const hasTurns = useAgentStore((state) => state.messages.some((message) => message.role === "user"));
   const models = useAgentStore((state) => state.models);
   const thinkingLevels = useAgentStore((state) => state.thinkingLevels);
   const files = useAgentStore((state) => state.fileEntries);
@@ -66,7 +71,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <ConversationTimeline messages={messages} tools={tools} />
+          <DrawerConversation />
         </div>
         <PromptComposer
           status={status}
@@ -79,7 +84,7 @@ export function WorkConversationDrawer({ item, onClose, onOpenFull }: Props) {
           approvalPolicy={task.approvalPolicy ?? "auto"}
           files={files}
           commands={commands}
-          hasTurns={messages.some((message) => message.role === "user")}
+          hasTurns={hasTurns}
           value={draft}
           onChange={setDraft}
           onSend={() => {

@@ -397,7 +397,7 @@ export function ConversationTimeline({
       ref={rootRef}
       className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-5 sm:px-6"
       role="log"
-      aria-live="polite"
+      aria-live="off"
       aria-relevant="additions"
     >
       {searchOpen ? (
