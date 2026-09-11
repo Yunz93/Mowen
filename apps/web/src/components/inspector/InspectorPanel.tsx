@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pin, PinOff, X, PanelRight, PanelRightClose } from "lucide-react";
 import {
-  gitPatchForPath,
   parseGitPatch,
   patchLineCounts,
   PRESET_PI_PACKAGES,
@@ -455,7 +454,6 @@ export function InspectorPanel({
                 <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
                   {git.entries.map((entry) => {
                     const patches = gitPatchesForEntry(gitPatches, entry.path);
-                    const patch = patches[0] ?? gitPatchForPath(gitPatches, entry.path);
                     const counts = patches.reduce(
                       (total, item) => {
                         const next = patchLineCounts(item.lines);
