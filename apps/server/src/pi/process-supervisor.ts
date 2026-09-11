@@ -21,6 +21,7 @@ import { RpcClient, type RpcEvent } from "./rpc-client.js";
 import { normalizePiEvent, piMessagesToTimeline } from "./event-normalizer.js";
 import { redactSecrets } from "../security/redact.js";
 import { flattenSessionTree } from "../tasks/session-tree.js";
+import { isModelChangeNotice, mergeModelChangeNotices } from "../tasks/model-change.js";
 import { buildPiRpcArgs } from "./rpc-args.js";
 import { humanizeUserFacingError, shouldSurfacePiStderr } from "../setup/pi-agent-dir.js";
 
@@ -207,6 +208,23 @@ export class ProcessSupervisor {
     runtime.liveAssistantId = null;
   }
 
+  appendNotice(taskId: string, message: TimelineMessage): TimelineMessage | null {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return null;
+    const last = runtime.messages[runtime.messages.length - 1];
+    if (last && isModelChangeNotice(last) && last.text === message.text) return last;
+    runtime.messages.push(message);
+    this.emit(taskId, "message.completed", { message });
+    return message;
+  }
+
+  syncModelChangeNotices(taskId: string): TimelineMessage[] {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime) return [];
+    runtime.messages = mergeModelChangeNotices(runtime.messages, runtime.sessionTree, runtime.models);
+    return runtime.messages;
+  }
+
   setStats(taskId: string, stats: SessionStats | null): void {
     const runtime = this.runtimes.get(taskId);
     if (!runtime) return;
@@ -364,6 +382,7 @@ export class ProcessSupervisor {
       ...(typeof stateData.fastModeActive === "boolean" ? { fastModeActive: stateData.fastModeActive } : {}),
     };
     await this.refreshSessionTree(task.id);
+    this.syncModelChangeNotices(task.id);
 
     const modelObj = stateData.model as Record<string, unknown> | null | undefined;
     const model =

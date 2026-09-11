@@ -19,13 +19,13 @@ for (let i = 0; i < args.length; i += 1) {
   }
 }
 
+const MODELS = [
+  { id: "fake-model", name: "Fake Model", provider: "fake", reasoning: true },
+  { id: "fake-model-2", name: "Fake Model 2", provider: "fake", reasoning: true },
+];
+
 const state = {
-  model: {
-    id: "fake-model",
-    name: "Fake Model",
-    provider: "fake",
-    reasoning: true,
-  },
+  model: { ...MODELS[0] },
   thinkingLevel: "off",
   isStreaming: false,
   sessionFile: sessionPath,
@@ -410,15 +410,30 @@ function handleLine(line) {
       respond(id, type, true, { messages: state.messages });
       break;
     case "get_available_models":
-      respond(id, type, true, { models: [state.model] });
+      respond(id, type, true, { models: MODELS });
       break;
     case "get_available_thinking_levels":
       respond(id, type, true, { levels: ["off", "low", "high"] });
       break;
-    case "set_model":
-      state.model = { ...state.model, provider: parsed.provider, id: parsed.modelId, name: parsed.modelId };
+    case "set_model": {
+      const previous = state.model;
+      const found = MODELS.find((model) => model.provider === parsed.provider && model.id === parsed.modelId);
+      state.model = found
+        ? { ...found }
+        : { ...state.model, provider: parsed.provider, id: parsed.modelId, name: parsed.modelId };
+      state.messages.push({
+        role: "model_change",
+        provider: state.model.provider,
+        modelId: state.model.id,
+        model: `${state.model.provider}/${state.model.id}`,
+        previousModel: `${previous.provider}/${previous.id}`,
+        content: [],
+        timestamp: now(),
+      });
+      persist();
       respond(id, type, true, state.model);
       break;
+    }
     case "set_thinking_level":
       state.thinkingLevel = parsed.level;
       respond(id, type, true);
@@ -504,9 +519,20 @@ function handleLine(line) {
       let leafId = null;
       for (let index = 0; index < state.messages.length; index += 1) {
         const message = state.messages[index];
-        const nodeId = `${message.role === "user" ? "user" : "asst"}-${index}`;
+        const isModelChange = message.role === "model_change";
+        const nodeId = `${isModelChange ? "model" : message.role === "user" ? "user" : "asst"}-${index}`;
         const node = {
-          entry: { type: "message", id: nodeId, parentId, message },
+          entry: isModelChange
+            ? {
+                type: "model_change",
+                id: nodeId,
+                parentId,
+                provider: message.provider,
+                modelId: message.modelId,
+                model: message.model,
+                message,
+              }
+            : { type: "message", id: nodeId, parentId, message },
           children: [],
         };
         if (tree.length === 0) tree.push(node);

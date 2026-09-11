@@ -62,6 +62,8 @@ describe("conversation interaction chrome", () => {
     expect(timeline).toContain("克隆会话");
     expect(timeline).toContain("附 ");
     expect(timeline).toContain('aria-live="off"');
+    expect(timeline).toContain("model-change-banner");
+    expect(timeline).toContain("这条提示只显示在对话里，不会发给模型。");
   });
 
   it("lets the composer switch 追加 and 排队, and Fast when the engine reports it", () => {

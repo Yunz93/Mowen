@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo, type ReactNode } from "react";
+import { Box, Info } from "lucide-react";
 import { stripModePrefix, type TimelineMessage, type ToolExecution } from "@qingzhou/protocol";
 import { ToolExecutionRow } from "./ToolExecutionRow";
 import { ToolGroupRow } from "./ToolGroupRow";
@@ -175,6 +176,29 @@ function UserMessage({
           </div>
         </>
       )}
+    </article>
+  );
+}
+
+function SystemNotice({
+  message,
+  highlighted,
+}: {
+  message: TimelineMessage;
+  highlighted?: boolean;
+}) {
+  if (!message.text.trim()) return null;
+  return (
+    <article
+      id={conversationMessageDomId(message.id)}
+      role="status"
+      className={`model-change-banner ${highlighted ? "conversation-search-hit" : ""}`}
+    >
+      <Box size={14} strokeWidth={1.75} aria-hidden className="model-change-icon" />
+      <p>{message.text}</p>
+      <span className="model-change-info" title="这条提示只显示在对话里，不会发给模型。">
+        <Info size={13} strokeWidth={2} aria-label="说明" />
+      </span>
     </article>
   );
 }
@@ -372,6 +396,11 @@ export function ConversationTimeline({
       if (message.role === "toolResult") {
         const tool = message.toolCallId ? toolById.get(message.toolCallId) : undefined;
         if (tool && !renderedTools.has(tool.toolCallId)) pendingTools.push(tool);
+        continue;
+      }
+      if (message.role === "system") {
+        flushTools();
+        rows.push(<SystemNotice key={message.id} message={message} highlighted={highlighted} />);
         continue;
       }
       if (message.role === "assistant" && !message.text && !message.thinking && !message.streaming) continue;

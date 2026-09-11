@@ -111,6 +111,35 @@ describe("event normalizer", () => {
     expect(messages[1]?.text).toBe("hi");
   });
 
+  it("turns Pi model_change entries into system notices", () => {
+    const messages = piMessagesToTimeline([
+      {
+        role: "model_change",
+        provider: "openai",
+        modelId: "gpt-5.6-sol",
+        previousModel: "openai/gpt-5.4",
+        timestamp: 3,
+      },
+    ]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.role).toBe("system");
+    expect(messages[0]?.text).toBe("模型已从 gpt-5.4 更改为 gpt-5.6-sol。");
+    const started = normalizePiEvent({
+      type: "message_start",
+      message: {
+        role: "model_change",
+        model: "openai/gpt-5.6-sol",
+        previousModel: "openai/gpt-5.4",
+        timestamp: 4,
+      },
+    });
+    expect(started.kind).toBe("message.started");
+    if (started.kind === "message.started") {
+      expect(started.message.role).toBe("system");
+      expect(started.message.text).toContain("更改为");
+    }
+  });
+
   it("extracts image blocks from user content", () => {
     const started = normalizePiEvent({
       type: "message_start",

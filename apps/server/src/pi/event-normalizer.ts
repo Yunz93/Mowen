@@ -9,6 +9,13 @@ import {
 const MAX_IMAGE_DATA_URL = 1_500_000;
 import { extractErrorText } from "../setup/pi-agent-dir.js";
 import type { RpcEvent } from "./rpc-client.js";
+import {
+  createModelChangeNotice,
+  modelChangeNoticeId,
+  modelKeyFromRecord,
+  previousModelKeyFromRecord,
+  resolveModelLabel,
+} from "../tasks/model-change.js";
 
 export type NormalizedPiEvent =
   | { kind: "status"; streaming: boolean; settled?: boolean }
@@ -104,6 +111,43 @@ function messageIdFor(role: string, timestamp: unknown, extra: string): string {
   return createHash("sha1").update(`${role}:${String(timestamp)}:${stableExtra}`).digest("hex").slice(0, 16);
 }
 
+function timelineFromPiMessage(
+  message: Record<string, unknown>,
+  streaming: boolean,
+): TimelineMessage | null {
+  const role = String(message.role ?? message.type ?? "assistant");
+  if (role === "model_change") {
+    const createdAt = nowIso(typeof message.timestamp === "number" ? message.timestamp : undefined);
+    const existing = textFromContent(message.content).trim();
+    if (existing && /模型已/.test(existing)) {
+      return {
+        id: modelChangeNoticeId(messageIdFor("system", message.timestamp, existing.slice(0, 24))),
+        role: "system",
+        text: existing,
+        createdAt,
+        streaming: false,
+      };
+    }
+    const from = resolveModelLabel(previousModelKeyFromRecord(message));
+    const to = resolveModelLabel(modelKeyFromRecord(message));
+    return createModelChangeNotice(messageIdFor("system", message.timestamp, `${from}->${to}`), from, to, createdAt);
+  }
+  if (role !== "user" && role !== "assistant" && role !== "toolResult") return null;
+  const id = messageIdFor(role, message.timestamp, textFromContent(message.content).slice(0, 24));
+  return {
+    id,
+    role,
+    text: textFromContent(message.content),
+    thinking: thinkingFromContent(message.content),
+    createdAt: nowIso(typeof message.timestamp === "number" ? message.timestamp : undefined),
+    streaming: streaming && role === "assistant",
+    toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
+    toolName: typeof message.toolName === "string" ? message.toolName : undefined,
+    isError: Boolean(message.isError),
+    images: imagesFromContent(message.content),
+  };
+}
+
 function targetFromArgs(toolName: string, args: unknown): string | undefined {
   if (!args || typeof args !== "object") return undefined;
   const record = args as Record<string, unknown>;
@@ -134,26 +178,9 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
     case "message_start": {
       const message = event.message as Record<string, unknown> | undefined;
       if (!message) return { kind: "ignored" };
-      const role = String(message.role ?? "assistant");
-      if (role !== "user" && role !== "assistant" && role !== "toolResult") {
-        return { kind: "ignored" };
-      }
-      const id = messageIdFor(role, message.timestamp, textFromContent(message.content).slice(0, 24));
-      return {
-        kind: "message.started",
-        message: {
-          id,
-          role,
-          text: textFromContent(message.content),
-          thinking: thinkingFromContent(message.content),
-          createdAt: nowIso(typeof message.timestamp === "number" ? message.timestamp : undefined),
-          streaming: role === "assistant",
-          toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
-          toolName: typeof message.toolName === "string" ? message.toolName : undefined,
-          isError: Boolean(message.isError),
-          images: imagesFromContent(message.content),
-        },
-      };
+      const timeline = timelineFromPiMessage(message, true);
+      if (!timeline) return { kind: "ignored" };
+      return { kind: "message.started", message: timeline };
     }
     case "message_update": {
       const delta = event.assistantMessageEvent as Record<string, unknown> | undefined;
@@ -174,26 +201,9 @@ export function normalizePiEvent(event: RpcEvent): NormalizedPiEvent {
     case "message_end": {
       const message = event.message as Record<string, unknown> | undefined;
       if (!message) return { kind: "ignored" };
-      const role = String(message.role ?? "assistant");
-      if (role !== "user" && role !== "assistant" && role !== "toolResult") {
-        return { kind: "ignored" };
-      }
-      const id = messageIdFor(role, message.timestamp, textFromContent(message.content).slice(0, 24));
-      return {
-        kind: "message.completed",
-        message: {
-          id,
-          role,
-          text: textFromContent(message.content),
-          thinking: thinkingFromContent(message.content),
-          createdAt: nowIso(typeof message.timestamp === "number" ? message.timestamp : undefined),
-          streaming: false,
-          toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
-          toolName: typeof message.toolName === "string" ? message.toolName : undefined,
-          isError: Boolean(message.isError),
-          images: imagesFromContent(message.content),
-        },
-      };
+      const timeline = timelineFromPiMessage(message, false);
+      if (!timeline) return { kind: "ignored" };
+      return { kind: "message.completed", message: timeline };
     }
     case "tool_execution_start": {
       const toolCallId = String(event.toolCallId ?? "");
@@ -321,21 +331,8 @@ export function piMessagesToTimeline(messages: unknown[]): TimelineMessage[] {
   const out: TimelineMessage[] = [];
   for (const item of messages) {
     if (!item || typeof item !== "object") continue;
-    const message = item as Record<string, unknown>;
-    const role = String(message.role ?? "");
-    if (role !== "user" && role !== "assistant" && role !== "toolResult") continue;
-    out.push({
-      id: messageIdFor(role, message.timestamp, textFromContent(message.content).slice(0, 24)),
-      role,
-      text: textFromContent(message.content),
-      thinking: thinkingFromContent(message.content),
-      createdAt: nowIso(typeof message.timestamp === "number" ? message.timestamp : undefined),
-      streaming: false,
-      toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : undefined,
-      toolName: typeof message.toolName === "string" ? message.toolName : undefined,
-      isError: Boolean(message.isError),
-      images: imagesFromContent(message.content),
-    });
+    const timeline = timelineFromPiMessage(item as Record<string, unknown>, false);
+    if (timeline) out.push(timeline);
   }
   return out;
 }

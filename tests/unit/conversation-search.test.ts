@@ -39,6 +39,12 @@ describe("conversation search", () => {
     ];
     expect(matchConversationMessages(messages, "   ")).toEqual([]);
     expect(matchConversationMessages(messages, "uniquetoken")).toEqual(["u1", "a1"]);
+    expect(
+      matchConversationMessages(
+        [...messages, { id: "s1", role: "system", text: "模型已从 A 更改为 B。" }],
+        "更改为",
+      ),
+    ).toEqual(["s1"]);
   });
 
   it("wraps prev/next indexes", () => {

@@ -7,7 +7,7 @@ export function conversationMessageDomId(messageId: string): string {
 }
 
 export function searchableText(message: Pick<TimelineMessage, "role" | "text">): string {
-  if (message.role === "toolResult" || message.role === "system") return "";
+  if (message.role === "toolResult") return "";
   if (message.role === "user") return stripModePrefix(message.text);
   return message.text;
 }

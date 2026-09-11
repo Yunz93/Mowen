@@ -984,6 +984,32 @@ html.dark {
     outline-offset: 3px;
   }
 
+  .model-change-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    gap: 8px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 6px 4px;
+    color: var(--color-mute);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .model-change-banner p {
+    margin: 0;
+  }
+
+  .model-change-icon,
+  .model-change-info {
+    display: inline-flex;
+    flex-shrink: 0;
+    opacity: 0.72;
+  }
+
   /* Terminal sits on the inspector material — no extra canvas/sidebar slab. */
   .term-shell {
     background: transparent;
