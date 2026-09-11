@@ -74,5 +74,8 @@ describe("conversation interaction chrome", () => {
     expect(composer).toContain("正在启动");
     expect(composer).toContain("aria-label=\"发送\"");
     expect(capsules).toContain("Fast 模式");
+    expect(capsules).toContain("model-picker");
+    expect(capsules).toContain("选择强度");
+    expect(capsules).toContain("滑动选择模型");
   });
 });

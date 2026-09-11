@@ -1,25 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ApprovalPolicy, InteractionMode, ThinkingLevel } from "@qingzhou/protocol";
 import { approvalPolicies, interactionModes } from "@qingzhou/protocol";
-import { ChevronDown } from "lucide-react";
-
-const THINKING_LABEL: Record<ThinkingLevel, string> = {
-  off: "关闭",
-  minimal: "很少",
-  low: "较低",
-  medium: "中等",
-  high: "较高",
-  xhigh: "很高",
-  max: "最大",
-};
-
-type Model = { provider: string; id: string; name?: string };
+import { ChevronDown, ChevronRight, RotateCw, Zap } from "lucide-react";
+import {
+  THINKING_LABEL,
+  THINKING_SHORT,
+  clampIndex,
+  indexOfModel,
+  modelKey,
+  nextModelIndex,
+  sliderPercent,
+  type PickerModel,
+} from "../../lib/model-picker";
 
 type Props = {
   slot: "mode" | "model";
   mode: InteractionMode;
   approvalPolicy: ApprovalPolicy;
-  models: Model[];
+  models: PickerModel[];
   modelId: string | null;
   thinkingLevel: ThinkingLevel;
   thinkingLevels: ThinkingLevel[];
@@ -47,22 +45,37 @@ export function ComposerCapsules({
   onFastMode,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [intensityOpen, setIntensityOpen] = useState(false);
+  const [modelListOpen, setModelListOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const modeLabel = interactionModes.find((item) => item.value === mode)?.label ?? mode;
   const policyLabel = approvalPolicies.find((item) => item.value === approvalPolicy)?.label ?? approvalPolicy;
-  const currentModel = models.find((model) => `${model.provider}/${model.id}` === modelId);
+  const currentModel = models.find((model) => modelKey(model) === modelId);
   const modelLabel = currentModel?.name ?? currentModel?.id ?? (models.length === 0 ? "暂无模型" : "选择模型");
   const thinkingLabel = THINKING_LABEL[thinkingLevel] ?? thinkingLevel;
+  const thinkingShort = THINKING_SHORT[thinkingLevel] ?? thinkingLevel;
   const showFast = typeof fastModeEnabled === "boolean" && onFastMode;
   const fastOn = fastModeActive === true || (fastModeActive !== false && fastModeEnabled === true);
+  const modelIndex = indexOfModel(models, modelId);
 
   useEffect(() => {
     const onDoc = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setIntensityOpen(false);
+        setModelListOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setIntensityOpen(false);
+      setModelListOpen(false);
+    }
+  }, [open]);
 
   if (slot === "mode") {
     return (
@@ -121,12 +134,22 @@ export function ComposerCapsules({
     );
   }
 
+  const pickModelAt = (index: number) => {
+    const model = models[clampIndex(index, models.length)];
+    if (model) onModel(model.provider, model.id);
+  };
+
+  const pickThinkingAt = (index: number) => {
+    const level = thinkingLevels[clampIndex(index, thinkingLevels.length)];
+    if (level) onThinking(level);
+  };
+
   return (
     <div ref={rootRef} className="relative min-w-0">
       <button
         type="button"
         className="pressable composer-capsule"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="模型和思考"
         onClick={() => setOpen((value) => !value)}
@@ -139,59 +162,147 @@ export function ComposerCapsules({
         <ChevronDown size={12} strokeWidth={2} className="shrink-0 opacity-70" />
       </button>
       {open ? (
-        <div className="composer-popover composer-popover-end" role="menu" aria-label="模型和思考">
-          {models.length === 0 ? (
-            <p className="px-3 py-2 text-[12px] text-mute">暂无模型</p>
-          ) : (
-            models.map((model) => {
-              const id = `${model.provider}/${model.id}`;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="menuitem"
-                  className={`pressable composer-popover-item ${id === modelId ? "composer-popover-active" : ""}`}
-                  onClick={() => {
-                    onModel(model.provider, model.id);
-                    setOpen(false);
-                  }}
-                >
-                  {model.name ?? model.id}
-                </button>
-              );
-            })
-          )}
-          <div className="composer-popover-sep" />
-          {thinkingLevels.map((level) => (
-            <button
-              key={level}
-              type="button"
-              role="menuitem"
-              className={`pressable composer-popover-item ${thinkingLevel === level ? "composer-popover-active" : ""}`}
-              onClick={() => {
-                onThinking(level);
-                setOpen(false);
-              }}
-            >
-              思考：{THINKING_LABEL[level] ?? level}
-            </button>
-          ))}
-          {showFast ? (
-            <>
-              <div className="composer-popover-sep" />
+        <div className="model-picker" role="dialog" aria-label="模型和思考">
+          <div className="model-picker-head">
+            {showFast ? (
               <button
                 type="button"
-                role="menuitemcheckbox"
-                aria-checked={fastOn}
-                className={`pressable composer-popover-item ${fastOn ? "composer-popover-active" : ""}`}
-                onClick={() => {
-                  onFastMode?.(!fastModeEnabled);
-                  setOpen(false);
-                }}
+                className={`pressable model-picker-icon ${fastOn ? "model-picker-icon-on" : ""}`}
+                aria-label="Fast 模式"
+                aria-pressed={fastOn}
+                title={fastOn ? "Fast 模式 · 开" : "Fast 模式 · 关"}
+                onClick={() => onFastMode?.(!fastModeEnabled)}
               >
-                Fast 模式{fastOn ? " · 开" : " · 关"}
+                <Zap size={15} strokeWidth={2} fill={fastOn ? "currentColor" : "none"} />
               </button>
-            </>
+            ) : (
+              <span className="model-picker-icon model-picker-icon-ghost" aria-hidden>
+                <Zap size={15} strokeWidth={2} />
+              </span>
+            )}
+            <button
+              type="button"
+              className="pressable model-picker-level"
+              aria-haspopup="menu"
+              aria-expanded={intensityOpen}
+              aria-label="思考强度"
+              onClick={() => {
+                setIntensityOpen((value) => !value);
+                setModelListOpen(false);
+              }}
+            >
+              {thinkingShort}
+              <ChevronRight size={13} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              className="pressable model-picker-icon"
+              aria-label="下一个模型"
+              disabled={models.length < 2}
+              onClick={() => pickModelAt(nextModelIndex(models, modelId))}
+            >
+              <RotateCw size={14} strokeWidth={2} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="pressable model-picker-name"
+            aria-haspopup="menu"
+            aria-expanded={modelListOpen}
+            aria-label="选择模型"
+            disabled={models.length === 0}
+            onClick={() => {
+              setModelListOpen((value) => !value);
+              setIntensityOpen(false);
+            }}
+          >
+            {modelLabel}
+          </button>
+
+          {models.length > 0 ? (
+            <div className="model-picker-slider-wrap">
+              <input
+                type="range"
+                className="model-picker-slider"
+                min={0}
+                max={Math.max(0, models.length - 1)}
+                step={1}
+                value={modelIndex}
+                aria-label="滑动选择模型"
+                style={{ "--slider-pct": `${sliderPercent(modelIndex, models.length)}%` } as CSSProperties}
+                onChange={(event) => pickModelAt(Number(event.target.value))}
+              />
+              {models.length > 1 && models.length <= 8 ? (
+                <div className="model-picker-dots" aria-hidden>
+                  {models.map((model, index) => (
+                    <span
+                      key={modelKey(model)}
+                      className={`model-picker-dot ${index <= modelIndex ? "model-picker-dot-on" : ""}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="model-picker-empty">暂无模型</p>
+          )}
+
+          <div className="model-picker-foot">
+            <button
+              type="button"
+              className="pressable model-picker-intensity"
+              aria-haspopup="menu"
+              aria-expanded={intensityOpen}
+              onClick={() => {
+                setIntensityOpen((value) => !value);
+                setModelListOpen(false);
+              }}
+            >
+              选择强度
+              <ChevronDown size={12} strokeWidth={2} />
+            </button>
+          </div>
+
+          {intensityOpen ? (
+            <div className="model-picker-menu" role="menu" aria-label="思考强度">
+              {thinkingLevels.map((level, index) => (
+                <button
+                  key={level}
+                  type="button"
+                  role="menuitem"
+                  className={`pressable composer-popover-item ${thinkingLevel === level ? "composer-popover-active" : ""}`}
+                  onClick={() => {
+                    pickThinkingAt(index);
+                    setIntensityOpen(false);
+                  }}
+                >
+                  思考：{THINKING_LABEL[level] ?? level}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {modelListOpen && models.length > 0 ? (
+            <div className="model-picker-menu" role="menu" aria-label="模型列表">
+              {models.map((model) => {
+                const id = modelKey(model);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="menuitem"
+                    className={`pressable composer-popover-item ${id === modelId ? "composer-popover-active" : ""}`}
+                    onClick={() => {
+                      onModel(model.provider, model.id);
+                      setModelListOpen(false);
+                    }}
+                  >
+                    {model.name ?? model.id}
+                  </button>
+                );
+              })}
+            </div>
           ) : null}
         </div>
       ) : null}
