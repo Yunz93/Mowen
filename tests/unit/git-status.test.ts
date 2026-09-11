@@ -32,6 +32,8 @@ describe("git helpers", () => {
     expect(status.remoteUrl).toBeNull();
     const diffBefore = await readGitDiff(root);
     expect(diffBefore).toBeTypeOf("string");
+    expect(diffBefore).toMatch(/note\.txt/);
+    expect(diffBefore).toMatch(/\+hello/);
     await commitGit(root, "add note");
     const after = await readGitStatus(root);
     expect(after.dirty).toBe(false);
@@ -70,6 +72,20 @@ describe("git helpers", () => {
     await restoreGit(root);
     const afterAll = await readGitStatus(root);
     expect(afterAll.dirty).toBe(false);
+  });
+
+  it("previews untracked files without committing them", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-git-untracked-"));
+    await execFileAsync("git", ["init"], { cwd: root });
+    await execFileAsync("git", ["-c", "user.name=T", "-c", "user.email=t@t", "commit", "--allow-empty", "-m", "init"], {
+      cwd: root,
+    });
+    await writeFile(path.join(root, "playwright.altconfig.ts"), "export default {};\n");
+    const diff = await readGitDiff(root);
+    expect(diff).toMatch(/playwright\.altconfig\.ts/);
+    expect(diff).toMatch(/\+export default \{\};/);
+    const status = await readGitStatus(root);
+    expect(status.entries.some((entry) => entry.path.includes("playwright.altconfig.ts"))).toBe(true);
   });
 
   it("parses git status paths and rejects escapes", () => {

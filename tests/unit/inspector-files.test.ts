@@ -6,6 +6,7 @@ import {
   buildFileTree,
   fileKindBadge,
   gitMarksByPath,
+  gitPatchesForEntry,
   parentDir,
   previewableFileEntries,
 } from "../../apps/web/src/lib/inspector-files";
@@ -112,6 +113,18 @@ describe("InspectorPanel tabs", () => {
     const header = src.slice(src.indexOf("tab === \"files\""), src.indexOf("tab === \"git\""));
     expect(header.indexOf("preview?.path")).toBeGreaterThan(-1);
     expect(header.indexOf("隐藏文件树")).toBeGreaterThan(header.indexOf("preview?.path"));
+  });
+});
+
+describe("gitPatchesForEntry", () => {
+  it("matches a file and files under an untracked folder", () => {
+    const patches = [
+      { path: "playwright.altconfig.ts", lines: 3 },
+      { path: "tmp/a.ts", lines: 1 },
+      { path: "tmp/b.ts", lines: 2 },
+    ];
+    expect(gitPatchesForEntry(patches, "playwright.altconfig.ts")).toEqual([patches[0]]);
+    expect(gitPatchesForEntry(patches, "tmp/")).toEqual([patches[1], patches[2]]);
   });
 });
 
