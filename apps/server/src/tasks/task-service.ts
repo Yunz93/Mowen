@@ -47,7 +47,6 @@ import { previewProjectFile, listProjectFiles } from "./file-browser.js";
 import { assertGitRelativePath, commitGit, initGit, pushGit, readGitDiff, readGitStatus, restoreGit } from "./git-status.js";
 import { RememberedApprovals } from "./remembered-approvals.js";
 import { TaskShells } from "./task-shell.js";
-import { openNativeTerminal } from "./open-native-terminal.js";
 import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { installPresetPiPackages } from "./pi-packages.js";
 import { applySystemSkillUpdates, checkSystemSkillUpdates } from "./pi-skill-updates.js";
@@ -56,6 +55,7 @@ import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessio
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
 import { WorkItemStore } from "./work-item-store.js";
+import { TermController } from "./term-controller.js";
 
 export type SetupHints = {
   authConfigured: boolean;
@@ -91,6 +91,7 @@ export class TaskService {
   private readonly resources = new Map<string, PiResources>();
   private readonly gitDiffs = new Map<string, string>();
   private readonly shells = new TaskShells();
+  private readonly terms: TermController;
 
   private readonly workItems: WorkItemStore;
 
@@ -117,6 +118,12 @@ export class TaskService {
         void this.apply(taskId, "abort_confirmed");
       },
     );
+    this.terms = new TermController({
+      shells: this.shells,
+      requireTask: (taskId) => this.requireTask(taskId),
+      emit: (taskId, type, payload) => this.emit(taskId, type as ServerEvent["type"], payload),
+    });
+
     this.events = new EventDispatcher((taskId) => this.supervisor.nextSequence(taskId));
     this.remembered = new RememberedApprovals(config.dataDir);
     this.checkpoints = new CheckpointStore(config.dataDir);
@@ -938,61 +945,31 @@ export class TaskService {
   }
 
   private runTerm(taskId: string, command: string): { ok: true } {
-    const task = this.requireTask(taskId);
-    this.shells.run(taskId, {
-      cwd: task.cwd,
-      command,
-      onChunk: (text) => this.emit(taskId, "term.chunk", { text }),
-      onExit: (code, signal) => this.emit(taskId, "term.exit", { code, signal }),
-    });
-    return { ok: true };
+    return this.terms.runTerm(taskId, command);
   }
 
   private startTerm(taskId: string, payload?: { cols?: number; rows?: number }): { ok: true; shell: string; pid: number } {
-    const task = this.requireTask(taskId);
-    const result = this.shells.startTerminal(taskId, {
-      cwd: task.cwd,
-      cols: payload?.cols,
-      rows: payload?.rows,
-      onChunk: (text) => this.emit(taskId, "term.chunk", { text }),
-      onExit: (code, signal) => this.emit(taskId, "term.exit", { code, signal }),
-    });
-    this.emit(taskId, "term.ready", { shell: result.shell, cwd: task.cwd, pid: result.pid });
-    return { ok: true, ...result };
+    return this.terms.startTerm(taskId, payload);
   }
 
   private inputTerm(taskId: string, data: string): { ok: true } {
-    this.requireTask(taskId);
-    if (!this.shells.writeTerminal(taskId, data)) {
-      throw new Error("终端还没有启动。");
-    }
-    return { ok: true };
+    return this.terms.inputTerm(taskId, data);
   }
 
   private resizeTerm(taskId: string, cols: number, rows: number): { ok: true } {
-    this.requireTask(taskId);
-    if (!this.shells.resizeTerminal(taskId, cols, rows)) {
-      throw new Error("终端还没有启动。");
-    }
-    return { ok: true };
+    return this.terms.resizeTerm(taskId, cols, rows);
   }
 
   private closeTerm(taskId: string): { ok: true } {
-    this.requireTask(taskId);
-    this.shells.dispose(taskId);
-    return { ok: true };
+    return this.terms.closeTerm(taskId);
   }
 
   private interruptTerm(taskId: string): { ok: true } {
-    this.requireTask(taskId);
-    this.shells.interrupt(taskId);
-    return { ok: true };
+    return this.terms.interruptTerm(taskId);
   }
 
   private async openNativeTerm(taskId: string): Promise<{ ok: true }> {
-    const task = this.requireTask(taskId);
-    await openNativeTerminal(task.cwd);
-    return { ok: true };
+    return this.terms.openNativeTerm(taskId);
   }
 
   private async emitGitDiff(taskId: string): Promise<{ diff: string }> {

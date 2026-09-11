@@ -70,21 +70,51 @@ const HIGH_RISK_PATTERNS: RegExp[] = [
   /\bkubectl\s+delete\b[\s\S]*(?:--all\b|namespace)/, // 批量删 K8s 资源
   /\biptables\b|\bufw\s+(?:disable|reset)\b/, // 防火墙
   /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/, // fork bomb
+  /\bfind\b[\s\S]*-(?:delete|exec)\b/, // find 批量删除/执行
+  /\bxargs\b[\s\S]*\brm\b/, // xargs rm
 ];
 
-/** Collapse escapes/whitespace so trivial obfuscation still hits the patterns. */
+/** Collapse escapes/whitespace/quotes so trivial obfuscation still hits the patterns. */
 export function normalizeCommandForRisk(command: string): string {
-  return command
-    .replace(/\\\r?\n/g, " ")
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/\\([ ;|&<>])/g, "$1")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
+  return (
+    command
+      // line continuations and odd whitespace
+      .replace(/\\\r?\n/g, " ")
+      .replace(/[\r\n\t]+/g, " ")
+      // common shell escapes around operators/spaces
+      .replace(/\\([ ;|&<>])/g, "$1")
+      // hex escapes used to hide keywords: \x73udo / $'\x73udo'
+      .replace(/\$'((?:\\x[0-9a-fA-F]{2}|\\.|[^'])*)'/g, (_, body: string) =>
+        body.replace(/\\x([0-9a-fA-F]{2})/g, (__: string, hex: string) =>
+          String.fromCharCode(Number.parseInt(hex, 16)),
+        ),
+      )
+      .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+      // strip quotes that only break keyword matching: su''do, "rm" -rf
+      .replace(/['"]+/g, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim()
+  );
+}
+
+/** Split a command line into pipeline/chain segments for per-segment risk checks. */
+export function splitCommandSegments(command: string): string[] {
+  const normalized = normalizeCommandForRisk(command);
+  if (!normalized) return [];
+  return normalized
+    .split(/(?:&&|\|\||;|\||`)/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 export function isHighRiskCommand(command: string): boolean {
   const normalized = normalizeCommandForRisk(command);
-  return HIGH_RISK_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (!normalized) return false;
+  // Full line catches pipe-to-shell / compound patterns; segments catch chained parts.
+  if (HIGH_RISK_PATTERNS.some((pattern) => pattern.test(normalized))) return true;
+  return splitCommandSegments(command).some((segment) =>
+    HIGH_RISK_PATTERNS.some((pattern) => pattern.test(segment)),
+  );
 }
 
 export function approvalDecision(
