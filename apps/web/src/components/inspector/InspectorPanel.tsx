@@ -10,7 +10,7 @@ import {
   type SkillUpdateCheckResult,
   type SkillUpdateItem,
 } from "@qingzhou/protocol";
-import { ancestorDirs, buildFileTree, gitMarksByPath, type InspectorFileEntry } from "../../lib/inspector-files";
+import { ancestorDirs, buildFileTree, gitMarksByPath, gitPatchesForEntry, type InspectorFileEntry } from "../../lib/inspector-files";
 import { FileTree } from "./FileTree";
 import { FilePreview } from "./FilePreview";
 import { DiffView } from "../diff/DiffView";
@@ -454,8 +454,15 @@ export function InspectorPanel({
                 {git.entries.length === 0 ? <p className="text-sm text-mute">没有改动。</p> : null}
                 <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
                   {git.entries.map((entry) => {
-                    const patch = gitPatchForPath(gitPatches, entry.path);
-                    const counts = patch ? patchLineCounts(patch.lines) : { added: 0, removed: 0 };
+                    const patches = gitPatchesForEntry(gitPatches, entry.path);
+                    const patch = patches[0] ?? gitPatchForPath(gitPatches, entry.path);
+                    const counts = patches.reduce(
+                      (total, item) => {
+                        const next = patchLineCounts(item.lines);
+                        return { added: total.added + next.added, removed: total.removed + next.removed };
+                      },
+                      { added: 0, removed: 0 },
+                    );
                     const open = expandedGitPath === entry.path;
                     const isNew = isNewGitEntry(entry.status);
                     return (
@@ -491,13 +498,23 @@ export function InspectorPanel({
                         </div>
                         {open ? (
                           <div className="border-t border-line p-1.5">
-                            {patch?.binary ? (
+                            {patches.some((item) => item.binary) && patches.every((item) => item.binary || item.lines.length === 0) ? (
                               <p className="px-1 py-2 text-sm text-mute">这是二进制文件，无法预览差异。</p>
-                            ) : patch && patch.lines.length > 0 ? (
-                              <DiffView review lines={patch.lines} fallback="还没有差异。" />
+                            ) : patches.some((item) => item.lines.length > 0) ? (
+                              <div className="space-y-2">
+                                {patches.map((item) =>
+                                  item.binary ? (
+                                    <p key={item.path} className="px-1 py-1 text-sm text-mute">
+                                      {item.path} 是二进制文件。
+                                    </p>
+                                  ) : (
+                                    <DiffView key={item.path} review lines={item.lines} fallback="还没有差异。" />
+                                  ),
+                                )}
+                              </div>
                             ) : (
                               <p className="px-1 py-2 text-sm text-mute">
-                                {isNew ? "未跟踪文件，提交后才会进入 diff。" : "这个文件没有文本 diff。"}
+                                {isNew ? "这是新文件，但没有可预览的文本。" : "这个文件没有文本 diff。"}
                               </p>
                             )}
                           </div>

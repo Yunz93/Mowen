@@ -109,17 +109,67 @@ export async function initGit(cwd: string): Promise<GitSnapshot> {
   return status;
 }
 
-export async function readGitDiff(cwd: string): Promise<string | null> {
+async function gitStdout(cwd: string, args: string[], allowStatus: number[] = [0]): Promise<string> {
   try {
-    const { stdout } = await execFileAsync("git", ["diff", "HEAD"], {
+    const { stdout } = await execFileAsync("git", args, {
       cwd,
       timeout: GIT_TIMEOUT_MS,
       maxBuffer: 2_000_000,
     });
     return stdout;
-  } catch {
-    return null;
+  } catch (error) {
+    const rawCode =
+      error && typeof error === "object"
+        ? "status" in error
+          ? (error as { status?: unknown }).status
+          : (error as { code?: unknown }).code
+        : undefined;
+    const status = Number(rawCode);
+    const stdout =
+      error && typeof error === "object" && "stdout" in error ? String((error as { stdout?: unknown }).stdout ?? "") : "";
+    if (allowStatus.includes(status)) return stdout;
+    throw error;
   }
+}
+
+async function listUntrackedFiles(cwd: string): Promise<string[]> {
+  try {
+    const stdout = await gitStdout(cwd, ["ls-files", "-z", "--others", "--exclude-standard"]);
+    return stdout.split("\0").map((item) => item.trim()).filter(Boolean).slice(0, 200);
+  } catch {
+    return [];
+  }
+}
+
+async function readUntrackedDiffs(cwd: string): Promise<string> {
+  const files = await listUntrackedFiles(cwd);
+  const parts: string[] = [];
+  for (const file of files) {
+    try {
+      const patch = await gitStdout(cwd, ["diff", "--no-index", "--no-color", "--", "/dev/null", file], [0, 1]);
+      if (patch.trim()) parts.push(patch.trimEnd());
+    } catch {
+      // Skip unreadable / deleted-between-status files.
+    }
+  }
+  return parts.join("\n");
+}
+
+export async function readGitDiff(cwd: string): Promise<string | null> {
+  let tracked = "";
+  try {
+    tracked = await gitStdout(cwd, ["diff", "HEAD"]);
+  } catch {
+    try {
+      tracked = await gitStdout(cwd, ["diff"]);
+    } catch {
+      tracked = "";
+    }
+  }
+  const untracked = await readUntrackedDiffs(cwd);
+  const parts = [tracked, untracked].filter((part) => part.trim());
+  if (parts.length === 0) return tracked || untracked || "";
+  return parts.join(tracked.endsWith("\n") || !tracked ? "" : "\n");
 }
 
 export async function commitGit(cwd: string, message: string): Promise<void> {

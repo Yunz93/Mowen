@@ -9,6 +9,19 @@ export function gitMarkForStatus(status: string): GitFileMark | null {
   return null;
 }
 
+export function cleanedGitEntryPath(entryPath: string): string {
+  return entryPath.replace(/^"(.*)"$/u, "$1").split(" -> ").pop()?.trim() ?? entryPath;
+}
+
+export function gitPatchesForEntry<T extends { path: string }>(patches: T[], entryPath: string): T[] {
+  const cleaned = cleanedGitEntryPath(entryPath);
+  const exact = patches.find((file) => file.path === cleaned);
+  if (exact) return [exact];
+  const prefix = cleaned.endsWith("/") ? cleaned : `${cleaned}/`;
+  const nested = patches.filter((file) => file.path.startsWith(prefix) || file.path.endsWith(cleaned));
+  return nested;
+}
+
 export function gitMarksByPath(entries: Array<{ path: string; status: string }>): Map<string, GitFileMark> {
   const map = new Map<string, GitFileMark>();
   for (const entry of entries) {
