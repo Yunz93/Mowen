@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Task/WorkItem 持久化改为合并写盘（默认跳过常规 fsync），关机时再强刷。
+- Pi boot 的 get_state / get_messages / models / thinking / commands 并行拉取；资源扫描与 stats 不再挡住 pi_ready。
+- 热切换复用已启动的 Pi 进程，槽位满时 LRU 回收空闲 warm 进程；默认 `QINGZHOU_MAX_PROCESSES` 提到 5。
+- 流式 message.delta 走 O(1) 更新与廉价 eventId；stdin 写入尊重背压。
+- 暖激活/snapshot 可省略 transcript 与工作板；前端对 delta 批次合批渲染并跳过完整 Zod。
+- 流式期间拉长 sessionStorage 落盘间隔，减少主线程抖动。
+
 ## 0.1.17
 
 - 运行中与 Pi 断连后会自动重连并重新同步会话，不再只能靠刷新页面恢复。
