@@ -235,6 +235,13 @@ export function loadConfig(
     }
   }
 
+  // Keep $HOME selectable after a workspace is set so 随便聊聊 and the
+  // folder picker (which already browse home) do not fail cwd checks.
+  // Explicit ALLOWED_ROOTS stays a hard jail for tests / locked deploys.
+  if (!allowedRootsValue?.trim() && !envRoots.includes(homeDir)) {
+    envRoots.push(homeDir);
+  }
+
   const pi = resolvePiRuntime(env);
 
   return {

@@ -20,11 +20,11 @@ describe("casual chat workspace", () => {
     expect(cwd).toBe(path.join(await realpath(home), "Qingzhou Chat"));
   });
 
-  it("falls back to the first allowed root", async () => {
+  it("creates Qingzhou Chat under home even when only a workspace root is listed", async () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-casual-home-"));
     const root = await mkdtemp(path.join(os.tmpdir(), "qingzhou-casual-root-"));
     dirs.push(home, root);
     const cwd = await ensureCasualChatCwd(home, [root]);
-    expect(cwd).toBe(path.join(await realpath(root), "Qingzhou Chat"));
+    expect(cwd).toBe(path.join(await realpath(home), "Qingzhou Chat"));
   });
 });
