@@ -72,7 +72,8 @@ describe("conversation interaction chrome", () => {
     expect(composer).toContain("busySubmitKind");
     expect(composer).toContain("composerCanSubmit");
     expect(composer).toContain("正在启动");
-    expect(composer).toContain("aria-label=\"发送\"");
+    expect(composer).toContain("aria-label={showStop ? \"停止\" : \"发送\"}");
+    expect(composer).toContain("const showStop = running && !canSubmit");
     expect(capsules).toContain("Fast 模式");
     expect(capsules).toContain("model-picker");
     expect(capsules).toContain("选择强度");

@@ -115,6 +115,7 @@ export function PromptComposer({
   const running = status === "running" || status === "waiting_approval" || status === "aborting";
   const followUp = status === "idle" && hasTurns;
   const canSubmit = !starting && composerCanSubmit(value, images.length);
+  const showStop = running && !canSubmit;
   const mention = mentionQuery(value, caret);
   const slash = !mention ? slashQuery(value, caret) : null;
 
@@ -469,20 +470,15 @@ export function PromptComposer({
               onThinking={onThinking}
               onFastMode={onFastMode}
             />
-            {running ? (
-              <button type="button" className="pressable send-btn send-btn-stop" onClick={onAbort} aria-label="停止">
-                <Square size={10} fill="currentColor" />
-              </button>
-            ) : null}
             <button
               type="button"
-              className="pressable send-btn"
-              onClick={() => submit()}
-              disabled={disabled || !canSubmit}
-              aria-label="发送"
-              title={running ? (busySendMode === "followUp" ? "排队下一条" : "补充这条回复") : "发送"}
+              className={`pressable send-btn${showStop ? " send-btn-stop" : ""}`}
+              onClick={showStop ? onAbort : () => submit()}
+              disabled={disabled || (!showStop && !canSubmit)}
+              aria-label={showStop ? "停止" : "发送"}
+              title={showStop ? "停止" : running ? (busySendMode === "followUp" ? "排队下一条" : "补充这条回复") : "发送"}
             >
-              <ArrowUp size={15} strokeWidth={2.2} />
+              {showStop ? <Square size={10} fill="currentColor" /> : <ArrowUp size={15} strokeWidth={2.2} />}
             </button>
           </div>
         </div>
