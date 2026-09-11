@@ -753,10 +753,16 @@ html.dark {
 
   .model-picker-menu {
     margin-top: 8px;
-    overflow: hidden;
+    max-height: 180px;
+    overflow: auto;
     border-radius: 12px;
-    background: var(--color-fill);
+    background: var(--color-surface);
     padding: 4px;
+    box-shadow: inset 0 0 0 0.5px var(--color-line);
+  }
+
+  html.dark .model-picker-menu {
+    background: oklch(0.18 0.01 264);
   }
 
   .thinking-block {
