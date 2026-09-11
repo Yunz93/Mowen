@@ -51,6 +51,7 @@ import { openNativeTerminal } from "./open-native-terminal.js";
 import { scanPiResources, createProjectAgentsFile, setSkillEnabled, setExtensionEnabled, readContextFile, writeContextFile } from "./pi-resources.js";
 import { installPresetPiPackages } from "./pi-packages.js";
 import { applySystemSkillUpdates, checkSystemSkillUpdates } from "./pi-skill-updates.js";
+import { createModelChangeNotice, modelDisplayName } from "./model-change.js";
 import { assertPiSessionPath, listPiSessions, piSessionsRoot } from "./pi-sessions.js";
 import { TaskStore } from "./task-store.js";
 import { UploadStore } from "./upload-store.js";
@@ -275,14 +276,25 @@ export class TaskService {
         return this.editQueuedPrompt(command.taskId, command.payload);
       case "agent.abort":
         return this.abort(command.taskId);
-      case "model.set":
+      case "model.set": {
+        const previous = this.requireTask(command.taskId).model;
         await this.supervisor.rpcData(command.taskId, {
           type: "set_model",
           provider: command.payload.provider,
           modelId: command.payload.modelId,
         });
         await this.refreshTaskModel(command.taskId);
+        const next = this.requireTask(command.taskId).model;
+        const from = modelDisplayName(previous);
+        const to = modelDisplayName(next);
+        const notice = createModelChangeNotice(
+          `${previous?.provider ?? ""}/${previous?.id ?? ""}->${next?.provider ?? ""}/${next?.id ?? ""}`,
+          from,
+          to,
+        );
+        if (notice) this.supervisor.appendNotice(command.taskId, notice);
         return { ok: true };
+      }
       case "thinking.set":
         await this.supervisor.rpcData(command.taskId, {
           type: "set_thinking_level",
@@ -1257,6 +1269,8 @@ export class TaskService {
     if (result.cancelled) throw new Error("这次分叉被取消了");
     const messages = (await this.supervisor.rpcData(taskId, { type: "get_messages" })) as { messages?: unknown[] };
     this.supervisor.replaceMessages(taskId, piMessagesToTimeline(messages.messages ?? []));
+    await this.supervisor.refreshSessionTree(taskId);
+    this.supervisor.syncModelChangeNotices(taskId);
     this.emit(taskId, "snapshot", this.buildSnapshot(taskId));
     if (message?.trim()) {
       await this.prompt(taskId, message, undefined, "prompt");
@@ -1287,6 +1301,7 @@ export class TaskService {
     const messages = (await this.supervisor.rpcData(taskId, { type: "get_messages" })) as { messages?: unknown[] };
     this.supervisor.replaceMessages(taskId, piMessagesToTimeline(messages.messages ?? []));
     await this.emitSessionTree(taskId);
+    this.supervisor.syncModelChangeNotices(taskId);
     this.emit(taskId, "snapshot", this.buildSnapshot(taskId));
     if (message?.trim()) {
       await this.prompt(taskId, message, undefined, "prompt");

@@ -90,6 +90,21 @@ test("workbench core loop", async ({ page }) => {
   await page.getByRole("button", { name: /归档 E2E task/ }).click();
 });
 
+test("shows an explicit banner when the model changes", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "新对话" }).click();
+  await chooseTypePath(page);
+  await page.getByLabel("工作文件夹").fill(project);
+  await page.getByLabel("标题").fill("Model switch");
+  await page.getByRole("button", { name: "创建对话" }).click();
+  await expect(page.getByRole("banner").getByText("Model switch")).toBeVisible();
+  await expect(page.getByLabel("输入消息")).toBeEnabled({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: "模型和思考" }).click();
+  await page.getByRole("menuitem", { name: "Fake Model 2" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "模型已从 Fake Model 更改为 Fake Model 2。" })).toBeVisible();
+});
+
 test("keyboard and viewports", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => {
