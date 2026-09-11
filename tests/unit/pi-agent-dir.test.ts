@@ -55,6 +55,9 @@ describe("Pi agent dir and auth errors", () => {
     expect(humanizeUserFacingError(new Error("Fast mode is unavailable for the current model."))).toBe(
       "当前模型不支持 Fast 模式。",
     );
+    expect(humanizeUserFacingError(new Error("Working directory is outside allowed roots"))).toBe(
+      "工作文件夹不在允许的范围内",
+    );
     expect(shouldSurfacePiStderr("HTTP 401: authentication_error")).toBe(true);
     expect(shouldSurfacePiStderr("EACCES: permission denied, open '/Users/yunz/.pi/agent/auth.json'")).toBe(true);
     expect(shouldSurfacePiStderr("fd not found. Downloading...")).toBe(false);

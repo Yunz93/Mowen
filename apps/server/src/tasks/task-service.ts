@@ -32,7 +32,13 @@ import type { AppConfig } from "../config.js";
 import { piMessagesToTimeline } from "../pi/event-normalizer.js";
 import { ProcessSupervisor } from "../pi/process-supervisor.js";
 import { canTransition, isActiveProcessStatus, isBusyStatus, transition } from "../pi/state-machine.js";
-import { assertAllowedCwd, isInsideRoot, isProtectedWriteTarget, resolveAllowedPath } from "../security/path-policy.js";
+import {
+  assertAllowedCwd,
+  isInsideRoot,
+  isProtectedWriteTarget,
+  resolveAllowedPath,
+  userCwdRoots,
+} from "../security/path-policy.js";
 import { humanizeUserFacingError, isMissingCredentialError } from "../setup/pi-agent-dir.js";
 import { EventDispatcher, type SocketLike } from "./event-dispatcher.js";
 import { ensureCasualChatCwd } from "./casual-chat.js";
@@ -417,11 +423,28 @@ export class TaskService {
     };
   }
 
+  private cwdRoots(): string[] {
+    return userCwdRoots(this.config.homeDir, this.config.allowedRoots);
+  }
+
+  private adoptAllowedRoot(cwd: string): void {
+    const resolved = path.resolve(cwd);
+    if (this.config.allowedRoots.some((root) => isInsideRoot(resolved, path.resolve(root)))) {
+      return;
+    }
+    this.updateConfig({
+      ...this.config,
+      allowedRoots: [...this.config.allowedRoots, resolved],
+    });
+  }
+
   private async createTask(cwd?: string, title?: string, sessionPath?: string): Promise<{ task: TaskRecord }> {
     const casual = !cwd?.trim();
+    const roots = this.cwdRoots();
     const resolved = casual
       ? await ensureCasualChatCwd(this.config.homeDir, this.config.allowedRoots)
-      : await assertAllowedCwd(cwd!.trim(), this.config.allowedRoots);
+      : await assertAllowedCwd(cwd!.trim(), roots);
+    this.adoptAllowedRoot(resolved);
     const now = new Date().toISOString();
     const task: TaskRecord = {
       schemaVersion: 1,
@@ -1294,7 +1317,8 @@ export class TaskService {
     if (!workspace) {
       throw new Error("这个会话没有工作文件夹，请先选一个再恢复。");
     }
-    const resolvedCwd = await assertAllowedCwd(workspace, this.config.allowedRoots);
+    const resolvedCwd = await assertAllowedCwd(workspace, this.cwdRoots());
+    this.adoptAllowedRoot(resolvedCwd);
     return this.createTask(resolvedCwd, title || match?.name || match?.preview || "恢复的对话", resolvedSession);
   }
 
@@ -1542,7 +1566,8 @@ export class TaskService {
   }
 
   private async createWorkProject(name: string, cwd: string): Promise<{ project: ReturnType<WorkItemStore["listProjects"]>[number] }> {
-    const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+    const resolved = await assertAllowedCwd(cwd, this.cwdRoots());
+    this.adoptAllowedRoot(resolved);
     const project = await this.workItems.createProject({ name, cwd: resolved });
     this.emitWorkItems();
     return { project };
@@ -1565,7 +1590,8 @@ export class TaskService {
     let project = projectId ? this.workItems.getProject(projectId) : undefined;
     if (projectId && !project) throw new Error("找不到这个项目");
     if (!project && cwd) {
-      const resolved = await assertAllowedCwd(cwd, this.config.allowedRoots);
+      const resolved = await assertAllowedCwd(cwd, this.cwdRoots());
+      this.adoptAllowedRoot(resolved);
       project =
         this.workItems.findProjectByCwd(resolved) ??
         (await this.workItems.createProject({ name: path.basename(resolved) || resolved, cwd: resolved }));
@@ -1575,7 +1601,8 @@ export class TaskService {
       project = activeId ? this.workItems.getProject(activeId) : undefined;
     }
     if (!project) throw new Error("请先启动一个项目");
-    const resolved = await assertAllowedCwd(project.cwd, this.config.allowedRoots);
+    const resolved = await assertAllowedCwd(project.cwd, this.cwdRoots());
+    this.adoptAllowedRoot(resolved);
     const item = await this.workItems.create({
       title,
       description,

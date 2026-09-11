@@ -29,6 +29,19 @@ describe("portable config", () => {
     expect(config.allowedRoots).toEqual([home]);
   });
 
+  it("keeps home allowed after a workspace is chosen", () => {
+    const home = path.resolve(os.tmpdir(), "qingzhou-home-with-workspace");
+    const workspace = path.join(home, "Projects", "app");
+    const config = loadConfig({}, { homeDir: home, workspaceRoot: workspace });
+    expect(config.allowedRoots).toEqual([workspace, home]);
+  });
+
+  it("does not add home when ALLOWED_ROOTS is set", () => {
+    const home = path.resolve(os.tmpdir(), "qingzhou-home-jail");
+    const config = loadConfig({ QINGZHOU_ALLOWED_ROOTS: "/only-this" }, { homeDir: home, workspaceRoot: "/work" });
+    expect(config.allowedRoots).toEqual(["/only-this"]);
+  });
+
   it("keeps using a legacy ~/.mowen data dir when it already exists", async () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "qingzhou-mowen-"));
     const legacy = path.join(home, ".mowen");

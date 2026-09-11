@@ -8,13 +8,30 @@ import {
   isProtectedWriteTarget,
   PathPolicyError,
   resolveAllowedPath,
+  resolveExistingRoots,
   resolveReadableExportPath,
+  userCwdRoots,
 } from "../../apps/server/src/security/path-policy.ts";
 
 describe("path policy", () => {
   it("rejects cwd outside allowed roots", async () => {
     const allowed = await mkdtemp(path.join(os.tmpdir(), "qingzhou-allowed-"));
-    await expect(assertAllowedCwd("/tmp", [allowed])).rejects.toBeInstanceOf(PathPolicyError);
+    await expect(assertAllowedCwd("/tmp", [allowed])).rejects.toMatchObject({
+      name: "PathPolicyError",
+      message: "工作文件夹不在允许的范围内",
+    });
+  });
+
+  it("skips missing roots and still accepts a live one", async () => {
+    const allowed = await mkdtemp(path.join(os.tmpdir(), "qingzhou-allowed-"));
+    const missing = path.join(os.tmpdir(), `qingzhou-missing-${Date.now()}`);
+    await expect(assertAllowedCwd(allowed, [missing, allowed])).resolves.toBe(await realpath(allowed));
+    expect(await resolveExistingRoots([missing, allowed])).toEqual([await realpath(allowed)]);
+  });
+
+  it("includes home with workspace roots for user-picked folders", () => {
+    expect(userCwdRoots("/home/me", ["/work/app"])).toEqual(["/work/app", "/home/me"]);
+    expect(userCwdRoots("/work/app", ["/work/app"])).toEqual(["/work/app"]);
   });
 
   it("blocks .env writes", () => {

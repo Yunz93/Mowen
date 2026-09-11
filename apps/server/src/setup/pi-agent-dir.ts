@@ -199,10 +199,25 @@ export function humanizeFastModeError(error: unknown): string | null {
   return null;
 }
 
+export function humanizePathPolicyError(error: unknown): string | null {
+  const raw = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
+  if (/Working directory is outside allowed roots/i.test(raw) || /工作文件夹不在允许的范围内/.test(raw)) {
+    return "工作文件夹不在允许的范围内";
+  }
+  if (/Working directory does not exist:/i.test(raw)) {
+    return raw.replace(/^Working directory does not exist:/i, "工作文件夹不存在：");
+  }
+  if (/Path is outside allowed roots:/i.test(raw)) {
+    return raw.replace(/^Path is outside allowed roots:/i, "路径不在允许的范围内：");
+  }
+  return null;
+}
+
 export function humanizeUserFacingError(error: unknown): string {
   const text = extractErrorText(error) || (error instanceof Error ? error.message : String(error));
   return (
     humanizeFastModeError(error) ??
+    humanizePathPolicyError(error) ??
     humanizeAuthAccessError(error) ??
     humanizeNpmCacheAccessError(error) ??
     humanizeSearchToolDownloadError(text) ??

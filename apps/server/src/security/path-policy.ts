@@ -75,6 +75,33 @@ export function isInsideRoot(candidate: string, root: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+/** Roots the user can pick: configured workspaces plus $HOME (same as the folder browser). */
+export function userCwdRoots(homeDir: string, allowedRoots: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const root of [...allowedRoots, homeDir]) {
+    const trimmed = root.trim();
+    if (!trimmed) continue;
+    const resolved = path.resolve(trimmed);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    unique.push(resolved);
+  }
+  return unique;
+}
+
+export async function resolveExistingRoots(roots: string[]): Promise<string[]> {
+  const resolved: string[] = [];
+  for (const root of roots) {
+    try {
+      resolved.push(await realpath(root));
+    } catch {
+      // Stale settings / deleted folders should not fail every cwd check.
+    }
+  }
+  return resolved;
+}
+
 export function isProtectedWriteTarget(resolvedPath: string): boolean {
   const parts = resolvedPath.split(path.sep);
   const base = path.basename(resolvedPath);
@@ -103,9 +130,9 @@ export async function resolveAllowedPath(
     throw new PathPolicyError(`Path escapes working directory: ${inputPath}`);
   }
 
-  const realRoots = await Promise.all(allowedRoots.map((root) => realpath(root)));
+  const realRoots = await resolveExistingRoots(allowedRoots);
   if (!realRoots.some((root) => isInsideRoot(resolved, root))) {
-    throw new PathPolicyError(`Path is outside allowed roots: ${inputPath}`);
+    throw new PathPolicyError(`路径不在允许的范围内：${inputPath}`);
   }
 
   try {
@@ -131,18 +158,18 @@ export async function assertAllowedCwd(cwd: string, allowedRoots: string[]): Pro
   try {
     resolved = await realpath(cwd);
   } catch {
-    throw new PathPolicyError(`Working directory does not exist: ${cwd}`);
+    throw new PathPolicyError(`工作文件夹不存在：${cwd}`);
   }
   const stats = await lstat(cwd).catch(() => null);
   if (stats?.isSymbolicLink()) {
     const real = await realpath(cwd);
     if (real !== resolved) {
-      throw new PathPolicyError(`Working directory symlink is invalid: ${cwd}`);
+      throw new PathPolicyError(`工作文件夹的符号链接无效：${cwd}`);
     }
   }
-  const realRoots = await Promise.all(allowedRoots.map((root) => realpath(root)));
-  if (!realRoots.some((root) => isInsideRoot(resolved, root))) {
-    throw new PathPolicyError("Working directory is outside allowed roots");
+  const realRoots = await resolveExistingRoots(allowedRoots);
+  if (realRoots.length === 0 || !realRoots.some((root) => isInsideRoot(resolved, root))) {
+    throw new PathPolicyError("工作文件夹不在允许的范围内");
   }
   return resolved;
 }
