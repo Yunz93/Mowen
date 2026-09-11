@@ -1183,7 +1183,9 @@ html.dark {
     gap: 8px;
     width: fit-content;
     max-width: 100%;
-    padding: 6px 4px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: var(--color-fill);
     color: var(--color-mute);
     font-size: 12px;
     line-height: 1.45;
